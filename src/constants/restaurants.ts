@@ -442,4 +442,123 @@ export const restaurants: Restaurant[] = [
       }
     ],
   },
+  {
+  id: "10",
+  name: "Mediterranean Grill",
+  location: "45 Sunset Blvd, Los Angeles",
+  opening: "11:00 AM",
+  closing: "10:00 PM",
+  menu: [
+    { id: "1", name: "Chicken Shawarma", price: 11.99, description: "Grilled chicken wrap", category: "Wraps" },
+    { id: "2", name: "Falafel Plate", price: 9.99, description: "Crispy chickpea balls", category: "Main Courses" },
+    { id: "3", name: "Hummus & Pita", price: 6.99, description: "Creamy dip with bread", category: "Appetizers" },
+    { id: "4", name: "Greek Salad", price: 8.99, description: "Feta, olives, veggies", category: "Salads" },
+    { id: "5", name: "Lemonade", price: 3.99, description: "Fresh squeezed", category: "Drinks" },
+  ],
+  categories: [
+    { name: "Wraps", items: [
+      { id: "1", name: "Chicken Shawarma", price: 11.99, description: "Grilled chicken wrap", category: "Wraps" },
+    ]},
+    { name: "Main Courses", items: [
+      { id: "2", name: "Falafel Plate", price: 9.99, description: "Crispy chickpea balls", category: "Main Courses" },
+    ]},
+    { name: "Appetizers", items: [
+      { id: "3", name: "Hummus & Pita", price: 6.99, description: "Creamy dip with bread", category: "Appetizers" },
+    ]},
+    { name: "Salads", items: [
+      { id: "4", name: "Greek Salad", price: 8.99, description: "Feta, olives, veggies", category: "Salads" },
+    ]},
+    { name: "Drinks", items: [
+      { id: "5", name: "Lemonade", price: 3.99, description: "Fresh squeezed", category: "Drinks" },
+    ]},
+  ],
+},
+
+{
+  id: "11",
+  name: "Berlin Brat Haus",
+  location: "Alexanderplatz, Berlin",
+  opening: "10:00 AM",
+  closing: "11:00 PM",
+  menu: [
+    { id: "1", name: "Bratwurst", price: 9.99, description: "German sausage", category: "Main Courses" },
+    { id: "2", name: "Currywurst", price: 8.99, description: "Sausage with curry ketchup", category: "Main Courses" },
+    { id: "3", name: "Pretzel", price: 4.99, description: "Soft baked pretzel", category: "Sides" },
+    { id: "4", name: "Potato Salad", price: 5.99, description: "Classic German style", category: "Sides" },
+    { id: "5", name: "Beer", price: 6.99, description: "Local German brew", category: "Drinks" },
+  ],
+  categories: [
+    { name: "Main Courses", items: [
+      { id: "1", name: "Bratwurst", price: 9.99, description: "German sausage", category: "Main Courses" },
+      { id: "2", name: "Currywurst", price: 8.99, description: "Sausage with curry ketchup", category: "Main Courses" },
+    ]},
+    { name: "Sides", items: [
+      { id: "3", name: "Pretzel", price: 4.99, description: "Soft baked pretzel", category: "Sides" },
+      { id: "4", name: "Potato Salad", price: 5.99, description: "Classic German style", category: "Sides" },
+    ]},
+    { name: "Drinks", items: [
+      { id: "5", name: "Beer", price: 6.99, description: "Local German brew", category: "Drinks" },
+    ]},
+  ],
+},
+
+{
+  id: "12",
+  name: "Seoul Street Kitchen",
+  location: "Gangnam, Seoul",
+  opening: "12:00 PM",
+  closing: "11:30 PM",
+  menu: [
+    { id: "1", name: "Bibimbap", price: 10.99, description: "Rice with veggies and egg", category: "Main Courses" },
+    { id: "2", name: "Korean BBQ", price: 14.99, description: "Grilled marinated meat", category: "Main Courses" },
+    { id: "3", name: "Kimchi", price: 4.99, description: "Fermented cabbage", category: "Sides" },
+    { id: "4", name: "Tteokbokki", price: 7.99, description: "Spicy rice cakes", category: "Street Food" },
+    { id: "5", name: "Soju", price: 6.99, description: "Korean spirit", category: "Drinks" },
+  ],
+  categories: [
+    { name: "Main Courses", items: [
+      { id: "1", name: "Bibimbap", price: 10.99, description: "Rice with veggies and egg", category: "Main Courses" },
+      { id: "2", name: "Korean BBQ", price: 14.99, description: "Grilled marinated meat", category: "Main Courses" },
+    ]},
+    { name: "Sides", items: [
+      { id: "3", name: "Kimchi", price: 4.99, description: "Fermented cabbage", category: "Sides" },
+    ]},
+    { name: "Street Food", items: [
+      { id: "4", name: "Tteokbokki", price: 7.99, description: "Spicy rice cakes", category: "Street Food" },
+    ]},
+    { name: "Drinks", items: [
+      { id: "5", name: "Soju", price: 6.99, description: "Korean spirit", category: "Drinks" },
+    ]},
+  ],
+},
+
+{
+  id: "13",
+  name: "Sydney Seafood Co.",
+  location: "Darling Harbour, Sydney",
+  opening: "11:00 AM",
+  closing: "10:30 PM",
+  menu: [
+    { id: "1", name: "Grilled Salmon", price: 16.99, description: "Fresh Atlantic salmon", category: "Seafood" },
+    { id: "2", name: "Fish & Chips", price: 12.99, description: "Classic battered fish", category: "Seafood" },
+    { id: "3", name: "Prawn Cocktail", price: 10.99, description: "Chilled prawns", category: "Appetizers" },
+    { id: "4", name: "Caesar Salad", price: 8.99, description: "Crisp lettuce with dressing", category: "Salads" },
+    { id: "5", name: "White Wine", price: 7.99, description: "Australian wine", category: "Drinks" },
+  ],
+  categories: [
+    { name: "Seafood", items: [
+      { id: "1", name: "Grilled Salmon", price: 16.99, description: "Fresh Atlantic salmon", category: "Seafood" },
+      { id: "2", name: "Fish & Chips", price: 12.99, description: "Classic battered fish", category: "Seafood" },
+    ]},
+    { name: "Appetizers", items: [
+      { id: "3", name: "Prawn Cocktail", price: 10.99, description: "Chilled prawns", category: "Appetizers" },
+    ]},
+    { name: "Salads", items: [
+      { id: "4", name: "Caesar Salad", price: 8.99, description: "Crisp lettuce with dressing", category: "Salads" },
+    ]},
+    { name: "Drinks", items: [
+      { id: "5", name: "White Wine", price: 7.99, description: "Australian wine", category: "Drinks" },
+    ]},
+  ],
+},
 ];
