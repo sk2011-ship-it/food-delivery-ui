@@ -7,9 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Checkbox from "../../../components/ui/checkbox";
-import { users } from "@/constants/users";
 import { Eye, EyeOff } from "lucide-react";
-
+import { authService } from "@/services/api";
+import { toast } from "sonner";
 export default function AccountRegisterPage() {
     const router = useRouter();
     const [form, setForm] = useState({
@@ -24,6 +24,7 @@ export default function AccountRegisterPage() {
         smsOpt: false,
         prefEmail: false,
         prefText: false,
+        role: "customer" as "customer" | "owner" | "admin",
     });
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
@@ -38,30 +39,42 @@ export default function AccountRegisterPage() {
         }));
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
 
         if (form.password !== form.confirm) {
-            setError("Passwords do not match");
+            toast.error("Passwords do not match ❌");
             return;
         }
 
-        // add user to in-memory list so login will work
-        if (!users.find((u) => u.email === form.email)) {
-            users.push({ email: form.email, password: form.password });
+        try {
+            await authService.signUp(
+                form.email,
+                form.password,
+                form.confirm,
+                form.role,
+                form.forename,
+                form.surname,
+                form.mobile,
+                form.postcode
+            );
+
+            toast.success("Account created successfully");
+
+            setTimeout(() => {
+                router.push("/account/login");
+            }, 1500);
+
+        } catch (err: unknown) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "An error occurred during signup";
+
+            toast.error(message);
         }
-
-        // save complete form data including password
-        localStorage.setItem("profile", JSON.stringify(form));
-
-        setSuccess(true);
-
-        setTimeout(() => {
-            router.push("/account/login");
-        }, 1500);
     };
-
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
             <Card className="w-full max-w-lg">
@@ -71,9 +84,6 @@ export default function AccountRegisterPage() {
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        {error && <p className="text-red-600 text-sm">{error}</p>}
-                        {success && <p className="text-green-600 text-sm">Account created!</p>}
-
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                             <Input
@@ -140,26 +150,30 @@ export default function AccountRegisterPage() {
                         </div>
 
                         <fieldset className="space-y-2">
-                            <legend className="text-sm font-medium text-gray-700">Preferred communication</legend>
-                            <div className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="prefEmail"
-                                    checked={form.prefEmail}
-                                    onChange={() => setForm((p) => ({ ...p, prefEmail: true, prefText: false }))}
-                                    className="h-4 w-4 text-orange-600 border-gray-300"
-                                />
-                                <label className="ml-2 text-sm text-gray-600">Preferred communication by email</label>
-                            </div>
-                            <div className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="prefText"
-                                    checked={form.prefText}
-                                    onChange={() => setForm((p) => ({ ...p, prefText: true, prefEmail: false }))}
-                                    className="h-4 w-4 text-orange-600 border-gray-300"
-                                />
-                                <label className="ml-2 text-sm text-gray-600">Preferred communication by text message</label>
+                            <legend className="text-sm font-medium text-gray-700">I want to register as a:</legend>
+                            <div className="flex items-center gap-4">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="role"
+                                        value="customer"
+                                        checked={form.role === "customer"}
+                                        onChange={() => setForm(p => ({ ...p, role: "customer" }))}
+                                        className="h-4 w-4 text-orange-600 border-gray-300"
+                                    />
+                                    <span className="text-sm text-gray-600">Customer</span>
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="role"
+                                        value="owner"
+                                        checked={form.role === "owner"}
+                                        onChange={() => setForm(p => ({ ...p, role: "owner" }))}
+                                        className="h-4 w-4 text-orange-600 border-gray-300"
+                                    />
+                                    <span className="text-sm text-gray-600">Restaurant Owner</span>
+                                </label>
                             </div>
                         </fieldset>
 

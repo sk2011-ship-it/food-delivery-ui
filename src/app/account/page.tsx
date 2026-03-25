@@ -8,25 +8,16 @@ import { Input } from "@/components/ui/input";
 import Checkbox from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ShoppingBag, Lock, User, LogOut, AlertCircle } from "lucide-react";
-
+import { useAuth } from "@/components/AuthContext";
+import { authService } from "@/services/api";
+import { toast } from "sonner";
 export default function AccountPage() {
   const router = useRouter();
-  const [user, setUser] = useState<{ email: string } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  interface Profile {
-    forename: string;
-    surname: string;
-    mobile: string;
-    postcode: string;
-    emailOpt: boolean;
-    smsOpt: boolean;
-    prefEmail: boolean;
-    prefText: boolean;
-  }
+  const { user, role, userDetails, loading: authLoading, refreshUser } = useAuth();
 
-  const [profile, setProfile] = useState<Profile>({
-    forename: "",
-    surname: "",
+  const [profile, setProfile] = useState({
+    first_name: "",
+    last_name: "",
     mobile: "",
     postcode: "",
     emailOpt: false,
@@ -35,36 +26,57 @@ export default function AccountPage() {
     prefText: false,
   });
 
+  const [saving, setSaving] = useState(false);
+
   useEffect(() => {
-    const storedUser = localStorage.getItem("user") || sessionStorage.getItem("user");
-    if (!storedUser) {
-      router.push("/login");
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setUser(JSON.parse(storedUser));
-      // load profile if exists
-      const storedProfile = localStorage.getItem("profile");
-      if (storedProfile) {
-        try {
-          setProfile(JSON.parse(storedProfile));
-        } catch {}
-      }
-      setIsLoading(false);
+    if (!authLoading && !user) {
+      router.push("/account/login");
+      return;
     }
-  }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    sessionStorage.removeItem("user");
-    router.push("/");
+    if (userDetails) {
+      setProfile((prev) => ({
+        ...prev,
+        first_name: userDetails.first_name || "",
+        last_name: userDetails.last_name || "",
+        mobile: userDetails.mobile || "",
+        postcode: userDetails.postcode || "",
+      }));
+    }
+  }, [user, userDetails, authLoading, router]);
+
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      await refreshUser();
+
+      toast.success("Logged out successfully");
+
+      router.push("/");
+    } catch (err) {
+      toast.error("Logout failed ❌");
+    }
   };
 
-  const handleSaveDetails = () => {
-    localStorage.setItem("profile", JSON.stringify(profile));
-    alert("Profile saved!");
+  const handleSaveDetails = async () => {
+    setSaving(true);
+    try {
+      await authService.updateProfile({
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        mobile: profile.mobile,
+        postcode: profile.postcode,
+      });
+      await refreshUser();
+      toast.success("Profile updated successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Something went wrong");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -99,51 +111,63 @@ export default function AccountPage() {
                   <p className="font-medium text-gray-900">{user.email}</p>
                   <p className="text-sm text-gray-500">Active Member</p>
                 </div>
-                <Button
-                  variant="destructive"
-                  className="flex items-center justify-center gap-2 mx-auto px-4 py-2 text-sm cursor-pointer"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="w-4 h-4" />
-                  Logout
-                </Button>
+                <div className="flex flex-col gap-3">
+                  {(role === 'owner' || role === 'admin') && (
+                    <Button
+                      className="bg-orange-600 hover:bg-orange-700 flex items-center justify-center gap-2 px-4 py-2 text-sm cursor-pointer"
+                      onClick={() => router.push(role === 'admin' ? '/admin' : '/restaurant')}
+                    >
+                      Go to {role === 'admin' ? 'Admin Panel' : 'Restaurant Dashboard'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="destructive"
+                    className="flex items-center justify-center gap-2 px-4 py-2 text-sm cursor-pointer"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Main Content */}
           <div className="md:col-span-2">
-            <Tabs defaultValue="orders" className="space-y-6 ">
-              <TabsList className="grid w-full grid-cols-3 ">
-                <TabsTrigger value="orders" className="cursor-pointer">My Orders</TabsTrigger>
+            <Tabs defaultValue={role === 'customer' ? "orders" : "details"} className="space-y-6 ">
+              <TabsList className={`grid w-full ${role === 'customer' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {role === 'customer' && <TabsTrigger value="orders" className="cursor-pointer">My Orders</TabsTrigger>}
                 <TabsTrigger value="details" className="cursor-pointer">Details</TabsTrigger>
                 <TabsTrigger value="password" className="cursor-pointer">Password</TabsTrigger>
               </TabsList>
 
               {/* My Orders Tab */}
-              <TabsContent value="orders" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <ShoppingBag className="w-5 h-5 text-orange-600" />
-                      My Orders
-                    </CardTitle>
-                    <CardDescription>Your order history and status</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-12">
-                      <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                      <p className="text-gray-500 mb-4">No orders yet</p>
-                      <Button
-                        onClick={() => router.push("/restaurants")}
-                        className="bg-orange-600 hover:bg-orange-700 cursor-pointer"
-                      >
-                        Start Ordering
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+              {role === 'customer' && (
+                <TabsContent value="orders" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <ShoppingBag className="w-5 h-5 text-orange-600" />
+                        My Orders
+                      </CardTitle>
+                      <CardDescription>Your order history and status</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-12">
+                        <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                        <p className="text-gray-500 mb-4">No orders yet</p>
+                        <Button
+                          onClick={() => router.push("/restaurants")}
+                          className="bg-orange-600 hover:bg-orange-700 cursor-pointer"
+                        >
+                          Start Ordering
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              )}
 
               {/* Details Tab */}
               <TabsContent value="details" className="space-y-4">
@@ -169,8 +193,8 @@ export default function AccountPage() {
                           Forename
                         </label>
                         <Input
-                          value={profile.forename}
-                          onChange={(e) => setProfile((p) => ({ ...p, forename: e.target.value }))}
+                          value={profile.first_name}
+                          onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
                           placeholder="Enter your forename"
                         />
                       </div>
@@ -179,8 +203,8 @@ export default function AccountPage() {
                           Surname
                         </label>
                         <Input
-                          value={profile.surname}
-                          onChange={(e) => setProfile((p) => ({ ...p, surname: e.target.value }))}
+                          value={profile.last_name}
+                          onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
                           placeholder="Enter your surname"
                         />
                       </div>
@@ -272,8 +296,9 @@ export default function AccountPage() {
                       onClick={handleSaveDetails}
                       size="sm"
                       className="bg-orange-600 hover:bg-orange-700 cursor-pointer"
+                      disabled={saving}
                     >
-                      Save Changes
+                      {saving ? "Saving..." : "Save Changes"}
                     </Button>
                   </CardContent>
                 </Card>

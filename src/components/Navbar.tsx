@@ -5,44 +5,21 @@ import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { UtensilsCrossed } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/components/AuthContext";
 
 export function Navbar() {
   const pathname = usePathname();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { user, role, loading } = useAuth();
   const [mounted, setMounted] = useState(false);
-
-  const checkLogin = () => {
-    const user = localStorage.getItem("user") || sessionStorage.getItem("user");
-    setIsLoggedIn(!!user);
-  };
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    checkLogin();
   }, []);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    checkLogin();
-    window.addEventListener("storage", checkLogin);
-    // Check login state when visibility changes (tab comes into focus)
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        checkLogin();
-      }
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      window.removeEventListener("storage", checkLogin);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
+  if (!mounted || loading) return null;
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    checkLogin();
-  }, [pathname]);
+  const isLoggedIn = !!user;
 
   if (!mounted) return null;
 
@@ -58,9 +35,19 @@ export function Navbar() {
           <Link href="/" className="text-gray-600 hover:text-gray-900 transition">
             Home
           </Link>
-          {!isLoggedIn && (
+          {(role === 'customer' || !isLoggedIn) && (
             <Link href="/restaurants" className="text-gray-600 hover:text-gray-900 transition">
               Order
+            </Link>
+          )}
+          {role === 'owner' && (
+            <Link href="/restaurant" className="text-gray-600 hover:text-gray-900 transition font-medium">
+              Restaurant Dashboard
+            </Link>
+          )}
+          {role === 'admin' && (
+            <Link href="/admin" className="text-gray-600 hover:text-gray-900 transition font-medium">
+              Admin Panel
             </Link>
           )}
           <Link href="/offers" className="text-gray-600 hover:text-gray-900 transition">

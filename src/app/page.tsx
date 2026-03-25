@@ -5,9 +5,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UtensilsCrossed, Zap, MapPin, Clock } from "lucide-react";
+import { useAuth } from "@/components/AuthContext";
 
 export default function Home() {
   const [location, setLocation] = useState("");
+  const { user, role } = useAuth();
+
+  const showOrderSection = !user || role === 'customer';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white">
@@ -19,28 +23,42 @@ export default function Home() {
           </div>
 
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900">
-            Hungry?
-            <span className="text-orange-600"> Order Now</span>
+            {showOrderSection ? "Hungry?" : "Welcome back"}
+            {showOrderSection && <span className="text-orange-600"> Order Now</span>}
           </h1>
 
           <p className="text-xl text-gray-600 max-w-2xl">
-            Fresh, delicious food from your favorite restaurants delivered straight to your door.
+            {showOrderSection 
+              ? "Fresh, delicious food from your favorite restaurants delivered straight to your door."
+              : "Access your dashboard and manage your business platform efficiently."}
           </p>
 
-          <div className="w-full max-w-md">
-            <Input
-              placeholder="Enter your location (e.g., Newcastle)"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="text-center"
-            />
-          </div>
+          {showOrderSection && (
+            <>
+              <div className="w-full max-w-md">
+                <Input
+                  placeholder="Enter your location (e.g., Newcastle)"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="text-center"
+                />
+              </div>
 
-          <Link href={`/restaurants${location ? `?location=${encodeURIComponent(location)}` : ''}`}>
-            <Button size="lg" className="bg-orange-600 hover:bg-orange-700 px-10 py-6 text-lg">
-              Order Food
-            </Button>
-          </Link>
+              <Link href={`/restaurants${location ? `?location=${encodeURIComponent(location)}` : ''}`}>
+                <Button size="lg" className="bg-orange-600 hover:bg-orange-700 px-10 py-6 text-lg">
+                  Order Food
+                </Button>
+              </Link>
+            </>
+          )}
+
+          {!showOrderSection && (
+             <Link href={role === 'admin' ? '/admin' : '/restaurant'}>
+                <Button size="lg" className="bg-orange-600 hover:bg-orange-700 px-10 py-6 text-lg">
+                  Go to Dashboard
+                </Button>
+             </Link>
+          )}
         </div>
 
         {/* Features Grid */}
