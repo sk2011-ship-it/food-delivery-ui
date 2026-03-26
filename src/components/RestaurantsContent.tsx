@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { restaurants } from "@/constants/restaurants";
+import { isOpenNow, estimateRating } from "@/lib/business-logic";
+import { RestaurantWithStatus, SortOption, FilterOption, RestaurantWithStats } from "@/types/restaurant";
 import {
   Clock,
   MapPin,
@@ -19,52 +21,6 @@ import {
   HeartOff,
   DollarSign,
 } from "lucide-react";
-
-type SortOption = "name" | "price" | "items" | "rating";
-type FilterOption = "all" | string;
-
-function parseTimeToMinutes(time: string) {
-  const matches = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (!matches) return 0;
-
-  let hours = Number(matches[1]);
-  const minutes = Number(matches[2]);
-  const period = matches[3].toUpperCase();
-
-  if (hours === 12) hours = 0;
-  if (period === "PM") hours += 12;
-
-  return hours * 60 + minutes;
-}
-
-function isOpenNow(opening: string, closing: string, nowMinutes: number) {
-  const open = parseTimeToMinutes(opening);
-  const close = parseTimeToMinutes(closing);
-
-  if (open === close) {
-    return true;
-  }
-
-  if (open < close) {
-    return nowMinutes >= open && nowMinutes <= close;
-  }
-
-  // Handles places that close after midnight (e.g., 10:00 PM - 2:00 AM)
-  return nowMinutes >= open || nowMinutes <= close;
-}
-
-function estimateRating(seed: string) {
-  let hash = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    hash = (hash << 5) - hash + seed.charCodeAt(i);
-    hash |= 0;
-  }
-
-  const min = 3.2;
-  const max = 4.9;
-  const normalized = ((hash % 100) + 100) % 100 / 100;
-  return Math.round((min + (max - min) * normalized) * 10) / 10;
-}
 
 function renderStars(rating: number) {
   const icons = [];
@@ -159,37 +115,31 @@ export default function RestaurantsContent() {
 
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
-  type RestaurantWithStatus = (typeof restaurantsWithStats)[number] & {
-    isOpen: boolean;
-    isFavorite: boolean;
-  };
-
-  const filteredAndSortedRestaurants = useMemo(() => {
-    let filtered: RestaurantWithStatus[] = location
-      ? (restaurantsWithStats.filter((r) =>
-          r.location.toLowerCase().includes(location.toLowerCase())
-        ) as RestaurantWithStatus[])
-      : (restaurantsWithStats as RestaurantWithStatus[]);
-
-    const withStatus = filtered.map((r) => ({
+  const filteredAndSortedRestaurants = useMemo((): RestaurantWithStatus[] => {
+    const withStatus: RestaurantWithStatus[] = restaurantsWithStats.map((r) => ({
       ...r,
       isOpen: isOpenNow(r.opening, r.closing, nowMinutes),
       isFavorite: favorites.includes(r.id),
     }));
 
+    let filtered = location
+      ? withStatus.filter((r) =>
+          r.location.toLowerCase().includes(location.toLowerCase())
+        )
+      : withStatus;
+
     // Search filter
     if (searchTerm) {
-      filtered = withStatus.filter((r) =>
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.cuisines.some((cuisine) => cuisine.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter((r) =>
+        r.name.toLowerCase().includes(searchLower) ||
+        r.cuisines.some((cuisine) => cuisine.toLowerCase().includes(searchLower)) ||
         r.menu.some(
           (item) =>
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+            item.name.toLowerCase().includes(searchLower) ||
+            item.description?.toLowerCase().includes(searchLower)
         )
       );
-    } else {
-      filtered = withStatus;
     }
 
     // Open now filter
@@ -219,7 +169,7 @@ export default function RestaurantsContent() {
     }
 
     // Sorting
-    filtered.sort((a, b) => {
+    const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
         case "name":
           return a.name.localeCompare(b.name);
@@ -234,7 +184,7 @@ export default function RestaurantsContent() {
       }
     });
 
-    return filtered;
+    return sorted;
   }, [
     location,
     searchTerm,
