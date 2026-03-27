@@ -11,6 +11,7 @@ import { Clock, MapPin, Search, ShoppingCart, ArrowLeft, Loader2, ChevronRight }
 import React from "react";
 import { restaurantService } from "@/services/api";
 import { RestaurantWithMenu, MenuItem } from "@/types/restaurant";
+import { toast } from "sonner";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -20,7 +21,6 @@ export default function RestaurantPage({ params }: PageProps) {
   const { id } = React.use(params);
   const [restaurant, setRestaurant] = useState<RestaurantWithMenu | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [cartItems, setCartItems] = useState<Record<string, number>>({});
 
@@ -31,7 +31,7 @@ export default function RestaurantPage({ params }: PageProps) {
         const data = await restaurantService.getPublicRestaurantById(id);
         setRestaurant(data);
       } catch (err: any) {
-        setError(err.message || "Failed to load restaurant");
+        toast.error(err.message || "Failed to load restaurant");
       } finally {
         setLoading(false);
       }
@@ -64,10 +64,10 @@ export default function RestaurantPage({ params }: PageProps) {
     </div>
   );
 
-  if (error || !restaurant) return (
+  if (!restaurant) return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc]">
       <Card className="max-w-md w-full p-8 text-center rounded-[2.5rem] border-none shadow-2xl">
-        <h1 className="text-3xl font-black text-slate-900 mb-4">{error || "Restaurant not found"}</h1>
+        <h1 className="text-3xl font-black text-slate-900 mb-4">Restaurant not found</h1>
         <Link href="/restaurants">
           <Button className="bg-orange-600 hover:bg-orange-700 rounded-2xl h-14 px-8 font-black">
             Back to Restaurants

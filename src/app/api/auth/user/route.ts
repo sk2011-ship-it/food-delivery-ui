@@ -10,17 +10,26 @@ export async function GET() {
         return NextResponse.json({ user: null, role: null, details: null })
     }
 
-    const { data: roleData } = await supabase
+    let { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
+
+    if (!roleData) {
+        const { data: fallback } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .maybeSingle()
+        roleData = fallback
+    }
 
     const { data: detailsData } = await supabase
         .from('user_details')
         .select('*')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
     return NextResponse.json({
         user,

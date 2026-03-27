@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import { restaurantService } from "@/services/api";
-import { RestaurantWithMenu, MenuItem, MenuCategory } from "@/types/restaurant";
+import { RestaurantWithMenu, MenuItem, MenuCategory, Restaurant, RestaurantLocation } from "@/types/restaurant";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,13 +18,12 @@ import {
   MapPin,
   Clock,
   Loader2,
-  AlertCircle,
-  CheckCircle2,
   ArrowLeft,
   ChevronRight,
   Save,
   Info
 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 import React from "react";
 
@@ -34,7 +33,7 @@ interface PageProps {
 
 interface RestaurantFormState {
   name: string;
-  location: string;
+  location: RestaurantLocation;
   phone: string;
   email: string;
   opening_time: string;
@@ -46,8 +45,6 @@ export default function OwnerManageRestaurantPage({ params }: PageProps) {
   const { user, role } = useAuth();
   const [restaurant, setRestaurant] = useState<RestaurantWithMenu | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Form State
@@ -74,7 +71,7 @@ export default function OwnerManageRestaurantPage({ params }: PageProps) {
         closing_time: data.closing_time || "22:00"
       });
     } catch (err: any) {
-      setError(err.message || "Failed to fetch restaurant");
+      toast.error(err.message || "Failed to fetch restaurant");
     } finally {
       setLoading(false);
     }
@@ -87,15 +84,12 @@ export default function OwnerManageRestaurantPage({ params }: PageProps) {
   const handleUpdateRestaurant = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    setError(null);
-    setSuccess(null);
     try {
-      await restaurantService.updateRestaurantByOwner(id, editRes as any);
-      setSuccess("Restaurant settings updated successfully!");
-      setTimeout(() => setSuccess(null), 3000);
+      await restaurantService.updateRestaurantByOwner(id, editRes as Partial<Restaurant>);
+      toast.success("Restaurant settings updated successfully!");
       fetchData();
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message);
     } finally {
       setIsUpdating(false);
     }
@@ -103,17 +97,14 @@ export default function OwnerManageRestaurantPage({ params }: PageProps) {
 
   const handleUpdateItem = async (itemId: string, price: number, isAvailable: boolean) => {
     console.log("Updating item:", { itemId, price, isAvailable });
-    setError(null);
-    setSuccess(null);
     try {
-      const result = await restaurantService.updateMenuItemByOwner(itemId, { price, is_available: isAvailable });
+      const result = await restaurantService.updateMenuItemByOwner(itemId, id, { price, is_available: isAvailable });
       console.log("Update result:", result);
-      setSuccess("Item updated successfully!");
-      setTimeout(() => setSuccess(null), 2000);
+      toast.success("Item updated successfully!");
       fetchData();
     } catch (err: any) {
       console.error("Update error:", err);
-      setError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -126,14 +117,14 @@ export default function OwnerManageRestaurantPage({ params }: PageProps) {
     </div>
   );
 
-  if (error || !restaurant) return (
+  if (!restaurant) return (
     <div className="min-h-screen flex items-center justify-center bg-[#f8fafc] p-8">
       <Card className="max-w-md w-full rounded-[2.5rem] border-none shadow-2xl p-8 text-center space-y-6">
         <div className="w-20 h-20 bg-rose-100 rounded-3xl flex items-center justify-center mx-auto text-rose-500">
-          <AlertCircle className="w-10 h-10" />
+          <Info className="w-10 h-10" />
         </div>
         <div>
-          <h2 className="text-2xl font-black text-slate-900">{error || "Restaurant Not Found"}</h2>
+          <h2 className="text-2xl font-black text-slate-900">Restaurant Not Found</h2>
           <p className="text-slate-500 mt-2">The system could not retrieve the requested data.</p>
         </div>
         <Link href="/account" className="block">
@@ -201,15 +192,6 @@ export default function OwnerManageRestaurantPage({ params }: PageProps) {
       </div>
 
       <div className="max-w-7xl mx-auto px-8 -mt-16 relative z-20 space-y-8">
-        {/* Status Alerts */}
-        {(error || success) && (
-          <div className={`p-6 rounded-[2rem] border-none shadow-2xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 ${error ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-            <div className={`p-3 rounded-2xl ${error ? 'bg-rose-100' : 'bg-emerald-100'}`}>
-              {error ? <AlertCircle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
-            </div>
-            <p className="font-black text-lg">{error || success}</p>
-          </div>
-        )}
 
         <div className="grid lg:grid-cols-12 gap-8">
           {/* Main Settings Panel */}

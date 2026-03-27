@@ -66,11 +66,20 @@ export async function middleware(request: NextRequest) {
 
   if (user) {
     // Role fetching
-    const { data: roleData } = await supabase
+    let { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
+
+    if (!roleData) {
+      const { data: fallback } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      roleData = fallback
+    }
 
     const role = roleData?.role
 

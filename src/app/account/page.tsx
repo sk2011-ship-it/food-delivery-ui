@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Checkbox from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag, Lock, User, LogOut, AlertCircle } from "lucide-react";
+import { ShoppingBag, Lock, User, LogOut } from "lucide-react";
 import { useAuth } from "@/components/AuthContext";
 import { authService } from "@/services/api";
 import { toast } from "sonner";

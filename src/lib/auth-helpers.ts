@@ -6,11 +6,21 @@ export async function checkAdmin() {
 
     if (!user) return { user: null, role: null, error: 'Unauthorized', status: 401 }
 
-    const { data: roleData } = await supabase
+    let { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('id', user.id)
-        .single()
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+    if (!roleData && !roleError) {
+        // Fallback to old 'id' column
+        const fallback = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+        roleData = fallback.data
+    }
 
     if (roleData?.role !== 'admin') {
         return { user, role: roleData?.role, error: 'Forbidden: Admin access required', status: 403 }
@@ -25,11 +35,21 @@ export async function checkOwner(restaurantId?: string) {
 
     if (!user) return { user: null, role: null, error: 'Unauthorized', status: 401 }
 
-    const { data: roleData } = await supabase
+    let { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
-        .eq('id', user.id)
-        .single()
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+    if (!roleData && !roleError) {
+        // Fallback to old 'id' column
+        const fallback = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('id', user.id)
+            .maybeSingle()
+        roleData = fallback.data
+    }
 
     if (roleData?.role !== 'owner' && roleData?.role !== 'admin') {
         return { user, role: roleData?.role, error: 'Forbidden: Owner access required', status: 403 }

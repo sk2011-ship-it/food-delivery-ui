@@ -12,7 +12,7 @@ export async function GET() {
     // 1. Get all roles
     const { data: roles, error: rError } = await supabase
       .from('user_roles')
-      .select('id, role')
+      .select('id, user_id, role')
 
     if (rError) throw rError
 
@@ -27,10 +27,10 @@ export async function GET() {
     // but we can join with what we have if the table exists or just return details)
     // For now we rely on user_details having email if stored there, or just the ID/Name.
     // Usually auth.users is not accessible via standard client.
-    
+
     const users = details.map(d => ({
       ...d,
-      role: roles.find(r => r.id === d.id)?.role || 'customer'
+      role: roles.find(r => r.user_id === d.id || r.id === d.id)?.role || 'customer'
     }))
 
     return NextResponse.json({ users })
@@ -54,10 +54,11 @@ export async function PATCH(request: Request) {
 
     // 1. Update Role if provided
     if (role) {
+      // Upsert using both fields for maximum compatibility
       const { error: rError } = await supabase
         .from('user_roles')
-        .upsert({ id, role })
-      
+        .upsert({ id, user_id: id, role })
+
       if (rError) throw rError
     }
 
@@ -67,7 +68,7 @@ export async function PATCH(request: Request) {
         .from('user_details')
         .update(details)
         .eq('id', id)
-      
+
       if (dError) throw dError
     }
 

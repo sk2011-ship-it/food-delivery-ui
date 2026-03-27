@@ -72,7 +72,7 @@ export default function RestaurantsContent() {
         </div>
         
         <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-          {["all", "Newcastle", "London", "New York"].map((loc) => (
+          {["all", "Newcastle", "Downpatrick", "Kilkeel"].map((loc) => (
             <button
               key={loc}
               onClick={() => setSelectedLocation(loc)}

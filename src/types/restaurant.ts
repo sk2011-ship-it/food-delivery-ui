@@ -1,4 +1,5 @@
-export type RestaurantLocation = "Newcastle" | "London" | "New York";
+export type RestaurantLocation = "Newcastle" | "Downpatrick" | "Kilkeel";
+
 
 export interface MenuItem {
   id: string;

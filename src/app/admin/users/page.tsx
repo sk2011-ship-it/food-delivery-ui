@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import { restaurantService } from "@/services/api";
+import { AdminUser } from "@/types/auth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,19 +14,16 @@ import {
   Store, 
   User as UserIcon,
   Loader2,
-  AlertCircle,
-  CheckCircle2,
   ArrowLeft,
   Filter
 } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 
 export default function AdminUsersPage() {
   const { role } = useAuth();
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
 
@@ -35,7 +33,7 @@ export default function AdminUsersPage() {
       const data = await restaurantService.getUsers();
       setUsers(data);
     } catch (err: any) {
-      setError(err.message || "Failed to fetch users");
+      toast.error(err.message || "Failed to fetch users");
     } finally {
       setLoading(false);
     }
@@ -47,14 +45,11 @@ export default function AdminUsersPage() {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      setSuccess(null);
-      setError(null);
       await restaurantService.updateUserRole(userId, newRole);
-      setSuccess(`User role updated to ${newRole}`);
+      toast.success(`User role updated to ${newRole}`);
       fetchData();
-      setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message);
     }
   };
 
@@ -95,13 +90,6 @@ export default function AdminUsersPage() {
           </Button>
         </div>
 
-        {/* Alerts */}
-        {(error || success) && (
-          <div className={`p-6 rounded-3xl border-none shadow-xl flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 ${error ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-            {error ? <AlertCircle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
-            <p className="font-black text-lg">{error || success}</p>
-          </div>
-        )}
 
         <Card className="rounded-[2.5rem] border-none shadow-2xl bg-white overflow-hidden">
           <div className="p-8 border-b border-slate-50 bg-slate-50/30">
@@ -188,7 +176,7 @@ export default function AdminUsersPage() {
                              <select 
                                onChange={(e) => handleRoleChange(u.id, e.target.value)}
                                className="bg-slate-100 border-none rounded-xl text-xs font-black uppercase tracking-tight py-2 px-3 focus:ring-2 focus:ring-blue-500/20 text-slate-600"
-                               value={u.role}
+                               value={u.role || ""}
                              >
                                <option value="customer">Make Customer</option>
                                <option value="owner">Promote to Owner</option>

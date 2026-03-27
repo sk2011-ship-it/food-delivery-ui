@@ -1,6 +1,40 @@
 import { checkOwner } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 
+export async function GET() {
+  const auth = await checkOwner()
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  try {
+    const { data: ownerRestaurants } = await auth.supabase!
+      .from('restaurants')
+      .select('id')
+      .eq('owner_id', auth.user!.id)
+      
+    const restaurantIds = ownerRestaurants?.map(r => r.id) || []
+
+    let menuItems: any[] = []
+    
+    if (restaurantIds.length > 0) {
+      const { data, error } = await auth.supabase!
+        .from('menu_items')
+        .select('*')
+        .in('restaurant_id', restaurantIds)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      menuItems = data || []
+    }
+
+    return NextResponse.json({ menuItems })
+  } catch (err: unknown) {
+    console.error("Raw Database Error in GET /api/owner/menu-items:", err)
+    const error = err instanceof Error ? err.message : "An unexpected error occurred"
+    console.error("API Error in GET /api/owner/menu-items:", error)
+    return NextResponse.json({ error }, { status: 500 })
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()

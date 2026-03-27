@@ -26,8 +26,6 @@ export default function AccountRegisterPage() {
         prefText: false,
         role: "customer" as "customer" | "owner" | "admin",
     });
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
 
@@ -41,7 +39,6 @@ export default function AccountRegisterPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError("");
 
         if (form.password !== form.confirm) {
             toast.error("Passwords do not match ❌");

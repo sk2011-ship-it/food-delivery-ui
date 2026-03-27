@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthContext";
 import { restaurantService } from "@/services/api";
-import { Restaurant, MenuCategory, MenuItem, Owner, RestaurantLocation } from "@/types/restaurant";
+import { Restaurant, MenuCategory, MenuItem, MenuItemCreate, Owner, RestaurantLocation } from "@/types/restaurant";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,9 +16,10 @@ import {
   UtensilsCrossed, 
   MapPin, 
   Loader2,
-  AlertCircle,
-  CheckCircle2
+  Pencil,
+  Plus
 } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AdminRestaurantsPage() {
   const { role } = useAuth();
@@ -27,8 +28,6 @@ export default function AdminRestaurantsPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
   // Form States
   const [newRestaurant, setNewRestaurant] = useState<Partial<Restaurant>>({
@@ -38,6 +37,7 @@ export default function AdminRestaurantsPage() {
     email: "",
     owner_id: ""
   });
+  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
   const [newCategory, setNewCategory] = useState({ name: "", restaurant_id: "" });
   const [newMenuItem, setNewMenuItem] = useState<Partial<MenuItem>>({
     name: "",
@@ -51,17 +51,17 @@ export default function AdminRestaurantsPage() {
     try {
       setLoading(true);
       const [rData, cData, mData, oData] = await Promise.all([
-        restaurantService.getPublicRestaurants().catch(() => []),
-        restaurantService.getCategories().catch(() => []),
-        restaurantService.getMenuItems().catch(() => []),
-        restaurantService.getOwners().catch(() => [])
+        restaurantService.getAdminRestaurants(),
+        restaurantService.getAdminCategories(),
+        restaurantService.getAdminMenuItems(),
+        restaurantService.getOwners()
       ]);
       setRestaurants(rData as Restaurant[]);
       setCategories(cData as MenuCategory[]);
       setMenuItems(mData as MenuItem[]);
       setOwners(oData as Owner[]);
     } catch (err: any) {
-      setError(err.message || "Failed to fetch data");
+      toast.error(err.message || "Failed to fetch data");
     } finally {
       setLoading(false);
     }
@@ -73,59 +73,87 @@ export default function AdminRestaurantsPage() {
 
   const handleAddRestaurant = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     try {
+      console.log("Adding restaurant payload:", newRestaurant);
       await restaurantService.createRestaurant(newRestaurant);
-      setSuccess("Restaurant added successfully!");
+      toast.success("Restaurant added successfully!");
       setNewRestaurant({ name: "", location: "Newcastle", phone: "", email: "", owner_id: "" });
       fetchData();
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message);
+    }
+  };
+
+  const handleUpdateRestaurant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRestaurant) return;
+    try {
+      console.log("Updating restaurant payload:", editingRestaurant);
+      const updateData: Partial<Restaurant> = {
+        name: editingRestaurant.name,
+        location: editingRestaurant.location,
+        phone: editingRestaurant.phone,
+        email: editingRestaurant.email,
+        owner_id: editingRestaurant.owner_id
+      };
+      await restaurantService.updateRestaurant(editingRestaurant.id, updateData);
+      toast.success("Restaurant updated successfully!");
+      setEditingRestaurant(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message);
     }
   };
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     try {
       await restaurantService.createCategory(newCategory.name, newCategory.restaurant_id);
-      setSuccess("Category added successfully!");
+      toast.success("Category added successfully!");
       setNewCategory({ name: "", restaurant_id: "" });
       fetchData();
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message);
     }
   };
 
   const handleAddMenuItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     try {
-      const payload = {
-        ...newMenuItem,
-        description: newMenuItem.description || null,
-        image_url: newMenuItem.image_url || null
+      const payload: MenuItemCreate = {
+        name: newMenuItem.name || "",
+        price: newMenuItem.price || 0,
+        category_id: newMenuItem.category_id || "",
+        restaurant_id: newMenuItem.restaurant_id || "",
+        description: newMenuItem.description || undefined,
+        image_url: newMenuItem.image_url || undefined
       };
-      await restaurantService.createMenuItem(payload as any);
-      setSuccess("Menu item added successfully!");
+      await restaurantService.createMenuItem(payload);
+      toast.success("Menu item added successfully!");
       setNewMenuItem({ name: "", price: 0, description: "", image_url: "", category_id: "", restaurant_id: "" });
       fetchData();
     } catch (err: any) {
-      setError(err.message);
+      toast.error(err.message);
     }
   };
 
-  const handleDeleteRestaurant = async (id: string) => {
-    if (!confirm("Are you sure? This will delete all associated categories and items.")) return;
-    try {
-      await restaurantService.deleteRestaurant(id);
-      fetchData();
-    } catch (err: any) {
-      setError(err.message);
-    }
+  const handleDeleteRestaurant = (id: string) => {
+    toast("Delete Restaurant", {
+      description: "Are you sure? This will delete all associated categories and items.",
+      action: {
+        label: "Delete",
+        onClick: async () => {
+          try {
+            await restaurantService.deleteRestaurant(id);
+            toast.success("Restaurant deleted successfully!");
+            fetchData();
+          } catch (err: any) {
+            toast.error(err.message);
+          }
+        }
+      },
+      cancel: { label: "Cancel", onClick: () => {} }
+    });
   };
 
   if (role !== "admin") return <div className="p-8 text-center">Unauthorized</div>;
@@ -151,19 +179,6 @@ export default function AdminRestaurantsPage() {
           </Button>
         </div>
 
-        {error && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-600 p-4 rounded-2xl flex items-center gap-3">
-            <AlertCircle className="w-5 h-5" />
-            <p className="font-bold">{error}</p>
-          </div>
-        )}
-
-        {success && (
-          <div className="bg-emerald-50 border border-emerald-200 text-emerald-600 p-4 rounded-2xl flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5" />
-            <p className="font-bold">{success}</p>
-          </div>
-        )}
 
         <Tabs defaultValue="restaurants" className="w-full">
           <TabsList className="bg-slate-200/50 p-1.5 rounded-2xl mb-8 w-full md:w-auto h-auto grid grid-cols-3 md:flex gap-2">
@@ -209,8 +224,8 @@ export default function AdminRestaurantsPage() {
                           onChange={(e) => setNewRestaurant({...newRestaurant, location: e.target.value as RestaurantLocation})}
                         >
                           <option value="Newcastle">Newcastle</option>
-                          <option value="London">London</option>
-                          <option value="New York">New York</option>
+                          <option value="Downpatrick">Downpatrick</option>
+                          <option value="Kilkeel">Kilkeel</option>
                         </select>
                       </div>
                       <div className="space-y-2">
@@ -266,14 +281,24 @@ export default function AdminRestaurantsPage() {
                         <div className="p-3 bg-orange-100 rounded-2xl text-orange-600">
                           <Store className="w-6 h-6" />
                         </div>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="text-slate-300 hover:text-rose-600 rounded-xl"
-                          onClick={() => handleDeleteRestaurant(r.id)}
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-slate-300 hover:text-orange-600 rounded-xl"
+                            onClick={() => setEditingRestaurant(r)}
+                          >
+                            <Pencil className="w-5 h-5" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="text-slate-300 hover:text-rose-600 rounded-xl"
+                            onClick={() => handleDeleteRestaurant(r.id)}
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </Button>
+                        </div>
                       </div>
                       <h3 className="text-xl font-black text-slate-900 mb-1">{r.name}</h3>
                       <div className="flex items-center gap-2 text-slate-500 text-sm mb-4">
@@ -397,7 +422,7 @@ export default function AdminRestaurantsPage() {
                         required
                         disabled={!newMenuItem.restaurant_id}
                       >
-                        <option value="">Select Category</option>
+                        <option value="">{newMenuItem.restaurant_id ? (categories.filter(c => c.restaurant_id === newMenuItem.restaurant_id).length > 0 ? "Select Category" : "No categories found for this restaurant") : "Select a restaurant first"}</option>
                         {categories.filter(c => c.restaurant_id === newMenuItem.restaurant_id).map(cat => (
                           <option key={cat.id} value={cat.id}>{cat.name}</option>
                         ))}
@@ -480,9 +505,21 @@ export default function AdminRestaurantsPage() {
                                   size="icon" 
                                   className="text-slate-200 hover:text-rose-500 rounded-lg"
                                   onClick={() => {
-                                    if (confirm("Delete this item?")) {
-                                      restaurantService.deleteMenuItem(item.id).then(fetchData);
-                                    }
+                                    toast("Delete Menu Item", {
+                                      description: "Are you sure you want to delete this item?",
+                                      action: {
+                                        label: "Delete",
+                                        onClick: () => {
+                                          restaurantService.deleteMenuItem(item.id)
+                                            .then(() => {
+                                              toast.success("Item deleted");
+                                              fetchData();
+                                            })
+                                            .catch((err: any) => toast.error(err.message));
+                                        }
+                                      },
+                                      cancel: { label: "Cancel", onClick: () => {} }
+                                    });
                                   }}
                                 >
                                   <Trash2 className="w-4 h-4" />
@@ -504,6 +541,107 @@ export default function AdminRestaurantsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Restaurant Modal */}
+      {editingRestaurant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+            <div className="p-8 pb-0 flex justify-between items-center">
+              <h2 className="text-3xl font-black text-slate-900">Edit Restaurant</h2>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="rounded-full hover:bg-slate-100"
+                onClick={() => setEditingRestaurant(null)}
+              >
+                <Plus className="w-6 h-6 rotate-45" />
+              </Button>
+            </div>
+            <form onSubmit={handleUpdateRestaurant} className="p-8 pt-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-res-name">Restaurant Name</Label>
+                  <Input 
+                    id="edit-res-name"
+                    placeholder="e.g. Italian Bistro" 
+                    className="h-12 rounded-xl focus:ring-orange-500"
+                    value={editingRestaurant.name}
+                    onChange={(e) => setEditingRestaurant(prev => prev ? ({...prev, name: e.target.value}) : null)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-res-loc">Location</Label>
+                  <select 
+                    id="edit-res-loc"
+                    className="w-full h-12 rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    value={editingRestaurant.location}
+                    onChange={(e) => setEditingRestaurant(prev => prev ? ({...prev, location: e.target.value as any}) : null)}
+                    required
+                  >
+                    <option value="Newcastle">Newcastle</option>
+                    <option value="Downpatrick">Downpatrick</option>
+                    <option value="Kilkeel">Kilkeel</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-res-phone">Phone</Label>
+                  <Input 
+                    id="edit-res-phone"
+                    placeholder="0191 123 4567" 
+                    className="h-12 rounded-xl focus:ring-orange-500"
+                    value={editingRestaurant.phone || ""}
+                    onChange={(e) => setEditingRestaurant(prev => prev ? ({...prev, phone: e.target.value}) : null)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-res-email">Email</Label>
+                  <Input 
+                    id="edit-res-email"
+                    type="email"
+                    placeholder="contact@restaurant.com" 
+                    className="h-12 rounded-xl focus:ring-orange-500"
+                    value={editingRestaurant.email || ""}
+                    onChange={(e) => setEditingRestaurant(prev => prev ? ({...prev, email: e.target.value}) : null)}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-res-owner">Assign Owner</Label>
+                <select 
+                  id="edit-res-owner"
+                  className="w-full h-12 rounded-xl border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  value={editingRestaurant.owner_id || ""}
+                  onChange={(e) => setEditingRestaurant(prev => prev ? ({...prev, owner_id: e.target.value}) : null)}
+                >
+                  <option value="">No Owner assigned (Optional)</option>
+                  {owners.map(o => (
+                    <option key={o.id} value={o.id}>{o.first_name} {o.last_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  className="flex-1 h-14 rounded-2xl font-bold border-2"
+                  onClick={() => setEditingRestaurant(null)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  className="flex-1 h-14 rounded-2xl font-bold bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-200"
+                >
+                  Update Restaurant
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/server'
 import { checkOwner } from '@/lib/auth-helpers'
 import { NextResponse } from 'next/server'
 
@@ -8,43 +7,63 @@ interface PageProps {
 
 export async function PATCH(request: Request, { params }: PageProps) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
   
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
   try {
     const body = await request.json()
-    const { price, is_available } = body
+    const { name, price, description, image_url, category_id, restaurant_id, is_available } = body
 
-    // 1. Get the restaurant_id for this item
-    const { data: item, error: fError } = await supabase
-      .from('menu_items')
-      .select('restaurant_id')
-      .eq('id', id)
-      .single()
+    if (!restaurant_id) return NextResponse.json({ error: 'restaurant_id is required' }, { status: 400 })
 
-    if (fError) throw fError
-
-    // 2. Perform ownership check with the found restaurant_id
-    const auth = await checkOwner(item.restaurant_id)
+    // Perform ownership check
+    const auth = await checkOwner(restaurant_id)
     if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-    // 3. Update the item
-    const { data: updatedItem, error } = await auth.supabase!
+    const { data: menuItem, error } = await auth.supabase!
       .from('menu_items')
       .update({
+        name,
         price,
+        description,
+        image_url,
+        category_id,
         is_available
       })
       .eq('id', id)
+      .eq('restaurant_id', restaurant_id)
       .select()
       .single()
 
     if (error) throw error
-    return NextResponse.json({ menuItem: updatedItem })
+    return NextResponse.json({ menuItem })
   } catch (err: unknown) {
     const error = err instanceof Error ? err.message : "An unexpected error occurred"
+    console.error("API Error in PATCH /api/owner/menu-items/[id]:", error)
+    return NextResponse.json({ error }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request, { params }: PageProps) {
+  const { id } = await params
+  const { searchParams } = new URL(request.url)
+  const restaurant_id = searchParams.get('restaurant_id')
+
+  if (!restaurant_id) return NextResponse.json({ error: 'restaurant_id is required' }, { status: 400 })
+
+  const auth = await checkOwner(restaurant_id)
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  try {
+    const { error } = await auth.supabase!
+      .from('menu_items')
+      .delete()
+      .eq('id', id)
+      .eq('restaurant_id', restaurant_id)
+
+    if (error) throw error
+    return NextResponse.json({ message: 'Menu item deleted successfully' })
+  } catch (err: unknown) {
+    const error = err instanceof Error ? err.message : "An unexpected error occurred"
+    console.error("API Error in DELETE /api/owner/menu-items/[id]:", error)
     return NextResponse.json({ error }, { status: 500 })
   }
 }

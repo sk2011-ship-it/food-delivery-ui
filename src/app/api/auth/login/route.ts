@@ -20,11 +20,20 @@ export async function POST(request: Request) {
     }
 
     // 2. Fetch role
-    const { data: roleData, error: roleError } = await supabase
+    let { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .eq('id', data.user.id)
-        .single()
+        .maybeSingle()
+
+    if (!roleData && !roleError) {
+        const { data: fallback } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', data.user.id)
+            .maybeSingle()
+        roleData = fallback
+    }
 
     if (roleError || !roleData) {
         // If role not found, logout immediately
