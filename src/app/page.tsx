@@ -1,87 +1,78 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { UtensilsCrossed, Zap, MapPin, Clock } from "lucide-react";
-import { useAuth } from "@/components/AuthContext";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { MapPin, ArrowRight } from "lucide-react";
+import { RestaurantLocation } from "@/types/restaurant";
+
+const locations: RestaurantLocation[] = ["Newcastle", "Downpatrick", "Kilkeel"];
 
 export default function Home() {
-  const [location, setLocation] = useState("");
-  const { user, role } = useAuth();
+  const router = useRouter();
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
 
-  const showOrderSection = !user || role === 'customer';
+  useEffect(() => {
+    const savedLocation = localStorage.getItem("selectedLocation");
+    if (savedLocation) {
+      setSelectedLocation(savedLocation);
+    }
+  }, []);
+
+  const handleLocationSelect = (location: RestaurantLocation) => {
+    localStorage.setItem("selectedLocation", location);
+    setSelectedLocation(location);
+    router.push(`/restaurants?location=${encodeURIComponent(location)}`);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-white">
-      {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 md:py-32">
-        <div className="flex flex-col items-center text-center gap-8">
-          <div className="flex items-center justify-center w-20 h-20 bg-orange-100 rounded-full">
-            <UtensilsCrossed className="w-10 h-10 text-orange-600" />
+    <main className="min-h-screen flex flex-col items-center justify-center bg-[#f8fafc] p-4">
+      <div className="max-w-2xl w-full text-center space-y-12">
+        <div className="space-y-6">
+          <div className="flex justify-center">
+            <div className="p-6 bg-orange-100 rounded-[2.5rem] shadow-sm animate-bounce-slow">
+              <MapPin className="h-16 w-16 text-orange-600" />
+            </div>
           </div>
+          <div className="space-y-4">
+            <h1 className="text-5xl md:text-7xl font-black tracking-tight text-slate-900">
+              Your <span className="text-orange-600 underline decoration-orange-200 underline-offset-8">Local</span> Food Hub
+            </h1>
+            <p className="text-xl text-slate-500 font-bold max-w-lg mx-auto leading-relaxed">
+              Serving the best flavors across Newcastle, Downpatrick, and Kilkeel.
+            </p>
+          </div>
+        </div>
 
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900">
-            {showOrderSection ? "Hungry?" : "Welcome back"}
-            {showOrderSection && <span className="text-orange-600"> Order Now</span>}
-          </h1>
-
-          <p className="text-xl text-gray-600 max-w-2xl">
-            {showOrderSection 
-              ? "Fresh, delicious food from your favorite restaurants delivered straight to your door."
-              : "Access your dashboard and manage your business platform efficiently."}
-          </p>
-
-          {showOrderSection && (
-            <>
-              <div className="w-full max-w-md">
-                <Input
-                  placeholder="Enter your location (e.g., Newcastle)"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="text-center"
-                />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {locations.map((location) => (
+            <button
+              key={location}
+              onClick={() => handleLocationSelect(location)}
+              className="group relative flex flex-col items-center p-8 bg-white rounded-[3rem] shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-500 border-none overflow-hidden cursor-pointer"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/5 group-hover:from-orange-500/5 transition-all"></div>
+              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-orange-600 group-hover:text-white transition-colors duration-500 shadow-sm">
+                <MapPin className="h-8 w-8" />
               </div>
-
-              <Link href={`/restaurants${location ? `?location=${encodeURIComponent(location)}` : ''}`}>
-                <Button size="lg" className="bg-orange-600 hover:bg-orange-700 px-10 py-6 text-lg">
-                  Order Food
-                </Button>
-              </Link>
-            </>
-          )}
-
-          {!showOrderSection && (
-             <Link href={role === 'admin' ? '/admin' : '/restaurant'}>
-                <Button size="lg" className="bg-orange-600 hover:bg-orange-700 px-10 py-6 text-lg">
-                  Go to Dashboard
-                </Button>
-             </Link>
-          )}
+              <span className="text-2xl font-black text-slate-900 tracking-tight mb-2">{location}</span>
+              <p className="text-xs text-slate-400 font-black uppercase tracking-widest flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                Explore <ArrowRight className="w-3 h-3" />
+              </p>
+            </button>
+          ))}
         </div>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mt-20">
-          <div className="flex flex-col items-center p-8 bg-white rounded-lg border">
-            <Zap className="w-10 h-10 text-orange-600 mb-4" />
-            <h3 className="font-bold text-lg mb-2">Fast Delivery</h3>
-            <p className="text-gray-600">Hot food delivered in 30 minutes</p>
+        {selectedLocation && (
+          <div className="pt-8">
+            <div className="inline-flex items-center gap-3 bg-white px-6 py-3 rounded-2xl shadow-sm border border-slate-100">
+              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+              <p className="text-sm font-black text-slate-400 uppercase tracking-tighter">
+                Last seen in <span className="text-slate-900">{selectedLocation}</span>
+              </p>
+            </div>
           </div>
-
-          <div className="flex flex-col items-center p-8 bg-white rounded-lg border">
-            <MapPin className="w-10 h-10 text-orange-600 mb-4" />
-            <h3 className="font-bold text-lg mb-2">Wide Range</h3>
-            <p className="text-gray-600">Choose from 100+ restaurants</p>
-          </div>
-
-          <div className="flex flex-col items-center p-8 bg-white rounded-lg border">
-            <Clock className="w-10 h-10 text-orange-600 mb-4" />
-            <h3 className="font-bold text-lg mb-2">Always Open</h3>
-            <p className="text-gray-600">Order from morning to late night</p>
-          </div>
-        </div>
-      </section>
-    </div>
+        )}
+      </div>
+    </main>
   );
 }

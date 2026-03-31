@@ -59,26 +59,32 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
 
   // Protection logic
-  if (!user && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/restaurant') || (url.pathname.startsWith('/account') && !['/account/login', '/account/register', '/account/forgot-password', '/account/update-password'].includes(url.pathname)))) {
+  if (!user && (
+    url.pathname.startsWith('/admin') ||
+    url.pathname.startsWith('/restaurant') ||
+    url.pathname.startsWith('/dashboard') ||
+    (url.pathname.startsWith('/account') &&
+      !['/account/login', '/account/register', '/account/forgot-password', '/account/update-password'].includes(url.pathname))
+  )) {
     url.pathname = '/account/login'
     return NextResponse.redirect(url)
   }
 
   if (user) {
-    // Role fetching
-    // Try 'user_id' first, follow by 'id' fallback
+    // Try 'user_id' first, then fallback to 'id'
     let { data: roleData } = await supabase
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .maybeSingle()
-    
+
     if (!roleData) {
       const { data: fallback } = await supabase
         .from('user_roles')
         .select('role')
         .eq('id', user.id)
         .maybeSingle()
+
       roleData = fallback
     }
 
@@ -89,14 +95,20 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if (url.pathname.startsWith('/restaurant') && role !== 'owner') {
+    if (
+      (url.pathname.startsWith('/restaurant') || url.pathname.startsWith('/dashboard')) &&
+      role !== 'owner'
+    ) {
       url.pathname = '/'
       return NextResponse.redirect(url)
     }
 
     // Redirect away from login/register if logged in
     if (url.pathname === '/account/login' || url.pathname === '/account/register') {
-      url.pathname = role === 'admin' ? '/admin' : role === 'owner' ? '/restaurant' : '/'
+      url.pathname =
+        role === 'admin' ? '/admin' :
+        role === 'owner' ? '/restaurant' :
+        '/'
       return NextResponse.redirect(url)
     }
   }
@@ -105,5 +117,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/account/:path*', '/admin/:path*', '/restaurant/:path*'],
+  matcher: ['/account/:path*', '/admin/:path*', '/restaurant/:path*', '/dashboard/:path*'],
 }

@@ -19,7 +19,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Login failed' }, { status: 400 })
     }
 
-    // ✅ Fetch role (Try both 'user_id' and 'id' for compatibility)
+    // ✅ Fetch role (user_id primary, id fallback)
     let { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
@@ -27,12 +27,12 @@ export async function POST(request: Request) {
         .maybeSingle()
 
     if (!roleData && !roleError) {
-        // Try fallback to 'id'
         const fallback = await supabase
             .from('user_roles')
             .select('role')
             .eq('id', data.user.id)
             .maybeSingle()
+
         roleData = fallback.data
         roleError = fallback.error
     }
@@ -43,9 +43,13 @@ export async function POST(request: Request) {
             data: roleData,
             id: data.user.id 
         })
+
         await supabase.auth.signOut()
+
         return NextResponse.json({ 
-            error: roleError ? `DB Error: ${roleError.message}` : 'Role not found in user_roles. Please ensure your account was created correctly.',
+            error: roleError 
+                ? `DB Error: ${roleError.message}` 
+                : 'Role not found in user_roles. Please ensure your account was created correctly.',
             debug: { userId: data.user.id, code: roleError?.code }
         }, { status: 403 })
     }

@@ -10,6 +10,10 @@ export interface UserDetails {
   postcode: string;
 }
 
+export interface AdminUser extends UserDetails {
+  role: Role;
+}
+
 export interface UserResponse {
   user: User | null;
   role: Role;

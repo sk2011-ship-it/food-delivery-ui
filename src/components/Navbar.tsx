@@ -6,10 +6,13 @@ import { Button } from "@/components/ui/button";
 import { UtensilsCrossed } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/components/AuthContext";
+import { useCart } from "@/components/CartContext";
+import { ShoppingCart } from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
   const { user, role, loading } = useAuth();
+  const { items } = useCart();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -59,6 +62,16 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
+          {isLoggedIn && role === 'customer' && (
+            <Link href="/cart" className="relative p-2 text-slate-600 hover:text-orange-600 transition-colors">
+              <ShoppingCart className="w-6 h-6" />
+              {items.length > 0 && (
+                <span className="absolute top-0 right-0 bg-orange-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-lg shadow-orange-200 border-2 border-white">
+                  {items.reduce((sum, item) => sum + item.quantity, 0)}
+                </span>
+              )}
+            </Link>
+          )}
           {isLoggedIn ? (
             <Link href="/account">
               <Button variant="outline" className="cursor-pointer">Account</Button>

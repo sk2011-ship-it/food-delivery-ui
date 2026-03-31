@@ -2,19 +2,46 @@
 
 import { useAuth } from "@/components/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Users, Store, ShoppingBag, ShieldAlert } from "lucide-react";
+import { Users, Store, ShoppingBag, ShieldAlert, ArrowRight, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { restaurantService } from "@/services/api";
+import { Restaurant } from "@/types/restaurant";
 
 export default function AdminDashboard() {
   const { user, role } = useAuth();
+  const [userCount, setUserCount] = useState<number | null>(null);
+  const [restaurantCount, setRestaurantCount] = useState<number | null>(null);
+  const [recentActivity, setRecentActivity] = useState<Restaurant[]>([]);
+
+  useEffect(() => {
+    if (role === "admin") {
+      Promise.all([
+        restaurantService.getUsers(),
+        restaurantService.getAdminRestaurants()
+      ])
+        .then(([users, restaurants]) => {
+          setUserCount(users.length);
+          setRestaurantCount(restaurants.length);
+
+          const sortedRestaurants = [...restaurants]
+            .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+            .slice(0, 3);
+          
+          setRecentActivity(sortedRestaurants);
+        })
+        .catch(console.error);
+    }
+  }, [role]);
 
   if (role !== "admin") return null;
 
   const stats = [
-    { title: "Total Users", value: "1,250", icon: Users, color: "text-blue-600" },
-    { title: "Active Restaurants", value: "48", icon: Store, color: "text-green-600" },
-    { title: "Today's Orders", value: "156", icon: ShoppingBag, color: "text-orange-600" },
-    { title: "System Alerts", value: "2", icon: ShieldAlert, color: "text-red-600" },
+    { title: "Total Users", value: userCount !== null ? userCount.toString() : "...", icon: Users, color: "text-blue-600" },
+    { title: "Active Restaurants", value: restaurantCount !== null ? restaurantCount.toString() : "...", icon: Store, color: "text-green-600" },
+    { title: "Today's Orders", value: "0", icon: ShoppingBag, color: "text-orange-600" },
+    { title: "System Alerts", value: "0", icon: ShieldAlert, color: "text-red-600" },
   ];
 
   return (
@@ -49,13 +76,38 @@ export default function AdminDashboard() {
               <CardTitle>Platform Overview</CardTitle>
               <CardDescription>Manage global settings and user roles</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-gray-600">
-                Use the administrative tools to monitor platform health, manage restaurant approvals, and resolve user issues.
-              </p>
-              <div className="flex gap-4">
-                <Button className="bg-orange-600 hover:bg-orange-700">Manage Users</Button>
-                <Button variant="outline">System Logs</Button>
+            <CardContent className="p-6 pt-0 space-y-6">
+              <div className="grid md:grid-cols-2 gap-4">
+                 <Link href="/admin/restaurants" className="group/btn">
+                    <div className="p-6 rounded-3xl bg-slate-50 border-2 border-transparent hover:border-orange-500/20 hover:bg-orange-50 transition-all">
+                      <div className="flex items-center justify-between mb-2">
+                        <Store className="w-6 h-6 text-orange-600" />
+                        <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-600 transform group-hover:translate-x-1 transition-all" />
+                      </div>
+                      <h4 className="font-black text-slate-900">Manage Restaurants</h4>
+                      <p className="text-sm text-slate-500 mt-1">Configure stores, locations, and hierarchical menu data.</p>
+                    </div>
+                 </Link>
+                  <Link href="/admin/users" className="group/btn">
+                    <div className="p-6 rounded-3xl bg-slate-50 border-2 border-transparent hover:border-blue-500/20 hover:bg-blue-50 transition-all text-left">
+                      <div className="flex items-center justify-between mb-2">
+                        <Users className="w-6 h-6 text-blue-600" />
+                        <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-blue-600 transform group-hover:translate-x-1 transition-all" />
+                      </div>
+                      <h4 className="font-black text-slate-900">Manage Users</h4>
+                      <p className="text-sm text-slate-500 mt-1">Review profiles and manage system-wide role permissions.</p>
+                    </div>
+                  </Link>
+                  <Link href="/admin/revenue" className="group/btn lg:col-span-2">
+                    <div className="p-6 rounded-3xl bg-slate-900 border-2 border-transparent hover:border-orange-500/20 hover:bg-slate-800 transition-all text-left">
+                      <div className="flex items-center justify-between mb-2">
+                        <DollarSign className="w-6 h-6 text-orange-500" />
+                        <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-orange-500 transform group-hover:translate-x-1 transition-all" />
+                      </div>
+                      <h4 className="font-black text-white">Revenue Dashboard</h4>
+                      <p className="text-sm text-slate-400 mt-1">View total platform earnings, order counts, and restaurant-wise performance analytics.</p>
+                    </div>
+                  </Link>
               </div>
             </CardContent>
           </Card>
@@ -67,13 +119,19 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="flex items-center gap-4 py-2 border-b last:border-0 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-orange-500" />
-                    <p className="text-gray-700">New restaurant "Pizza Heaven" registered for review.</p>
-                    <span className="text-gray-400 ml-auto">2h ago</span>
-                  </div>
-                ))}
+                {recentActivity.length > 0 ? (
+                  recentActivity.map((r, i) => (
+                    <div key={r.id || i} className="flex items-center gap-4 py-2 border-b last:border-0 text-sm">
+                      <div className="w-2 h-2 rounded-full bg-orange-500" />
+                      <p className="text-gray-700">New restaurant <span className="font-bold">"{r.name}"</span> registered.</p>
+                      <span className="text-gray-400 ml-auto whitespace-nowrap">
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString() : 'Just now'}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 italic text-sm text-center py-4">No recent activity detected.</p>
+                )}
               </div>
             </CardContent>
           </Card>

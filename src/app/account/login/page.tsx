@@ -17,15 +17,12 @@ export default function AccountLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const { refreshUser } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
 
     try {
       const data = await authService.signIn(email, password, remember);
@@ -111,7 +108,6 @@ export default function AccountLoginPage() {
             <Button
               type="submit"
               className="w-40 mx-auto flex justify-center bg-orange-600 hover:bg-orange-700 cursor-pointer"
-              disabled={success}
             >
               Login
             </Button>

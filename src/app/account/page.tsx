@@ -7,10 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Checkbox from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ShoppingBag, Lock, User, LogOut, AlertCircle } from "lucide-react";
+import { ShoppingBag, Lock, User, LogOut } from "lucide-react";
 import { useAuth } from "@/components/AuthContext";
-import { authService } from "@/services/api";
+import { authService, restaurantService } from "@/services/api";
 import { toast } from "sonner";
+import { Order } from "@/types/restaurant";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
 export default function AccountPage() {
   const router = useRouter();
   const { user, role, userDetails, loading: authLoading, refreshUser } = useAuth();
@@ -34,6 +37,29 @@ export default function AccountPage() {
 
   const [saving, setSaving] = useState(false);
   const [updatingPassword, setUpdatingPassword] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [fetchingOrders, setFetchingOrders] = useState(false);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string, boolean>>({});
+
+  const fetchOrders = async () => {
+    try {
+      setFetchingOrders(true);
+      const data = await restaurantService.getUserOrders();
+      setOrders(data);
+    } catch (err) {
+      console.error("Error fetching orders:", err);
+      // Don't show toast for initial fetch to avoid annoyance
+    } finally {
+      setFetchingOrders(false);
+    }
+  };
+
+  const toggleOrderExpansion = (orderId: string) => {
+    setExpandedOrders(prev => ({
+      ...prev,
+      [orderId]: !prev[orderId]
+    }));
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -50,7 +76,11 @@ export default function AccountPage() {
         postcode: userDetails.postcode || "",
       }));
     }
-  }, [user, userDetails, authLoading, router]);
+
+    if (user && role === 'customer') {
+      fetchOrders();
+    }
+  }, [user, userDetails, authLoading, router, role]);
 
   const handleLogout = async () => {
     try {
@@ -196,16 +226,85 @@ export default function AccountPage() {
                       <CardDescription>Your order history and status</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-center py-12">
-                        <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                        <p className="text-gray-500 mb-4">No orders yet</p>
-                        <Button
-                          onClick={() => router.push("/restaurants")}
-                          className="bg-orange-600 hover:bg-orange-700 cursor-pointer"
-                        >
-                          Start Ordering
-                        </Button>
-                      </div>
+                      {fetchingOrders ? (
+                        <div className="text-center py-12">
+                          <Loader2 className="w-8 h-8 animate-spin text-orange-600 mx-auto mb-4" />
+                          <p className="text-gray-500">Checking your recent orders...</p>
+                        </div>
+                      ) : orders.length === 0 ? (
+                        <div className="text-center py-12">
+                          <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                          <p className="text-gray-500 mb-4">No orders yet</p>
+                          <Button
+                            onClick={() => router.push("/restaurants")}
+                            className="bg-orange-600 hover:bg-orange-700 cursor-pointer"
+                          >
+                            Start Ordering
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {orders.map((order) => (
+                            <div key={order.id} className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                              <div
+                                className="p-4 bg-white flex items-center justify-between cursor-pointer"
+                                onClick={() => toggleOrderExpansion(order.id)}
+                              >
+                                <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center">
+                                    <ShoppingBag className="w-5 h-5 text-slate-400" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-bold text-slate-900">{order.restaurants?.name || "Restaurant"}</h4>
+                                    <p className="text-xs text-slate-500">{new Date(order.created_at).toLocaleDateString()} • {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4 text-right">
+                                  <div>
+                                    <p className="font-black text-slate-900">${order.total_amount.toFixed(2)}</p>
+                                    <Badge variant={order.payment_status === 'completed' ? 'default' : 'outline'} className={`text-[10px] uppercase font-black px-2 py-0.5 mt-1 ${order.payment_status === 'pending' ? 'border-amber-200 text-amber-600 bg-amber-50' :
+                                        order.payment_status === 'completed' ? 'bg-green-500' : 'bg-red-500'
+                                      }`}>
+                                      {order.payment_status}
+                                    </Badge>
+                                  </div>
+                                  {expandedOrders[order.id] ? <ChevronUp className="w-5 h-5 text-slate-300" /> : <ChevronDown className="w-5 h-5 text-slate-300" />}
+                                </div>
+                              </div>
+
+                              {expandedOrders[order.id] && (
+                                <div className="px-4 pb-4 pt-2 bg-slate-50/50 border-t border-gray-50 space-y-3">
+                                  <div className="space-y-2">
+                                    {order.order_items?.map((item) => (
+                                      <div key={item.id} className="flex justify-between items-center text-sm">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-slate-400">{item.quantity}x</span>
+                                          <span className="text-slate-700">{item.name}</span>
+                                        </div>
+                                        <span className="font-medium text-slate-600">${(item.price * item.quantity).toFixed(2)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="pt-3 border-t border-gray-100 flex flex-col gap-1">
+                                    <div className="flex justify-between text-xs text-slate-400">
+                                      <span>Service Charge</span>
+                                      <span>${order.service_charge.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-xs text-slate-400">
+                                      <span>VAT (5%)</span>
+                                      <span>${order.vat_amount.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-base font-black text-slate-900 mt-1">
+                                      <span>Total</span>
+                                      <span>${order.total_amount.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>

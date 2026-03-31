@@ -6,464 +6,144 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { restaurants } from "@/constants/restaurants";
-import { isOpenNow, estimateRating } from "@/lib/business-logic";
-import { RestaurantWithStatus, SortOption, FilterOption, RestaurantWithStats } from "@/types/restaurant";
+import { restaurantService } from "@/services/api";
+import { Restaurant, RestaurantLocation } from "@/types/restaurant";
 import {
   Clock,
   MapPin,
   ChevronRight,
   Search,
   Star,
-  StarHalf,
-  StarOff,
-  Heart,
-  HeartOff,
-  DollarSign,
+  Loader2,
+  Store
 } from "lucide-react";
-
-function renderStars(rating: number) {
-  const icons = [];
-  for (let i = 1; i <= 5; i += 1) {
-    if (rating >= i) {
-      icons.push(<Star key={i} className="w-4 h-4 text-amber-400" />);
-    } else if (rating >= i - 0.5) {
-      icons.push(<StarHalf key={i} className="w-4 h-4 text-amber-400" />);
-    } else {
-      icons.push(<StarOff key={i} className="w-4 h-4 text-gray-300" />);
-    }
-  }
-
-  return <div className="flex items-center gap-0.5">{icons}</div>;
-}
 
 export default function RestaurantsContent() {
   const searchParams = useSearchParams();
-  const location = searchParams.get("location");
+  const locationParam = searchParams.get("location");
+
+  const [allRestaurants, setAllRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("name");
-  const [cuisineFilter, setCuisineFilter] = useState<FilterOption>("all");
-  const [priceFilter, setPriceFilter] = useState<FilterOption>("all");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [openNow, setOpenNow] = useState(false);
-  const [showFavorites, setShowFavorites] = useState(false);
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const itemsPerPage = 9;
-
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const [selectedLocation, setSelectedLocation] = useState<string>(locationParam || "all");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem("favorites");
-    if (stored) {
+    const fetchRestaurants = async () => {
       try {
-        setFavorites(JSON.parse(stored));
-      } catch {
-        setFavorites([]);
+        setLoading(true);
+        const data = await restaurantService.getPublicRestaurants();
+        setAllRestaurants(data as Restaurant[]);
+      } catch (err) {
+        console.error("Failed to fetch restaurants", err);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
+    fetchRestaurants();
   }, []);
 
-  useEffect(() => {
-    window.localStorage.setItem("favorites", JSON.stringify(favorites));
-  }, [favorites]);
-
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((fav) => fav !== id) : [...prev, id]
-    );
-  };
-
-  const resetFilters = () => {
-    setSearchTerm("");
-    setSortBy("name");
-    setCuisineFilter("all");
-    setPriceFilter("all");
-    setOpenNow(false);
-    setShowFavorites(false);
-    resetPagination();
-  };
-
-  // Get unique cuisine types
-  const cuisineTypes = useMemo(() => {
-    const types = new Set<string>();
-    restaurants.forEach(restaurant => {
-      restaurant.categories.forEach(category => {
-        types.add(category.name);
-      });
+  const filteredRestaurants = useMemo(() => {
+    return allRestaurants.filter(r => {
+      const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        r.location.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesLocation = selectedLocation === "all" || r.location === selectedLocation;
+      return matchesSearch && matchesLocation;
     });
-    return Array.from(types).sort();
-  }, []);
+  }, [allRestaurants, searchTerm, selectedLocation]);
 
-  const restaurantsWithStats = useMemo(() => {
-    return restaurants.map((restaurant) => {
-      const prices = restaurant.menu.map((item) => item.price);
-      const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
-      const cuisines = restaurant.categories.map((cat) => cat.name);
-
-      return {
-        ...restaurant,
-        avgPrice: Math.round(avgPrice * 100) / 100,
-        cuisines,
-        rating: estimateRating(restaurant.name),
-      };
-    });
-  }, []);
-
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const filteredAndSortedRestaurants = useMemo((): RestaurantWithStatus[] => {
-    const withStatus: RestaurantWithStatus[] = restaurantsWithStats.map((r) => ({
-      ...r,
-      isOpen: isOpenNow(r.opening, r.closing, nowMinutes),
-      isFavorite: favorites.includes(r.id),
-    }));
-
-    let filtered = location
-      ? withStatus.filter((r) =>
-          r.location.toLowerCase().includes(location.toLowerCase())
-        )
-      : withStatus;
-
-    // Search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter((r) =>
-        r.name.toLowerCase().includes(searchLower) ||
-        r.cuisines.some((cuisine) => cuisine.toLowerCase().includes(searchLower)) ||
-        r.menu.some(
-          (item) =>
-            item.name.toLowerCase().includes(searchLower) ||
-            item.description?.toLowerCase().includes(searchLower)
-        )
-      );
-    }
-
-    // Open now filter
-    if (openNow) {
-      filtered = filtered.filter((r) => r.isOpen);
-    }
-
-    // Favorites filter
-    if (showFavorites) {
-      filtered = filtered.filter((r) => r.isFavorite);
-    }
-
-    // Cuisine filter
-    if (cuisineFilter !== "all") {
-      filtered = filtered.filter((r) => r.cuisines.includes(cuisineFilter));
-    }
-
-    // Price filter
-    if (priceFilter !== "all") {
-      const [min, max] = priceFilter.split("-").map(Number);
-      filtered = filtered.filter((r) => {
-        if (max) {
-          return r.avgPrice >= min && r.avgPrice <= max;
-        }
-        return r.avgPrice >= min;
-      });
-    }
-
-    // Sorting
-    const sorted = [...filtered].sort((a, b) => {
-      switch (sortBy) {
-        case "name":
-          return a.name.localeCompare(b.name);
-        case "price":
-          return a.avgPrice - b.avgPrice;
-        case "items":
-          return b.menu.length - a.menu.length;
-        case "rating":
-          return b.rating - a.rating;
-        default:
-          return 0;
-      }
-    });
-
-    return sorted;
-  }, [
-    location,
-    searchTerm,
-    sortBy,
-    cuisineFilter,
-    priceFilter,
-    openNow,
-    showFavorites,
-    favorites,
-    restaurantsWithStats,
-    nowMinutes,
-  ]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredAndSortedRestaurants.length / itemsPerPage);
-  const paginatedRestaurants = filteredAndSortedRestaurants.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  if (loading) return (
+    <div className="min-h-[400px] flex items-center justify-center">
+      <Loader2 className="w-10 h-10 animate-spin text-orange-600" />
+    </div>
   );
 
-  const resetPagination = () => setCurrentPage(1);
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            {location ? `Restaurants in ${location}` : 'Find Your Favorite Restaurant'}
-          </h1>
-          <p className="text-gray-600">
-            {location ? `Showing restaurants near ${location}` : 'Choose from our selection of amazing restaurants'}
-          </p>
+    <div className="space-y-8">
+      {/* Search & Location Filter */}
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-white p-4 rounded-[2rem] shadow-xl shadow-slate-200/50">
+        <div className="relative w-full md:max-w-md">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5" />
+          <Input
+            placeholder="Search by name or location..."
+            className="pl-12 h-12 rounded-2xl border-slate-100 bg-slate-50 focus:bg-white transition-all font-bold"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
 
-        {/* Search and Filters */}
-        <div className="mb-6 space-y-4">
-          {/* Search Bar */}
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              placeholder="Search restaurants, cuisines, or dishes..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                resetPagination();
-              }}
-              className="pl-10"
-            />
-          </div>
-
-          {/* Filters and Sort */}
-          <div className="flex flex-wrap gap-4 items-center">
-            {/* Sort */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Sort by:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value as SortOption);
-                  resetPagination();
-                }}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="name">Name</option>
-                <option value="price">Average Price</option>
-                <option value="items">Menu Items</option>
-                <option value="rating">Rating</option>
-              </select>
-            </div>
-
-            {/* Cuisine Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Cuisine:</span>
-              <select
-                value={cuisineFilter}
-                onChange={(e) => {
-                  setCuisineFilter(e.target.value as FilterOption);
-                  resetPagination();
-                }}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="all">All Cuisines</option>
-                {cuisineTypes.map(cuisine => (
-                  <option key={cuisine} value={cuisine}>{cuisine}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Price Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-gray-700">Price Range:</span>
-              <select
-                value={priceFilter}
-                onChange={(e) => {
-                  setPriceFilter(e.target.value as FilterOption);
-                  resetPagination();
-                }}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              >
-                <option value="all">All Prices</option>
-                <option value="0-10">Under $10</option>
-                <option value="10-15">$10 - $15</option>
-                <option value="15-20">$15 - $20</option>
-                <option value="20">Over $20</option>
-              </select>
-            </div>
-
-            {/* Open Now */}
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={openNow}
-                onChange={(e) => {
-                  setOpenNow(e.target.checked);
-                  resetPagination();
-                }}
-                className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-              />
-              Open now
-            </label>
-
-            {/* Favorites */}
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={showFavorites}
-                onChange={(e) => {
-                  setShowFavorites(e.target.checked);
-                  resetPagination();
-                }}
-                className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
-              />
-              Favorites
-            </label>
-
+        <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+          {["all", "Newcastle", "Downpatrick", "Kilkeel"].map((loc) => (
             <button
-              onClick={resetFilters}
-              className="ml-auto rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-100"
+              key={loc}
+              onClick={() => setSelectedLocation(loc)}
+              className={`px-6 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${selectedLocation === loc
+                ? "bg-slate-900 text-white shadow-lg shadow-slate-200"
+                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
             >
-              Clear filters
+              {loc === "all" ? "All Cities" : loc}
             </button>
-
-            {/* Results count */}
-            <div className="text-sm text-gray-600 w-full md:w-auto md:ml-auto">
-              {filteredAndSortedRestaurants.length} restaurant{filteredAndSortedRestaurants.length !== 1 ? 's' : ''} found
-            </div>
-          </div>
+          ))}
         </div>
+      </div>
 
-        {/* Restaurant Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {paginatedRestaurants.map((restaurant) => (
-            <Link key={restaurant.id} href={`/restaurant/${restaurant.id}`}>
-              <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-xl">{restaurant.name}</CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
-                        {renderStars(restaurant.rating)}
-                        <span className="text-xs text-gray-500">{restaurant.rating.toFixed(1)}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          toggleFavorite(restaurant.id);
-                        }}
-                        className="rounded-full p-1 hover:bg-gray-100"
-                        aria-label={
-                          favorites.includes(restaurant.id)
-                            ? "Remove from favorites"
-                            : "Add to favorites"
-                        }
-                      >
-                        {favorites.includes(restaurant.id) ? (
-                          <Heart className="w-5 h-5 text-rose-500" />
-                        ) : (
-                          <HeartOff className="w-5 h-5 text-gray-400" />
-                        )}
-                      </button>
-                      {restaurant.isOpen ? (
-                        <Badge variant="outline" className="text-green-600 border-green-600">
-                          Open
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-red-600 border-red-600">
-                          Closed
-                        </Badge>
-                      )}
-                      <Badge variant="outline">{restaurant.menu.length} items</Badge>
-                    </div>
+      {filteredRestaurants.length === 0 ? (
+        <div className="text-center py-20 bg-white rounded-[3rem] shadow-sm border-2 border-dashed border-slate-100">
+          <Store className="w-16 h-16 text-slate-100 mx-auto mb-4" />
+          <h3 className="text-xl font-black text-slate-300 uppercase tracking-widest">No restaurants found</h3>
+          <p className="text-slate-400 mt-2 font-medium">Try adjusting your filters or search term.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {filteredRestaurants.map((restaurant) => (
+            <Link key={restaurant.id} href={`/restaurants/${restaurant.id}`} className="group">
+              <Card className="rounded-[2.5rem] border-none shadow-xl bg-white overflow-hidden transition-all group-hover:-translate-y-2 group-hover:shadow-2xl">
+                <div className="h-48 bg-slate-100 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Store className="w-20 h-20 text-slate-200 group-hover:scale-110 transition-transform duration-500" />
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <DollarSign className="w-4 h-4" />
-                    <span>Avg. ${restaurant.avgPrice.toFixed(2)}</span>
+                  <div className="absolute top-6 right-6">
+                    <Badge className="bg-white/80 backdrop-blur-md text-slate-900 border-none font-black px-4 py-2 rounded-xl shadow-sm">
+                      $Low
+                    </Badge>
+                  </div>
+                </div>
+                <CardHeader className="p-8">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-2xl font-black text-slate-900 group-hover:text-orange-600 transition-colors">
+                      {restaurant.name}
+                    </CardTitle>
+                    <div className="flex items-center gap-1 text-amber-500 font-black">
+                      <Star className="w-4 h-4 fill-current" /> 4.8
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <MapPin className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm">{restaurant.location}</span>
+                <CardContent className="px-8 pb-8 pt-0 space-y-6">
+                  <div className="flex items-center gap-4 text-slate-400 font-bold text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-orange-500" /> {restaurant.location}
+                    </div>
+                    <div className="w-1.5 h-1.5 bg-slate-200 rounded-full"></div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-orange-500" /> 25-35 min
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Clock className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm">
-                      {restaurant.opening} - {restaurant.closing}
+
+                  <div className="pt-6 border-t border-slate-50 flex items-center justify-between">
+                    <span className="text-orange-600 font-black flex items-center gap-2">
+                      View Menu <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {restaurant.cuisines.slice(0, 3).map(cuisine => (
-                      <Badge key={cuisine} variant="secondary" className="text-xs">
-                        {cuisine}
-                      </Badge>
-                    ))}
-                    {restaurant.cuisines.length > 3 && (
-                      <Badge variant="secondary" className="text-xs">
-                        +{restaurant.cuisines.length - 3} more
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 pt-2 text-orange-600 font-medium">
-                    View Menu <ChevronRight className="w-4 h-4" />
+                    <Badge variant="outline" className="rounded-lg font-bold text-slate-300 border-slate-100">
+                      FREE DELIVERY
+                    </Badge>
                   </div>
                 </CardContent>
               </Card>
             </Link>
           ))}
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Previous
-            </button>
-            
-            <div className="flex gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`px-3 py-1 border rounded-md text-sm ${
-                    currentPage === page
-                      ? 'bg-orange-500 text-white border-orange-500'
-                      : 'border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Next
-            </button>
-          </div>
-        )}
-
-        {/* No results message */}
-        {filteredAndSortedRestaurants.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No restaurants found matching your criteria.</p>
-            <p className="text-gray-400 text-sm mt-2">Try adjusting your search or filters.</p>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

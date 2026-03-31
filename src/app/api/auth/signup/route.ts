@@ -60,26 +60,21 @@ export async function POST(request: Request) {
 
   if (detailsError) {
     console.error('Details insertion failed:', detailsError)
-    return NextResponse.json({ error: 'Profile details failed to save' }, { status: 500 })
+    return NextResponse.json({ error: 'Profile details failed' }, { status: 500 })
   }
 
   // ✅ Insert into user_roles AFTER
-  const { data: roleSuccessData, error: roleError } = await supabase
+  const { error: roleError } = await supabase
     .from('user_roles')
     .insert({
-      id: userId,        // Primary Key/FK to auth.users
-      user_id: userId,   // User's custom column
+      user_id: userId,
       role: role,
     })
-    .select()
-    .single()
 
   if (roleError) {
-    console.error('Role insertion failed:', { error: roleError, userId })
-    return NextResponse.json({ error: 'Role assignment failed', debug: roleError }, { status: 500 })
+    console.error('Role insertion failed:', roleError)
+    return NextResponse.json({ error: 'Role assignment failed' }, { status: 500 })
   }
-
-  console.log('Signup successful for user:', userId, 'Role:', role)
 
   await supabase.auth.signOut()
 
