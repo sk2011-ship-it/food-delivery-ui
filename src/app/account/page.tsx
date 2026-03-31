@@ -132,7 +132,7 @@ export default function AccountPage() {
 
     setUpdatingPassword(true);
     try {
-      await authService.updatePassword(passwordData.newPassword);
+      await authService.updatePassword(passwordData.newPassword, passwordData.currentPassword);
 
       toast.success("Password updated successfully");
       setPasswordData({
@@ -456,6 +456,18 @@ export default function AccountPage() {
                     <CardDescription>Update your password to keep your account secure</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Current Password
+                      </label>
+                      <Input
+                        type="password"
+                        placeholder="Enter current password"
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData(prev => ({ ...prev, currentPassword: e.target.value }))}
+                      />
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         New Password

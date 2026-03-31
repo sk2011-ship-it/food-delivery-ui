@@ -77,10 +77,25 @@ export async function PUT(request: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { password } = await request.json()
+    const { password: newPassword, currentPassword } = await request.json()
 
+    if (!currentPassword) {
+        return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
+    }
+
+    // 1. Verify current password
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+        email: user.email!,
+        password: currentPassword,
+    })
+
+    if (verifyError) {
+        return NextResponse.json({ error: 'Invalid current password' }, { status: 401 })
+    }
+
+    // 2. Update password
     const { error } = await supabase.auth.updateUser({
-        password: password
+        password: newPassword
     })
 
     if (error) {

@@ -2,7 +2,16 @@ import { createClient } from '@/lib/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
-  const { email, password, confirmPassword, role, first_name, last_name, mobile, postcode } = await request.json()
+  const {
+    email,
+    password,
+    confirmPassword,
+    role,
+    first_name,
+    last_name,
+    mobile,
+    postcode
+  } = await request.json()
 
   // Validation
   if (password !== confirmPassword) {

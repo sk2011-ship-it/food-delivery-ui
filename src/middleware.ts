@@ -59,7 +59,13 @@ export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
 
   // Protection logic
-  if (!user && (url.pathname.startsWith('/admin') || url.pathname.startsWith('/restaurant') || url.pathname.startsWith('/dashboard') || (url.pathname.startsWith('/account') && !['/account/login', '/account/register', '/account/forgot-password', '/account/update-password'].includes(url.pathname)))) {
+  if (!user && (
+    url.pathname.startsWith('/admin') ||
+    url.pathname.startsWith('/restaurant') ||
+    url.pathname.startsWith('/dashboard') ||
+    (url.pathname.startsWith('/account') &&
+      !['/account/login', '/account/register', '/account/forgot-password', '/account/update-password'].includes(url.pathname))
+  )) {
     url.pathname = '/account/login'
     return NextResponse.redirect(url)
   }
@@ -89,14 +95,20 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    if ((url.pathname.startsWith('/restaurant') || url.pathname.startsWith('/dashboard')) && role !== 'owner') {
+    if (
+      (url.pathname.startsWith('/restaurant') || url.pathname.startsWith('/dashboard')) &&
+      role !== 'owner'
+    ) {
       url.pathname = '/'
       return NextResponse.redirect(url)
     }
 
     // Redirect away from login/register if logged in
     if (url.pathname === '/account/login' || url.pathname === '/account/register') {
-      url.pathname = role === 'admin' ? '/admin' : role === 'owner' ? '/restaurant' : '/'
+      url.pathname =
+        role === 'admin' ? '/admin' :
+        role === 'owner' ? '/restaurant' :
+        '/'
       return NextResponse.redirect(url)
     }
   }

@@ -2,10 +2,10 @@ import { createClient } from '@/lib/server'
 import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
-    const { email, password } = await request.json()
-    const supabase = await createClient()
+    const { email, password, remember } = await request.json()
+    const supabase = await createClient({ remember })
 
-    // 1. Sign in user
+    // Login
     const { data, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -19,8 +19,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Login failed' }, { status: 400 })
     }
 
-    // 2. Fetch role
-    // ✅ Fetch role (Try both 'user_id' and 'id' for compatibility)
+    // ✅ Fetch role (user_id primary, id fallback)
     let { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
@@ -39,10 +38,24 @@ export async function POST(request: Request) {
     }
 
     if (roleError || !roleData) {
-        // If role not found, logout immediately
+        console.error('Login role fetching error:', { 
+            error: roleError, 
+            data: roleData,
+            id: data.user.id 
+        })
+
         await supabase.auth.signOut()
-        return NextResponse.json({ error: 'Account not set up properly' }, { status: 403 })
+
+        return NextResponse.json({ 
+            error: roleError 
+                ? `DB Error: ${roleError.message}` 
+                : 'Role not found in user_roles. Please ensure your account was created correctly.',
+            debug: { userId: data.user.id, code: roleError?.code }
+        }, { status: 403 })
     }
 
-    return NextResponse.json({ user: data.user, role: roleData.role })
+    return NextResponse.json({
+        user: data.user,
+        role: roleData.role
+    })
 }

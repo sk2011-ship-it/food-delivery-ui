@@ -51,11 +51,11 @@ export const authService = {
     return data as AuthSuccessResponse;
   },
 
-  async signIn(email: string, password: string): Promise<AuthSuccessResponse> {
+  async signIn(email: string, password: string, remember: boolean = false): Promise<AuthSuccessResponse> {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, remember }),
     });
 
     const data = await response.json();
@@ -100,11 +100,11 @@ export const authService = {
     return data as MessageResponse;
   },
 
-  async updatePassword(password: string): Promise<MessageResponse> {
+  async updatePassword(password: string, currentPassword?: string): Promise<MessageResponse> {
     const response = await fetch('/api/auth/user', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, currentPassword }),
     });
 
     const data = await response.json();
