@@ -1,5 +1,13 @@
 export type SiteKey = "downpatrickeats" | "newcastleeats" | "kilkeeleats";
 
+export interface ContactInfo {
+  managerPhone: string;
+  email: string;
+  facebook: { label: string; handle: string };
+  instagram: { label: string; handle: string };
+  notice: string;
+}
+
 export interface SiteConfig {
   key: SiteKey;
   name: string;
@@ -24,9 +32,45 @@ export interface SiteConfig {
     rating: string;
     minutes: string;
   };
+  contact: ContactInfo;
 }
 
 export const SITES: Record<SiteKey, SiteConfig> = {
+  newcastleeats: {
+    key: "newcastleeats",
+    name: "Newcastle Eats",
+    tagline: "Food Delivery Service",
+    description:
+      "Your favourite restaurants in Newcastle delivered fast to your door.",
+    location: "Newcastle",
+    hero: {
+      headline: "Hungry? We've Got Newcastle Covered.",
+      subheadline:
+        "Order from the best local restaurants and get hot food delivered straight to your door in minutes.",
+    },
+    theme: {
+      gradientFrom: "#1B4332",
+      gradientVia: "#2D6A4F",
+      gradientTo: "#52B788",
+      primary: "#2D6A4F",
+      accent: "#52B788",
+      badge: "bg-green-700",
+    },
+    stats: {
+      restaurants: "35+",
+      deliveries: "6K+",
+      rating: "4.7",
+      minutes: "28",
+    },
+    contact: {
+      managerPhone: "07564 726646",
+      email: "Newcastleeatsinfo@gmail.com",
+      facebook: { label: "Newcastle Eats Delivery", handle: "Newcastle Eats" },
+      instagram: { label: "newcastleeats__", handle: "newcastleeats__" },
+      notice:
+        "If you have any problems with your order, please contact the food outlet you ordered from and they will arrange for a driver to re-deliver any missing items. Alternatively, if you can't get through, please message our Facebook page 'Newcastle Eats' or contact the manager directly with any queries.",
+    },
+  },
   kilkeeleats: {
     key: "kilkeeleats",
     name: "Kilkeel Eats",
@@ -52,6 +96,14 @@ export const SITES: Record<SiteKey, SiteConfig> = {
       deliveries: "5K+",
       rating: "4.8",
       minutes: "30",
+    },
+    contact: {
+      managerPhone: "07340 646827",
+      email: "Kilkeeleatsinfo@gmail.com",
+      facebook: { label: "Kilkeel Eats Delivery", handle: "Kilkeel Eats Delivery" },
+      instagram: { label: "kilkeel_eats", handle: "kilkeel_eats" },
+      notice:
+        "If you have any problems with your order, please contact the food outlet you ordered from and they will arrange for a driver to re-deliver any missing items. Alternatively, if you can't get through, please message our Facebook page 'Kilkeel Eats' or contact the manager directly with any queries.",
     },
   },
   downpatrickeats: {
@@ -80,32 +132,13 @@ export const SITES: Record<SiteKey, SiteConfig> = {
       rating: "4.9",
       minutes: "25",
     },
-  },
-  newcastleeats: {
-    key: "newcastleeats",
-    name: "Newcastle Eats",
-    tagline: "Food Delivery Service",
-    description:
-      "Your favourite restaurants in Newcastle delivered fast to your door.",
-    location: "Newcastle",
-    hero: {
-      headline: "Hungry? We've Got Newcastle Covered.",
-      subheadline:
-        "Order from the best local restaurants and get hot food delivered straight to your door in minutes.",
-    },
-    theme: {
-      gradientFrom: "#1B4332",
-      gradientVia: "#2D6A4F",
-      gradientTo: "#52B788",
-      primary: "#2D6A4F",
-      accent: "#52B788",
-      badge: "bg-green-700",
-    },
-    stats: {
-      restaurants: "35+",
-      deliveries: "6K+",
-      rating: "4.7",
-      minutes: "28",
+    contact: {
+      managerPhone: "07564 726646",
+      email: "Downpatrickeatsinfo@gmail.com",
+      facebook: { label: "Downpatrick Eats Delivery", handle: "Downpatrick Eats Delivery" },
+      instagram: { label: "downpatrickeats", handle: "downpatrickeats" },
+      notice:
+        "If you have any problems with your order, please contact the food outlet you ordered from and they will arrange for a driver to re-deliver any missing items. Alternatively, if you can't get through, please message our Facebook page 'Downpatrick Eats' or contact the manager directly with any queries.",
     },
   },
 };

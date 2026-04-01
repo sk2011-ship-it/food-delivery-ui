@@ -2,21 +2,29 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useSite } from "@/context/SiteContext";
 import { ALL_SITES, SiteKey } from "@/config/sites";
 import { Menu, X, MapPin, ChevronDown, ShoppingBag, User, LogIn } from "lucide-react";
 
 export default function Navbar() {
   const { site, setSite } = useSite();
+  const pathname = usePathname();
+  const isHome = pathname === "/";
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [scrolled, setScrolled] = useState(!isHome); // non-home pages are always "scrolled"
 
   useEffect(() => {
+    // On non-home pages always show solid navbar
+    if (!isHome) { setScrolled(true); return; }
+
+    setScrolled(window.scrollY > 60);
     const onScroll = () => setScrolled(window.scrollY > 60);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [isHome]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -26,11 +34,11 @@ export default function Navbar() {
   }, [locationOpen]);
 
   const navLinks = [
-    { label: "Home", href: "#home" },
-    { label: "Restaurants", href: "#restaurants" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Offers", href: "#offers" },
-    { label: "Contact", href: "#contact" },
+    { label: "Home", href: "/" },
+    { label: "Restaurants", href: "/#restaurants" },
+    { label: "How It Works", href: "/#how-it-works" },
+    { label: "Offers", href: "/#offers" },
+    { label: "Contact", href: "/contact" },
   ];
 
   const navBg = scrolled
@@ -46,7 +54,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
 
           {/* Logo */}
-          <Link href="#home" className="flex items-center gap-2 shrink-0">
+          <Link href="/" className="flex items-center gap-2 shrink-0">
             <div
               className="w-9 h-9 rounded-full flex items-center justify-center text-white font-heading font-black text-sm shadow"
               style={{
@@ -64,12 +72,12 @@ export default function Navbar() {
           <ul className="hidden lg:flex items-center gap-6">
             {navLinks.map((l) => (
               <li key={l.href}>
-                <a
+                <Link
                   href={l.href}
                   className={`text-sm font-medium transition-colors duration-300 ${mutedText}`}
                 >
                   {l.label}
-                </a>
+                </Link>
               </li>
             ))}
           </ul>
@@ -175,13 +183,13 @@ export default function Navbar() {
           <ul className="px-4 py-3 space-y-0.5">
             {navLinks.map((l) => (
               <li key={l.href}>
-                <a
+                <Link
                   href={l.href}
                   onClick={() => setMenuOpen(false)}
                   className="flex items-center text-gray-700 hover:text-gray-900 hover:bg-gray-50 py-3 px-2 rounded-xl text-base font-medium transition-colors"
                 >
                   {l.label}
-                </a>
+                </Link>
               </li>
             ))}
             <li>
