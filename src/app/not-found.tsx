@@ -21,21 +21,23 @@ export default function NotFound() {
     return () => clearTimeout(t);
   }, [seconds, router]);
 
+  const { gradientFrom, gradientVia, gradientTo, accent } = site.theme;
+
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 theme-transition"
       style={{
-        background: `linear-gradient(135deg, ${site.theme.gradientFrom} 0%, ${site.theme.gradientVia} 55%, ${site.theme.gradientTo} 100%)`,
+        background: `linear-gradient(135deg, ${gradientFrom} 0%, ${gradientVia} 55%, ${gradientTo} 100%)`,
       }}
     >
       {/* Decorative blobs */}
       <div
         className="fixed top-[-15%] right-[-15%] w-[450px] h-[450px] rounded-full opacity-15 blur-3xl pointer-events-none"
-        style={{ background: site.theme.gradientTo }}
+        style={{ background: gradientTo }}
       />
       <div
         className="fixed bottom-[-15%] left-[-15%] w-[380px] h-[380px] rounded-full opacity-15 blur-3xl pointer-events-none"
-        style={{ background: site.theme.gradientFrom }}
+        style={{ background: gradientFrom }}
       />
 
       <div className="relative z-10 text-center max-w-md w-full">
@@ -59,8 +61,15 @@ export default function NotFound() {
           <span className="font-semibold text-white">{site.name}</span>.
         </p>
 
-        {/* White card */}
-        <div className="bg-white rounded-3xl shadow-2xl px-6 py-6 mb-6">
+        {/* Card */}
+        <div
+          className="rounded-3xl shadow-2xl px-6 py-6 mb-6 border"
+          style={{
+            background: "rgba(255,255,255,0.12)",
+            backdropFilter: "blur(16px)",
+            borderColor: "rgba(255,255,255,0.25)",
+          }}
+        >
           {/* Countdown ring */}
           <div className="flex items-center justify-center mb-4">
             <div className="relative w-16 h-16">
@@ -68,13 +77,13 @@ export default function NotFound() {
                 <circle
                   cx="32" cy="32" r="28"
                   fill="none"
-                  stroke="#f3f4f6"
+                  stroke="rgba(255,255,255,0.2)"
                   strokeWidth="5"
                 />
                 <circle
                   cx="32" cy="32" r="28"
                   fill="none"
-                  stroke={site.theme.gradientFrom}
+                  stroke="white"
                   strokeWidth="5"
                   strokeLinecap="round"
                   strokeDasharray={`${2 * Math.PI * 28}`}
@@ -82,44 +91,29 @@ export default function NotFound() {
                   style={{ transition: "stroke-dashoffset 1s linear" }}
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center font-heading font-black text-xl text-gray-800">
+              <span className="absolute inset-0 flex items-center justify-center font-heading font-black text-xl text-white">
                 {seconds}
               </span>
             </div>
           </div>
 
-          <p className="text-gray-500 text-sm mb-5">
+          <p className="text-white/70 text-sm mb-5">
             Redirecting you to the homepage in{" "}
-            <span className="font-semibold text-gray-800">{seconds}s</span>…
+            <span className="font-semibold text-white">{seconds}s</span>…
           </p>
 
           <button
             onClick={() => router.push("/")}
-            className="w-full h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] shadow-md"
+            className="w-full h-12 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] shadow-md"
             style={{
-              background: `linear-gradient(135deg, ${site.theme.gradientFrom}, ${site.theme.accent})`,
+              background: `linear-gradient(135deg, ${accent}, ${gradientTo})`,
+              color: "#fff",
             }}
           >
             <Home className="w-4 h-4" />
             Go to Homepage Now
             <ArrowRight className="w-4 h-4" />
           </button>
-        </div>
-
-        {/* Quick links */}
-        <div className="flex flex-wrap gap-3 justify-center">
-          {[
-            { label: "Sign In", href: "/login" },
-            { label: "Register", href: "/register" },
-          ].map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              className="text-white/70 hover:text-white text-sm font-medium underline underline-offset-2 transition-colors"
-            >
-              {l.label}
-            </a>
-          ))}
         </div>
       </div>
     </div>

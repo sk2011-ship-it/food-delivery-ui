@@ -29,15 +29,22 @@ export async function proxy(request: NextRequest) {
   // Refresh session — keeps auth tokens alive across requests
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated users away from protected routes
-  const isProtected =
-    request.nextUrl.pathname.startsWith("/dashboard") ||
-    request.nextUrl.pathname.startsWith("/account");
+  const { pathname } = request.nextUrl;
+  const isProtected = pathname.startsWith("/dashboard");
+  const isAuthPage  = pathname === "/login" || pathname === "/register";
 
+  // Unauthenticated → redirect to login
   if (isProtected && !user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
-    return NextResponse.redirect(loginUrl);
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  // Already logged in → redirect away from auth pages to dashboard
+  if (isAuthPage && user) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
   }
 
   return supabaseResponse;
