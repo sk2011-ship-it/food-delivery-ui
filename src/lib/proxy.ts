@@ -44,5 +44,5 @@ export async function parseBody<T>(
 }
 
 function formatZodError(err: ZodError): string {
-  return err.errors.map((e) => e.message).join(", ");
+  return err.issues.map((e) => e.message).join(", ");
 }

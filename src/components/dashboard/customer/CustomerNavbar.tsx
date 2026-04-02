@@ -94,7 +94,7 @@ export default function CustomerNavbar({ user }: { user: SessionUser }) {
                         style={
                           active
                             ? { background: `linear-gradient(135deg, ${s.theme.gradientFrom}, ${s.theme.accent})`, color: "#fff" }
-                            : { color: "#374151", hover: "" }
+                            : { color: "#374151" }
                         }
                       >
                         <span

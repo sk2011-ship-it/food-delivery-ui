@@ -109,7 +109,6 @@ export default function CustomerSettings() {
         style={{
           background: "var(--dash-card)",
           border: "1px solid var(--dash-card-border)",
-          divideColor: "var(--dash-card-border)",
         }}
       >
         {rows.map((row, i) => {
