@@ -16,6 +16,7 @@ export type OpeningHours = Partial<Record<DayKey, DayHours>>;
 export const restaurants = pgTable("restaurants", {
   id:            uuid("id").primaryKey().defaultRandom(),
   name:          varchar("name",           { length: 150 }).notNull(),
+  location:      varchar("location",       { length: 100 }),
   logoUrl:       varchar("logo_url",       { length: 500  }),
   ownerId:       uuid("owner_id").notNull().references(() => users.id),
   managerPhone:  varchar("manager_phone",  { length: 30   }),

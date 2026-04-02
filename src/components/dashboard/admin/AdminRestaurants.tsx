@@ -15,6 +15,7 @@ import {
   type DayKey,
   type AdminUserItem,
 } from "@/lib/api";
+import { LOCATIONS, locationTheme } from "@/lib/locations";
 import { toast } from "sonner";
 import PhoneInput from "react-phone-number-input";
 import PhoneCountrySelect from "@/components/ui/PhoneCountrySelect";
@@ -28,6 +29,7 @@ type SortOrder = "asc" | "desc";
 interface Filters {
   search:   string;
   status:   string;
+  location: string;
   sort:     SortField;
   order:    SortOrder;
   page:     number;
@@ -39,6 +41,7 @@ type HoursForm   = Record<DayKey, DayHoursRow>;
 
 interface RestaurantForm {
   name:          string;
+  location:      string;
   logoUrl:       string;
   ownerId:       string;
   managerPhone:  string;
@@ -67,7 +70,7 @@ const DEFAULT_HOURS: HoursForm = Object.fromEntries(
 ) as HoursForm;
 
 const EMPTY_FORM: RestaurantForm = {
-  name: "", logoUrl: "", ownerId: "", managerPhone: "",
+  name: "", location: "", logoUrl: "", ownerId: "", managerPhone: "",
   contactEmail: "", contactPhone: "", businessRegNo: "", status: "active",
   hours: { ...DEFAULT_HOURS },
 };
@@ -98,9 +101,10 @@ function apiToHours(oh: OpeningHours | null | undefined): HoursForm {
 function restaurantToForm(r: AdminRestaurantItem): RestaurantForm {
   return {
     name:          r.name,
-    logoUrl:       r.logoUrl      ?? "",
+    location:      r.location      ?? "",
+    logoUrl:       r.logoUrl       ?? "",
     ownerId:       r.ownerId,
-    managerPhone:  r.managerPhone ?? "",
+    managerPhone:  r.managerPhone  ?? "",
     contactEmail:  r.contactEmail,
     contactPhone:  r.contactPhone,
     businessRegNo: r.businessRegNo ?? "",
@@ -438,6 +442,26 @@ function RestaurantFormFields({ form, owners, onChange }: {
             <input type="text" placeholder="e.g. The Burger Place" value={form.name}
               onChange={(e) => onChange({ name: e.target.value })} className={input} style={{ color: "var(--dash-text-primary)" }} />
           </Field>
+
+          {/* Location */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold" style={{ color: "var(--dash-text-secondary)" }}>Location *</label>
+            <div className="relative">
+              <select
+                value={form.location}
+                onChange={(e) => onChange({ location: e.target.value })}
+                className="w-full appearance-none h-11 px-3 pr-8 text-sm rounded-xl border outline-none"
+                style={fieldBg}
+              >
+                <option value="">— Select location —</option>
+                {LOCATIONS.map((loc) => (
+                  <option key={loc} value={loc}>{loc}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 pointer-events-none" style={{ color: "var(--dash-text-secondary)" }} />
+            </div>
+          </div>
+
           <Field label="Logo URL" style={fieldBg}>
             <input type="url" placeholder="https://..." value={form.logoUrl}
               onChange={(e) => onChange({ logoUrl: e.target.value })} className={input} style={{ color: "var(--dash-text-primary)" }} />
@@ -540,7 +564,7 @@ export default function AdminRestaurants() {
   const [fetching,    setFetching]    = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [filters,     setFilters]     = useState<Filters>({
-    search: "", status: "all", sort: "name", order: "asc", page: 1, pageSize: 10,
+    search: "", status: "all", location: "all", sort: "name", order: "asc", page: 1, pageSize: 10,
   });
 
   const [owners,       setOwners]       = useState<AdminUserItem[]>([]);
@@ -574,12 +598,13 @@ export default function AdminRestaurants() {
     const run = async () => {
       setFetching(true);
       const res = await restaurantApi.list({
-        search: filters.search || undefined,
-        status: filters.status !== "all" ? filters.status : undefined,
-        sort:   filters.sort,
-        order:  filters.order,
-        page:   filters.page,
-        limit:  filters.pageSize,
+        search:   filters.search   || undefined,
+        status:   filters.status   !== "all" ? filters.status   : undefined,
+        location: filters.location !== "all" ? filters.location : undefined,
+        sort:     filters.sort,
+        order:    filters.order,
+        page:     filters.page,
+        limit:    filters.pageSize,
       });
       if (cancelled) return;
       setFetching(false);
@@ -610,6 +635,7 @@ export default function AdminRestaurants() {
     setSaving(true);
     const res = await restaurantApi.create({
       name:          form.name,
+      location:      form.location      || undefined,
       logoUrl:       form.logoUrl       || undefined,
       ownerId:       form.ownerId,
       managerPhone:  form.managerPhone  || undefined,
@@ -644,6 +670,7 @@ export default function AdminRestaurants() {
     setSaving(true);
     const res = await restaurantApi.update(editTarget.id, {
       name:          form.name,
+      location:      form.location      || undefined,
       logoUrl:       form.logoUrl       || undefined,
       ownerId:       form.ownerId,
       managerPhone:  form.managerPhone  || undefined,
@@ -733,6 +760,14 @@ export default function AdminRestaurants() {
           )}
         </div>
         <FilterSelect
+          value={filters.location}
+          onChange={(v) => setFilter("location", v)}
+          options={[
+            { value: "all", label: "All Locations" },
+            ...LOCATIONS.map((loc) => ({ value: loc, label: loc })),
+          ]}
+        />
+        <FilterSelect
           value={filters.status}
           onChange={(v) => setFilter("status", v)}
           options={[
@@ -757,18 +792,16 @@ export default function AdminRestaurants() {
       <div className="rounded-2xl border" style={{ background: "var(--dash-card)", borderColor: "var(--dash-card-border)" }}>
         {/* Desktop header */}
         <div
-          className="hidden sm:grid sm:grid-cols-[2fr_1.5fr_2fr_1fr_1fr_44px] gap-4 px-5 py-3 text-xs font-bold uppercase tracking-wider"
+          className="hidden sm:grid sm:grid-cols-[2fr_5.5rem_1.3fr_1.8fr_5rem_44px] gap-4 px-5 py-3 text-xs font-bold uppercase tracking-wider"
           style={{ color: "var(--dash-text-secondary)", borderBottom: "1px solid var(--dash-card-border)" }}
         >
           <button onClick={() => toggleSort("name")} className="flex items-center gap-1 text-left hover:opacity-80 transition-opacity">
             Restaurant <SortIcon field="name" filters={filters} />
           </button>
+          <span>Location</span>
           <span>Owner</span>
           <span>Contact</span>
           <span>Status</span>
-          <button onClick={() => toggleSort("createdAt")} className="flex items-center gap-1 hover:opacity-80 transition-opacity">
-            Added <SortIcon field="createdAt" filters={filters} />
-          </button>
           <span />
         </div>
 
@@ -805,7 +838,7 @@ export default function AdminRestaurants() {
               return (
                 <div key={r.id} className="px-5 py-4 hover:bg-black/[0.015] transition-colors relative">
                   {/* Desktop */}
-                  <div className="hidden sm:grid sm:grid-cols-[2fr_1.5fr_2fr_1fr_1fr_44px] gap-4 items-center">
+                  <div className="hidden sm:grid sm:grid-cols-[2fr_5.5rem_1.3fr_1.8fr_5rem_44px] gap-4 items-center">
                     <div className="flex items-center gap-3 min-w-0">
                       <LogoAvatar logoUrl={r.logoUrl} name={r.name} />
                       <div className="min-w-0">
@@ -817,6 +850,19 @@ export default function AdminRestaurants() {
                           <p className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>{openCount}/7 days open</p>
                         )}
                       </div>
+                    </div>
+                    {/* Location */}
+                    <div className="min-w-0">
+                      {r.location ? (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold truncate"
+                          style={{ color: locationTheme(r.location).color, background: locationTheme(r.location).bg }}
+                        >
+                          {r.location}
+                        </span>
+                      ) : (
+                        <span className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>—</span>
+                      )}
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate" style={{ color: "var(--dash-text-primary)" }}>{r.ownerName ?? "—"}</p>
@@ -838,7 +884,6 @@ export default function AdminRestaurants() {
                     >
                       {sm.label}
                     </span>
-                    <p className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>{added}</p>
                     <ActionMenu
                       menuOpen={menuId === r.id}
                       onToggle={() => setMenuId(menuId === r.id ? null : r.id)}
@@ -867,6 +912,11 @@ export default function AdminRestaurants() {
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: sm.color, background: sm.bg }}>
                           {sm.label}
                         </span>
+                        {r.location && (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color: locationTheme(r.location).color, background: locationTheme(r.location).bg }}>
+                            {r.location}
+                          </span>
+                        )}
                         <span className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>· {r.ownerName ?? "No owner"}</span>
                         <span className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>· {added}</span>
                       </div>

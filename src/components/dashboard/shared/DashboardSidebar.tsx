@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ShoppingBag, Users, Truck, Store,
   BarChart3, Settings, Globe, X, UtensilsCrossed, MapPin,
-  Home, ShoppingCart, User,
+  Home, ShoppingCart, User, ChefHat, Star, CreditCard,
 } from "lucide-react";
 import type { SessionUser, UserRole } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -22,11 +22,14 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Settings",        href: "/dashboard/owner/settings",    icon: Settings },
   ],
   admin: [
-    { label: "Overview",        href: "/dashboard/admin",                icon: LayoutDashboard },
-    { label: "Users",           href: "/dashboard/admin/users",          icon: Users },
-    { label: "Orders",          href: "/dashboard/admin/orders",         icon: ShoppingBag },
-    { label: "Restaurants",     href: "/dashboard/admin/restaurants",    icon: UtensilsCrossed },
-    { label: "Settings",        href: "/dashboard/admin/settings",       icon: Settings },
+    { label: "Overview",    href: "/dashboard/admin",              icon: LayoutDashboard },
+    { label: "Users",       href: "/dashboard/admin/users",        icon: Users },
+    { label: "Restaurants", href: "/dashboard/admin/restaurants",  icon: UtensilsCrossed },
+    { label: "Menu",        href: "/dashboard/admin/menu",         icon: ChefHat },
+    { label: "Featured",    href: "/dashboard/admin/featured",     icon: Star },
+    { label: "Orders",      href: "/dashboard/admin/orders",       icon: ShoppingBag },
+    { label: "Payments",    href: "/dashboard/admin/payments",     icon: CreditCard },
+    { label: "Settings",    href: "/dashboard/admin/settings",     icon: Settings },
   ],
   driver: [
     { label: "Overview",        href: "/dashboard/driver",               icon: LayoutDashboard },

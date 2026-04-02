@@ -120,6 +120,7 @@ export type OpeningHours = Partial<Record<DayKey, DayHours>>;
 export interface AdminRestaurantItem {
   id:            string;
   name:          string;
+  location:      string | null;
   logoUrl:       string | null;
   ownerId:       string;
   ownerName:     string | null;
@@ -142,16 +143,18 @@ export interface AdminRestaurantListResponse {
 }
 
 export interface ListRestaurantsParams {
-  search?:  string;
-  status?:  string;
-  sort?:    "name" | "createdAt";
-  order?:   "asc" | "desc";
-  page?:    number;
-  limit?:   number;
+  search?:   string;
+  status?:   string;
+  location?: string;
+  sort?:     "name" | "createdAt";
+  order?:    "asc" | "desc";
+  page?:     number;
+  limit?:    number;
 }
 
 export interface RestaurantPayload {
   name:           string;
+  location?:      string;
   logoUrl?:       string;
   ownerId:        string;
   managerPhone?:  string;
@@ -165,12 +168,13 @@ export interface RestaurantPayload {
 export const restaurantApi = {
   list(params: ListRestaurantsParams = {}) {
     const qs = new URLSearchParams();
-    if (params.search)  qs.set("search",  params.search);
-    if (params.status)  qs.set("status",  params.status);
-    if (params.sort)    qs.set("sort",    params.sort);
-    if (params.order)   qs.set("order",   params.order);
-    if (params.page)    qs.set("page",    String(params.page));
-    if (params.limit)   qs.set("limit",   String(params.limit));
+    if (params.search)    qs.set("search",   params.search);
+    if (params.status)    qs.set("status",   params.status);
+    if (params.location)  qs.set("location", params.location);
+    if (params.sort)      qs.set("sort",     params.sort);
+    if (params.order)     qs.set("order",    params.order);
+    if (params.page)      qs.set("page",     String(params.page));
+    if (params.limit)     qs.set("limit",    String(params.limit));
     return get<AdminRestaurantListResponse>(`/api/admin/restaurants?${qs.toString()}`);
   },
 
@@ -222,5 +226,72 @@ export const adminApi = {
 
   deleteUser(id: string) {
     return del<{ id: string }>(`/api/admin/users/${id}`);
+  },
+};
+
+/* ── Admin: Menu Management API ── */
+
+export type MenuItemStatus = "available" | "unavailable";
+
+export interface AdminMenuItemResponse {
+  id:                 string;
+  restaurantId:       string;
+  restaurantName:     string;
+  restaurantLocation: string | null;
+  name:               string;
+  description:        string | null;
+  category:           string;
+  price:              number;
+  status:             MenuItemStatus;
+  imageUrl:           string;
+  createdAt:          string;
+}
+
+export interface AdminMenuListResponse {
+  items:    AdminMenuItemResponse[];
+  total:    number;
+  page:     number;
+  pageSize: number;
+}
+
+export interface ListMenuParams {
+  search?:       string;
+  restaurantId?: string;
+  status?:       string;
+  page?:         number;
+  limit?:        number;
+}
+
+export interface MenuItemPayload {
+  restaurantId: string;
+  name:         string;
+  description?: string;
+  category:     string;
+  price:        number;
+  status?:      MenuItemStatus;
+  imageUrl:     string;
+}
+
+export const menuApi = {
+  list(params: ListMenuParams = {}) {
+    const qs = new URLSearchParams();
+    if (params.search)       qs.set("search",       params.search);
+    if (params.restaurantId) qs.set("restaurantId", params.restaurantId);
+    if (params.status)       qs.set("status",       params.status);
+    if (params.page)         qs.set("page",         String(params.page));
+    if (params.limit)        qs.set("limit",        String(params.limit));
+    return get<AdminMenuListResponse>(`/api/admin/menu?${qs.toString()}`);
+  },
+
+  create(payload: MenuItemPayload) {
+    return post<AdminMenuItemResponse>("/api/admin/menu", payload);
+  },
+
+  update(id: string, payload: Partial<MenuItemPayload>) {
+    return put<AdminMenuItemResponse>(`/api/admin/menu/${id}`, payload);
+  },
+
+  delete(id: string) {
+    return del<{ id: string }>(`/api/admin/menu/${id}`);
   },
 };

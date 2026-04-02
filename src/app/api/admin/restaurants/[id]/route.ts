@@ -16,6 +16,7 @@ const DayHoursSchema = z.object({ open: z.string(), close: z.string() }).nullabl
 
 const UpdateRestaurantSchema = z.object({
   name:          z.string().min(2).max(150).optional(),
+  location:      z.string().max(100).optional().or(z.literal("")).transform(v => v || null),
   logoUrl:       z.string().url().optional().or(z.literal("")).transform(v => v || null),
   ownerId:       z.string().uuid().optional(),
   managerPhone:  z.string().min(7).max(30).optional().or(z.literal("")).transform(v => v || null),

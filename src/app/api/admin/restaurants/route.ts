@@ -11,6 +11,7 @@ const OpeningHoursSchema = z.record(z.string(), DayHoursSchema).optional();
 
 const CreateRestaurantSchema = z.object({
   name:          z.string().min(2).max(150),
+  location:      z.string().max(100).optional().or(z.literal("")).transform(v => v || null),
   logoUrl:       z.string().url().optional().or(z.literal("")).transform(v => v || null),
   ownerId:       z.string().uuid(),
   managerPhone:  z.string().min(7).max(30).optional().or(z.literal("")).transform(v => v || null),
@@ -25,6 +26,7 @@ const CreateRestaurantSchema = z.object({
 const restaurantSelect = {
   id:            restaurants.id,
   name:          restaurants.name,
+  location:      restaurants.location,
   logoUrl:       restaurants.logoUrl,
   ownerId:       restaurants.ownerId,
   ownerName:     users.name,
@@ -55,6 +57,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const search   = searchParams.get("search")   ?? "";
     const status   = searchParams.get("status")   ?? "all";
+    const location = searchParams.get("location") ?? "all";
     const sort     = searchParams.get("sort")     ?? "name";
     const order    = searchParams.get("order")    ?? "asc";
     const page     = Math.max(1, Number(searchParams.get("page")  ?? "1"));
@@ -82,6 +85,10 @@ export async function GET(req: Request) {
 
     if (status !== "all") {
       conditions.push(eq(restaurants.status, status as "active" | "inactive" | "suspended"));
+    }
+
+    if (location !== "all") {
+      conditions.push(eq(restaurants.location, location));
     }
 
     const where    = conditions.length > 0 ? and(...conditions) : undefined;
@@ -117,7 +124,7 @@ export async function POST(req: Request) {
     const parsed = await parseBody(req, CreateRestaurantSchema);
     if ("error" in parsed) return parsed.error;
 
-    const { name, logoUrl, ownerId, managerPhone, contactEmail,
+    const { name, location, logoUrl, ownerId, managerPhone, contactEmail,
             contactPhone, businessRegNo, openingHours, status } = parsed.data;
 
     /* Verify owner exists and grab their info in one query */
@@ -130,7 +137,7 @@ export async function POST(req: Request) {
 
     const [created] = await db
       .insert(restaurants)
-      .values({ name, logoUrl, ownerId, managerPhone, contactEmail,
+      .values({ name, location, logoUrl, ownerId, managerPhone, contactEmail,
                 contactPhone, businessRegNo, openingHours, status })
       .returning();
 
