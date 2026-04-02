@@ -3,6 +3,7 @@ import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { SiteProvider } from "@/context/SiteContext";
 import SiteTitle from "@/components/layout/SiteTitle";
+import { Toaster } from "sonner";
 
 /*
  * ── Font configuration ──────────────────────────────────────────────────────
@@ -44,6 +45,14 @@ export default function RootLayout({
         <SiteProvider>
           <SiteTitle />
           {children}
+          <Toaster
+            position="top-center"
+            richColors
+            closeButton
+            toastOptions={{
+              style: { fontSize: "14px" },
+            }}
+          />
         </SiteProvider>
       </body>
     </html>

@@ -3,19 +3,23 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useSite } from "@/context/SiteContext";
+import { authApi } from "@/lib/api";
+import { toast } from "sonner";
 import AuthCard from "@/components/auth/AuthCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Eye, EyeOff, Mail, Lock, User, Phone,
+  Eye, EyeOff, Mail, Lock, User,
   ArrowRight, AlertCircle, CheckCircle2,
 } from "lucide-react";
+import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import type { E164Number } from "libphonenumber-js";
+import "react-phone-number-input/style.css";
 
 interface FormState {
   name: string;
   email: string;
-  phone: string;
   password: string;
   confirmPassword: string;
   terms: boolean;
@@ -28,7 +32,6 @@ interface Errors {
   password?: string;
   confirmPassword?: string;
   terms?: string;
-  general?: string;
 }
 
 function passwordStrength(pw: string) {
@@ -37,7 +40,7 @@ function passwordStrength(pw: string) {
   if (/[A-Z]/.test(pw)) score++;
   if (/[0-9]/.test(pw)) score++;
   if (/[^A-Za-z0-9]/.test(pw)) score++;
-  return score; // 0–4
+  return score;
 }
 
 const strengthLabel = ["Too short", "Weak", "Fair", "Good", "Strong"];
@@ -47,8 +50,9 @@ export default function RegisterPage() {
   const { site } = useSite();
 
   const [form, setForm] = useState<FormState>({
-    name: "", email: "", phone: "", password: "", confirmPassword: "", terms: false,
+    name: "", email: "", password: "", confirmPassword: "", terms: false,
   });
+  const [phone, setPhone] = useState<E164Number | undefined>(undefined);
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -65,7 +69,8 @@ export default function RegisterPage() {
     if (!form.name.trim()) e.name = "Full name is required.";
     if (!form.email.trim()) e.email = "Email address is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Enter a valid email.";
-    if (form.phone && !/^\+?[\d\s\-()]{7,15}$/.test(form.phone)) e.phone = "Enter a valid phone number.";
+    if (!phone) e.phone = "Phone number is required.";
+    else if (!isValidPhoneNumber(phone)) e.phone = "Enter a valid phone number for the selected country.";
     if (!form.password) e.password = "Password is required.";
     else if (form.password.length < 8) e.password = "Password must be at least 8 characters.";
     if (!form.confirmPassword) e.confirmPassword = "Please confirm your password.";
@@ -77,12 +82,28 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate();
-    if (Object.keys(errs).length) { setErrors(errs); return; }
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      // Show first error as toast
+      const first = Object.values(errs)[0];
+      if (first) toast.error(first);
+      return;
+    }
 
     setLoading(true);
-    // UI-only: simulate register
-    await new Promise((r) => setTimeout(r, 1400));
+    const result = await authApi.register({
+      name: form.name,
+      email: form.email,
+      phone: phone as string,
+      password: form.password,
+    });
     setLoading(false);
+
+    if (!result.success) {
+      toast.error(result.error ?? "Registration failed.");
+      return;
+    }
+
     setSuccess(true);
   };
 
@@ -101,9 +122,7 @@ export default function RegisterPage() {
           >
             <CheckCircle2 className="w-10 h-10 text-white" />
           </div>
-          <h3 className="font-heading font-bold text-gray-900 text-xl mb-2">
-            Account Created!
-          </h3>
+          <h3 className="font-heading font-bold text-gray-900 text-xl mb-2">Account Created!</h3>
           <p className="text-gray-500 text-sm mb-8 max-w-xs mx-auto">
             Welcome, {form.name.split(" ")[0]}! You can now sign in and start ordering from your favourite restaurants.
           </p>
@@ -124,19 +143,12 @@ export default function RegisterPage() {
       title="Create account"
       subtitle={`Join ${site.name} and order from the best local restaurants.`}
     >
-      {/* General error */}
-      {errors.general && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-2xl mb-4">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {errors.general}
-        </div>
-      )}
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
 
-      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Full name */}
         <FieldWrapper label="Full name" error={errors.name}>
           <div className="relative">
-            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
             <Input
               name="name"
               type="text"
@@ -152,7 +164,7 @@ export default function RegisterPage() {
         {/* Email */}
         <FieldWrapper label="Email address" error={errors.email}>
           <div className="relative">
-            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 z-10" />
             <Input
               name="email"
               type="email"
@@ -165,18 +177,28 @@ export default function RegisterPage() {
           </div>
         </FieldWrapper>
 
-        {/* Phone (optional) */}
-        <FieldWrapper label="Phone number" error={errors.phone} optional>
-          <div className="relative">
-            <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              name="phone"
-              type="tel"
-              placeholder="+44 7700 000000"
-              value={form.phone}
-              onChange={handleChange}
-              className={inputCls(!!errors.phone)}
-              autoComplete="tel"
+        {/* Phone with country selector */}
+        <FieldWrapper label="Phone number" error={errors.phone}>
+          <div className={`flex h-11 w-full rounded-xl border text-sm transition-colors overflow-hidden ${
+            errors.phone
+              ? "border-red-300 bg-red-50"
+              : "border-gray-200 bg-white"
+          }`}>
+            <PhoneInput
+              international
+              countryCallingCodeEditable={false}
+              defaultCountry="GB"
+              value={phone}
+              onChange={(val) => {
+                setPhone(val);
+                setErrors((p) => ({ ...p, phone: undefined }));
+              }}
+              className="phone-input-wrapper w-full"
+              numberInputProps={{
+                className: "phone-number-input",
+                placeholder: "Enter phone number",
+                autoComplete: "tel",
+              }}
             />
           </div>
         </FieldWrapper>
@@ -203,7 +225,6 @@ export default function RegisterPage() {
               {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
-          {/* Strength meter */}
           {form.password && (
             <div className="mt-2 space-y-1">
               <div className="flex gap-1 h-1.5">
@@ -281,29 +302,19 @@ export default function RegisterPage() {
           type="submit"
           disabled={loading}
           className="w-full h-12 rounded-2xl text-white font-bold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] shadow-md mt-1 disabled:opacity-70 disabled:cursor-not-allowed"
-          style={{
-            background: `linear-gradient(135deg, ${site.theme.gradientFrom}, ${site.theme.accent})`,
-          }}
+          style={{ background: `linear-gradient(135deg, ${site.theme.gradientFrom}, ${site.theme.accent})` }}
         >
           {loading ? (
             <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
           ) : (
-            <>
-              Create Account
-              <ArrowRight className="w-4 h-4" />
-            </>
+            <>Create Account <ArrowRight className="w-4 h-4" /></>
           )}
         </button>
       </form>
 
-      {/* Login link */}
       <p className="text-center text-sm text-gray-500 mt-6">
         Already have an account?{" "}
-        <Link
-          href="/login"
-          className="font-semibold hover:underline"
-          style={{ color: site.theme.primary }}
-        >
+        <Link href="/login" className="font-semibold hover:underline" style={{ color: site.theme.primary }}>
           Sign in
         </Link>
       </p>
@@ -314,22 +325,15 @@ export default function RegisterPage() {
 /* ── Helpers ── */
 
 function FieldWrapper({
-  label,
-  error,
-  optional,
-  children,
+  label, error, children,
 }: {
   label: string;
   error?: string;
-  optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-semibold text-gray-700">{label}</Label>
-        {optional && <span className="text-xs text-gray-400">Optional</span>}
-      </div>
+      <Label className="text-sm font-semibold text-gray-700">{label}</Label>
       {children}
       {error && (
         <p className="text-xs text-red-500 flex items-center gap-1">
@@ -347,4 +351,3 @@ function inputCls(hasError: boolean) {
       : "border-gray-200 focus-visible:border-gray-400"
   }`;
 }
-

@@ -2,38 +2,49 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useSite } from "@/context/SiteContext";
 import AuthCard from "@/components/auth/AuthCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { authApi } from "@/lib/api";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const { site } = useSite();
+  const router = useRouter();
 
   const [form, setForm] = useState({ email: "", password: "", remember: false });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
 
-    if (!form.email || !form.password) {
-      setError("Please fill in all fields.");
+    if (!form.email) {
+      toast.error("Email is required.");
+      return;
+    }
+    if (!form.password) {
+      toast.error("Password is required.");
       return;
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
+    const result = await authApi.login(form.email, form.password);
     setLoading(false);
-    // TODO: wire up real auth here
-    setError("Demo mode — authentication not yet connected.");
+
+    if (!result.success) {
+      toast.error(result.error ?? "Login failed.");
+      return;
+    }
+
+    router.push("/");
   };
 
   return (
@@ -41,15 +52,7 @@ export default function LoginPage() {
       title="Welcome back!"
       subtitle={`Sign in to order from ${site.location}'s best restaurants.`}
     >
-      {/* Error message */}
-      {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-2xl mb-5">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Email */}
         <div className="space-y-1.5">
           <Label htmlFor="email" className="text-sm font-semibold text-gray-700">
