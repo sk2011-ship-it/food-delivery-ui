@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -19,8 +20,11 @@ export interface SessionUser {
  * Validates the Supabase session cookie, then fetches the full user
  * record from our DB. Role and status always come from the DB —
  * never from JWT claims or local state.
+ *
+ * Wrapped in React cache() so multiple layouts/pages calling this
+ * within the same request share one result — no duplicate DB hits.
  */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const supabase = await createClient();
 
   // Step 1: verify JWT is valid — proves who they are
@@ -45,7 +49,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     role:   dbUser.role as UserRole,
     status: dbUser.status,
   };
-}
+});
 
 /** Redirects to /login if not authenticated. */
 export async function requireAuth(): Promise<SessionUser> {
