@@ -51,6 +51,17 @@ Use this file to track **what was done**, **what’s in progress**, and **what�
 | Featured restaurants | Done | System to show featured restaurants |
 | Admin – restaurant & menu | Done | Responsive layouts for admin |
 
+### 2026-04-03 (Friday)
+
+ Area | Status | Notes |
+|------|--------|--------|
+| Featured Admin | Done | Created Feature Page for adding featured restaurants/dishes |
+| Featured API | Done | Implemented location-based fetch for featured items |
+| Location Logic | Done | Real-time sync of featured content by district (Newcastle/Kilkeel) |
+| Menu User side | Done | Menu items from admin now visible on user storefront |
+
+
+
 ---
 
 ## Upcoming / backlog
