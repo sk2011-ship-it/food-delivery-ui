@@ -42,7 +42,7 @@ export default function DishCard({
   return (
     <div
       onClick={() => !isUnavailable && router.push(`/dashboard/customer/dish/${id}`)}
-      className={`group/dish relative bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 flex flex-col h-full focus:outline-none focus:ring-2 focus:ring-offset-2 ${isUnavailable ? "cursor-not-allowed opacity-75 grayscale-[0.2]" : "cursor-pointer"}`}
+      className={`group/dish relative bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2 ${isUnavailable ? "cursor-not-allowed opacity-75 grayscale-[0.2]" : "cursor-pointer"}`}
       style={{ "--tw-ring-color": theme.accent } as React.CSSProperties}
       role="button"
       tabIndex={isUnavailable ? -1 : 0}
@@ -54,7 +54,7 @@ export default function DishCard({
       }}
     >
       {/* Image Section */}
-      <div className={`relative ${featured ? "h-56 sm:h-64" : "h-48"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
+      <div className={`relative ${featured ? "h-48 sm:h-56 lg:h-64" : "h-44 sm:h-48"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
         {imageUrl ? (
           <Image
             src={imageUrl}
@@ -146,7 +146,7 @@ export default function DishCard({
 
 export function SkeletonDishCard() {
   return (
-    <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 animate-pulse h-full flex flex-col">
+    <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-gray-100 animate-pulse flex flex-col">
       <div className="h-48 sm:h-56 bg-gray-100" />
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-4">
         <div>

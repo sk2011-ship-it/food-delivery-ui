@@ -45,7 +45,7 @@ export default function RestaurantCard({
   return (
     <div
       onClick={() => router.push(`/dashboard/customer/restaurant/${id}`)}
-      className="group/rest bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 cursor-pointer h-full flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2 transform-gpu"
+      className="group/rest bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 cursor-pointer flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2 transform-gpu"
       style={{ "--tw-ring-color": theme.accent, WebkitMaskImage: '-webkit-radial-gradient(white, black)' } as React.CSSProperties}
       role="button"
       tabIndex={0}
@@ -57,7 +57,7 @@ export default function RestaurantCard({
       }}
     >
       {/* Image */}
-      <div className={`relative ${featured ? "h-56 sm:h-64" : "h-48"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
+      <div className={`relative ${featured ? "h-48 sm:h-56 lg:h-64" : "h-44 sm:h-48"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
         {image ? (
           <Image
             src={image}
