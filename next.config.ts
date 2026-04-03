@@ -10,6 +10,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "cdn.dribbble.com" },
       { protocol: "https", hostname: "images.pexels.com" },
       { protocol: "https", hostname: "pixabay.com" },
+      { protocol: "https", hostname: "img.freepik.com" },
+      { protocol: "https", hostname: "media.istockphoto.com" },
     ],
   },
 };

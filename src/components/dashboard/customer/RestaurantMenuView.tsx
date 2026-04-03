@@ -32,8 +32,17 @@ export default function RestaurantMenuView({
         emoji: "🍽️", // Default emoji for DB items
         items: initialMenuItems.filter(m => m.category === cat).map(item => ({
           ...item,
-          // DB price is a number, mock price is a string like "£10"
-          price: typeof item.price === "number" ? `£${item.price.toFixed(2)}` : item.price,
+          // DB price is a number or string (numeric), mock price is a string like "£10"
+          price: (function() {
+            const p = item.price as any;
+            if (typeof p === "number") return `£${p.toFixed(2)}`;
+            if (typeof p === "string") {
+              if (p.startsWith("£")) return p;
+              const val = parseFloat(p);
+              return !isNaN(val) ? `£${val.toFixed(2)}` : p;
+            }
+            return p;
+          })(),
           veg: false, // Not in DB yet
           popular: false, // Not in DB yet
         }))

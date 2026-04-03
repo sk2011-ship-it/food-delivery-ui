@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Star, Clock, Truck, Sparkles, Store } from "lucide-react";
+import { Star, Clock, Truck, Sparkles, Store, ArrowRight } from "lucide-react";
 import type { Restaurant } from "@/data/restaurants";
 import type { PublicFeaturedRestaurant } from "@/lib/api";
 
@@ -45,68 +45,94 @@ export default function RestaurantCard({
   return (
     <div
       onClick={() => router.push(`/dashboard/customer/restaurant/${id}`)}
-      className="group bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 cursor-pointer h-full flex flex-col"
+      className="group/rest bg-white rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-gray-100 cursor-pointer h-full flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2"
+      style={{ "--tw-ring-color": theme.accent } as React.CSSProperties}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          router.push(`/dashboard/customer/restaurant/${id}`);
+        }
+      }}
     >
       {/* Image */}
-      <div className="relative h-48 w-full overflow-hidden bg-gray-50 flex items-center justify-center shrink-0">
+      <div className={`relative ${featured ? "h-56 sm:h-64" : "h-48"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
         {image ? (
           <Image
             src={image}
             alt={name}
             fill
             priority={priority}
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className="object-cover transition-transform duration-500 ease-out group-hover/rest:scale-105"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           />
         ) : (
-          <Store className="w-12 h-12 text-gray-200" />
+          <div className="w-full h-full flex flex-col items-center justify-center bg-gray-50 text-gray-300 gap-2">
+             <Store className="w-10 h-10" />
+             <span className="text-[10px] font-bold uppercase tracking-widest">No Image</span>
+          </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+        
+        {/* Subtle dynamic gradient overlay for text readability if badges are present */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10 pointer-events-none" />
 
         {(featured || ("type" in restaurant && restaurant.type === "restaurant")) && (
           <div
-            className="absolute top-3 left-3 inline-flex items-center gap-1 text-[11px] font-bold text-white px-2.5 py-1 rounded-full shadow-lg"
+            className="absolute top-3 left-3 inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-white px-2.5 py-1 rounded-full shadow-md backdrop-blur-sm z-10"
             style={{ background: `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.accent})` }}
           >
-            <Sparkles className="w-3 h-3" />
+            <Sparkles className="w-3 h-3 fill-white/80" />
             Featured
           </div>
         )}
 
         {promo && (
-          <div className="absolute top-3 right-3 text-[11px] font-bold bg-white text-gray-800 px-2.5 py-1 rounded-full shadow-sm">
+          <div className="absolute top-3 right-3 text-[10px] sm:text-[11px] font-bold bg-white text-gray-800 px-2.5 py-1 rounded-full shadow-md z-10">
             {promo}
           </div>
         )}
 
         {rating && (
-          <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-full border border-white/10">
-            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-            <span className="text-white text-[11px] font-bold">{rating}</span>
-            {reviews !== null && <span className="text-white/60 text-[10px]">({reviews})</span>}
+          <div className="absolute bottom-3 left-3 flex items-center gap-1 bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-full border border-white/10 z-10 transition-transform duration-300 group-hover/rest:-translate-y-1">
+            <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+            <span className="text-white text-[11px] sm:text-xs font-bold leading-none">{rating}</span>
+            {reviews !== null && <span className="text-white/70 text-[10px] font-medium leading-none ml-0.5">({reviews})</span>}
           </div>
         )}
       </div>
 
       {/* Info */}
-      <div className="p-4 flex-1 flex flex-col">
-        <div className="mb-2">
-          <h3 className="font-heading font-bold text-gray-900 mb-0.5 line-clamp-1">{name}</h3>
-          {cuisine && (
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: theme.accent }}>
-              {cuisine}
+      <div className="p-4 sm:p-5 flex-1 flex flex-col">
+        <div className="mb-4">
+          <h3 className="font-heading font-black text-gray-900 text-base sm:text-lg leading-tight line-clamp-1 group-hover/rest:text-gray-700 transition-colors mb-1.5">
+            {name}
+          </h3>
+          
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2.5">
+            {cuisine && (
+              <span style={{ color: theme.accent }}>{cuisine}</span>
+            )}
+            {location && !cuisine && (
+               <span>{location}</span>
+            )}
+            {cuisine && location && (
+              <>
+                 <span className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
+                 <span className="line-clamp-1">{location}</span>
+              </>
+            )}
+          </div>
+          
+          {description && (
+            <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed font-medium">
+              {description}
             </p>
           )}
-          {location && !cuisine && (
-             <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-gray-400">
-               {location}
-             </p>
-          )}
-          {description && <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">{description}</p>}
         </div>
 
-        <div className="mt-auto pt-3 flex items-center justify-between border-t border-gray-50">
-          <div className="flex items-center gap-3 text-[11px] text-gray-500 font-medium">
+        <div className="mt-auto pt-4 border-t border-gray-50 flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 font-medium group-hover/rest:text-gray-700 transition-colors">
             {deliveryTime && (
               <span className="flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" />
@@ -120,17 +146,17 @@ export default function RestaurantCard({
               </span>
             )}
             {!deliveryTime && !deliveryFee && (
-               <span className="text-gray-300 italic flex items-center gap-1">
-                 <Store className="w-3 h-3" />
-                 View Store
+               <span className="text-gray-400 flex items-center gap-1 font-bold">
+                 <span>View details</span>
                </span>
             )}
           </div>
+          
           <div
-            className="text-white text-[11px] font-black px-3 py-1.5 rounded-full transition-all group-hover:scale-105 shadow-sm uppercase tracking-tight"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex shrink-0 items-center justify-center text-white shadow-md transition-all duration-300 ease-out group-hover/rest:scale-110 group-hover/rest:rotate-6 group-hover/rest:shadow-lg ml-2"
             style={{ background: `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.accent})` }}
           >
-            Explore
+            <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </div>
       </div>

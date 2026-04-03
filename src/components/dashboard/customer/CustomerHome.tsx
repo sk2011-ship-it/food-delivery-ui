@@ -7,10 +7,9 @@ import {
   Pizza, Beef, Fish, Salad, Drumstick, Cookie, Soup, ArrowRight,
 } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
-import { getRestaurants } from "@/data/restaurants";
-import type { SessionUser } from "@/lib/auth";
+import { SessionUser } from "@/lib/auth";
 import FeaturedRestaurants from "@/components/sections/FeaturedRestaurants";
-import RestaurantCard from "@/components/dashboard/customer/RestaurantCard";
+import DishesGrid from "@/components/dashboard/customer/DishesGrid";
 
 function greeting() {
   const h = new Date().getHours();
@@ -20,96 +19,110 @@ function greeting() {
 }
 
 const CATEGORIES = [
-  { label: "Pizza", icon: Pizza },
-  { label: "Burgers", icon: Beef },
-  { label: "Sushi", icon: Fish },
-  { label: "Healthy", icon: Salad },
-  { label: "Chicken", icon: Drumstick },
+  { label: "Pizza",    icon: Pizza },
+  { label: "Burgers",  icon: Beef },
+  { label: "Sushi",    icon: Fish },
+  { label: "Healthy",  icon: Salad },
+  { label: "Chicken",  icon: Drumstick },
   { label: "Desserts", icon: Cookie },
-  { label: "Asian", icon: Soup },
-  { label: "Hot", icon: Flame },
+  { label: "Asian",    icon: Soup },
+  { label: "Hot",      icon: Flame },
 ];
 
 export default function CustomerHome({ user }: { user: SessionUser }) {
   const { site } = useSite();
   const router = useRouter();
-
-  const all = getRestaurants(site.key);
-
   const { gradientFrom, gradientVia, gradientTo, accent } = site.theme;
 
   return (
-    <div>
+    <div className="min-h-screen bg-[var(--dash-bg)]">
       {/* ── Hero ── */}
       <section
-        className="relative py-10 sm:py-14 px-4 overflow-hidden"
+        className="relative pt-12 pb-16 sm:pt-16 sm:pb-20 px-4 overflow-hidden"
         style={{
           background: `linear-gradient(135deg, ${gradientFrom} 0%, ${gradientVia} 55%, ${gradientTo} 100%)`,
         }}
       >
-        {/* blobs */}
+        {/* Decorative blobs */}
         <div
-          className="absolute -top-16 -right-16 w-72 h-72 rounded-full opacity-20 blur-3xl pointer-events-none"
+          className="absolute -top-20 -right-20 w-80 h-80 rounded-full opacity-20 blur-3xl pointer-events-none"
           style={{ background: gradientTo }}
         />
         <div
-          className="absolute -bottom-10 -left-10 w-56 h-56 rounded-full opacity-15 blur-3xl pointer-events-none"
+          className="absolute -bottom-12 -left-12 w-64 h-64 rounded-full opacity-15 blur-3xl pointer-events-none"
           style={{ background: gradientFrom }}
         />
 
         <div className="max-w-3xl mx-auto relative z-10 text-center">
-          <p className="text-white/70 text-sm font-medium mb-1">{greeting()}, {user.name.split(" ")[0]} 👋</p>
-          <h1 className="font-heading text-2xl sm:text-3xl font-black text-white mb-6 leading-tight">
+          <p className="text-white/70 text-sm font-semibold mb-2 tracking-wide">
+            {greeting()}, {user.name.split(" ")[0]} 👋
+          </p>
+          <h1 className="font-heading text-3xl sm:text-4xl font-black text-white mb-8 leading-tight">
             What are you craving<br className="hidden sm:block" /> in {site.location} today?
           </h1>
 
-          {/* Search CTA — navigates to dedicated search page */}
+          {/* Search CTA */}
           <Link
             href="/dashboard/customer/search"
-            className="flex items-center gap-3 bg-white rounded-2xl shadow-2xl px-4 py-3.5 max-w-xl mx-auto hover:shadow-3xl transition-shadow"
+            className="flex items-center gap-3 bg-white rounded-2xl shadow-2xl px-5 py-4 max-w-xl mx-auto hover:shadow-3xl transition-all hover:-translate-y-0.5 group"
           >
-            <Search className="w-5 h-5 text-gray-400 shrink-0" />
-            <span className="flex-1 text-sm text-gray-400">Search restaurants or dishes…</span>
-            <ArrowRight className="w-4 h-4 text-gray-300 shrink-0" />
+            <Search className="w-5 h-5 text-gray-400 shrink-0 group-hover:text-gray-600 transition-colors" />
+            <span className="flex-1 text-sm text-gray-400 text-left">Search restaurants or dishes…</span>
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white shrink-0 transition-transform group-hover:translate-x-0.5"
+              style={{ background: accent }}
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+            </div>
           </Link>
         </div>
 
         {/* Wave bottom */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 48" fill="none" className="w-full">
+        <div className="absolute bottom-0 left-0 right-0 leading-none">
+          <svg viewBox="0 0 1440 56" fill="none" className="w-full">
             <path
-              d="M0 48L60 41.3C120 35 240 21 360 16C480 11 600 16 720 21.3C840 27 960 27 1080 21.3C1200 16 1320 11 1380 8L1440 5V48H0Z"
+              d="M0 56L60 48C120 41 240 25 360 19C480 13 600 19 720 25C840 31 960 31 1080 25C1200 19 1320 13 1380 9L1440 6V56H0Z"
               fill="var(--dash-bg)"
             />
           </svg>
         </div>
       </section>
 
-      {/* Live Featured Section (Auto-scrolling Carousel) */}
+      {/* ── Featured Restaurants ── */}
       <FeaturedRestaurants />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+      {/* ── Main content wrapper ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* ── Category chips ── */}
-        <section>
-          <h2 className="font-heading font-black text-xl mb-6 flex items-center gap-2 text-gray-900">
-            <Flame className="w-6 h-6 text-orange-500 fill-orange-500" />
-            What are you in the mood for?
-          </h2>
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3">
+        <section className="pt-2 pb-10">
+          <div className="flex items-center gap-2 mb-5">
+            <Flame className="w-5 h-5 text-orange-500 fill-orange-500 shrink-0" />
+            <h2 className="font-heading font-black text-lg sm:text-xl text-gray-900">
+              What are you in the mood for?
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2.5 sm:gap-3">
             {CATEGORIES.map(({ label, icon: Icon }) => (
               <button
                 key={label}
-                onClick={() => { }}
-                className="group flex flex-col items-center gap-2 p-3 sm:p-4 bg-white rounded-3xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 border border-gray-100"
+                onClick={() => {}}
+                className="group/cat flex flex-col items-center gap-2 p-3 sm:p-4 bg-white rounded-2xl sm:rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 border border-gray-100 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                style={{ "--tw-ring-color": accent } as React.CSSProperties}
+                aria-label={`Filter by ${label}`}
               >
                 <span
-                  className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center rounded-2xl transition-transform group-hover:scale-110"
-                  style={{ background: `${gradientFrom}15` }}
+                  className="w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all duration-300 group-hover/cat:scale-110 group-hover/cat:rotate-3"
+                  style={{ background: `${gradientFrom}18` }}
                 >
-                  <Icon className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: gradientFrom }} strokeWidth={1.75} />
+                  <Icon
+                    className="w-4 h-4 sm:w-5 sm:h-5 transition-colors"
+                    style={{ color: gradientFrom }}
+                    strokeWidth={1.75}
+                  />
                 </span>
-                <span className="text-[10px] sm:text-xs font-bold text-gray-700 text-center leading-tight">
+                <span className="text-[9px] sm:text-[11px] font-bold text-gray-600 text-center leading-tight">
                   {label}
                 </span>
               </button>
@@ -117,26 +130,11 @@ export default function CustomerHome({ user }: { user: SessionUser }) {
           </div>
         </section>
 
-        {/* ── All restaurants ── */}
-        <section>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-heading font-black text-xl text-gray-900">
-              All Restaurants in {site.location}
-            </h2>
-            <Link 
-              href="/dashboard/customer/all-restaurants"
-              className="text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all"
-              style={{ color: accent }}
-            >
-              See all <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {all.slice(0, 6).map((r, i) => (
-              <RestaurantCard key={r.id} restaurant={r} theme={site.theme} priority={i < 3} />
-            ))}
-          </div>
+        {/* ── Dishes Section ── */}
+        <section className="pb-16">
+          <DishesGrid />
         </section>
+
       </div>
     </div>
   );

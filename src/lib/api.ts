@@ -251,6 +251,10 @@ export interface AdminMenuItemResponse {
   createdAt:          string;
 }
 
+export interface DishListResponse {
+  items: AdminMenuItemResponse[];
+}
+
 export interface AdminMenuListResponse {
   items:    AdminMenuItemResponse[];
   total:    number;
@@ -298,6 +302,20 @@ export const menuApi = {
   delete(id: string) {
     return del<{ id: string }>(`/api/admin/menu/${id}`);
   },
+};
+
+export const dishesApi = {
+  list(params: { location: string; search?: string; category?: string; limit?: number }) {
+    const qs = new URLSearchParams({ location: params.location });
+    if (params.search)   qs.set("search",   params.search);
+    if (params.category) qs.set("category", params.category);
+    if (params.limit)    qs.set("limit",    String(params.limit));
+    return get<DishListResponse>(`/api/dishes?${qs.toString()}`);
+  },
+  getOne(id: string) {
+    // We'll reuse the public restaurant item API for this or create a new one
+    return get<AdminMenuItemResponse>(`/api/dishes/${id}`);
+  }
 };
 
 /* ── Public Featured API ── */
