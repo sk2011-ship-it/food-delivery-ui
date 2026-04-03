@@ -837,10 +837,10 @@ export default function AdminMenu() {
       {/* ── Desktop table (md+) ── */}
       {!loadingRests && !loadingItems && filtered.length > 0 && (
         <>
-          <div className="hidden md:block rounded-2xl overflow-hidden" style={{ border: "1px solid var(--dash-card-border)" }}>
+          <div className="hidden md:block rounded-2xl" style={{ border: "1px solid var(--dash-card-border)" }}>
             {/* Header */}
             <div
-              className="grid items-center px-6 py-3 text-xs font-semibold uppercase tracking-wide"
+              className="grid items-center px-6 py-3 text-xs font-semibold uppercase tracking-wide rounded-t-2xl"
               style={{
                 gridTemplateColumns: "4.5rem 1fr 1fr 8rem 9rem 6rem 7rem 2.5rem",
                 columnGap: "1.25rem",
@@ -869,6 +869,8 @@ export default function AdminMenu() {
                   columnGap: "1.25rem",
                   background: "var(--dash-card)",
                   borderTop: i === 0 ? "none" : "1px solid var(--dash-card-border)",
+                  borderBottomLeftRadius: i === filtered.length - 1 ? "1rem" : "0",
+                  borderBottomRightRadius: i === filtered.length - 1 ? "1rem" : "0",
                 }}
               >
                 {/* Image */}
