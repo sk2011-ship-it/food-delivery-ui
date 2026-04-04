@@ -62,25 +62,24 @@ Use this file to track **what was done**, **what’s in progress**, and **what�
 
 
 
+### 2026-04-04 (Saturday)
+
+| Area | Status | Notes |
+|------|--------|--------|
+| Cart | Done | Implemented Add to Cart functionality with separate table |
+| Checkout | Done | Built Checkout Page for reviewing items and placing orders |
+| Order Flow | Done | Real-time flow: Owner accept/reject → Payment request → Kitchen prep → Delivery |
+| Notifications | Done | Real-time status updates and rejection notifications for users |(supabse rls)
+| Owner Dashboard | Done | Professional UI cleanup: removed redundant sections, improved settings & hours |
+| Live Order Desk | Done | Added Live Order Management for Owner (Live, History, and Rejections) |
+
 ---
 
 ## Upcoming / backlog
 
-### 2026-04-03 (Friday) — planned
 
-| Area | Status | Notes |
-|------|--------|--------|
-| Menu on user side | Planned | Show menu items added in admin on the **user** storefront |
-| Orders | Planned | Order collection flow end-to-end |
-| Cart | Planned | Add items to cart from menu |
-| Checkout | Planned | Checkout flow |
 
-### 2026-04-04 (Saturday) — planned
 
-| Area | Status | Notes |
-|------|--------|--------|
-| Payments | Planned | Payments with **delivery charges** and the **conditions** already agreed |
-| Stripe | Planned | Integrate Stripe for payments |
 
 
 ## How to update
@@ -90,4 +89,4 @@ Use this file to track **what was done**, **what’s in progress**, and **what�
 3. Adjust **Planned → In progress → Done** in the tables as you go.
 4. Keep **Quick journal** one line per day if you like a casual log.
 
-Last updated: 2026-04-03
+Last updated: 2026-04-04

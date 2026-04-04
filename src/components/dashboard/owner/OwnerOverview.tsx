@@ -1,155 +1,202 @@
 "use client";
 
 import React from "react";
-import { Globe, Users, Store, TrendingUp, Clock, CheckCircle2, Package, Truck, Utensils, ArrowRight, ChevronRight, Activity } from "lucide-react";
+import {
+  TrendingUp, Store, ShoppingBag, Clock,
+  CheckCircle2, Utensils, Truck, ChevronRight,
+  ArrowRight, Activity, BarChart2, AlertCircle
+} from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
-import StatCard from "@/components/dashboard/shared/StatCard";
-import PageHeader from "@/components/dashboard/shared/PageHeader";
 import { useOwnerOrders } from "@/context/OwnerOrderContext";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-const stats: { 
-  label: string; 
-  value: string | number; 
-  icon: any; 
-  color: "purple" | "blue" | "amber" | "green" | "red"; 
-  trend?: { value: string; positive: boolean } 
-}[] = [
-  { label: "Total Sites",        value: "3",      icon: Globe,       color: "purple" },
-  { label: "Total Restaurants",  value: "110",    icon: Store,       color: "blue"   },
-  { label: "Total Users",        value: "1,240",  icon: Users,       color: "green",  trend: { value: "12% this month", positive: true } },
-  { label: "Monthly Revenue",    value: "£8,300", icon: TrendingUp,  color: "amber",  trend: { value: "8% vs last month", positive: true } },
-];
+const STATUS_COLOR: Record<string, string> = {
+  PENDING_CONFIRMATION: "bg-amber-100 text-amber-700 border-amber-200",
+  CONFIRMED:   "bg-blue-100 text-blue-700 border-blue-200",
+  PAID:        "bg-cyan-100 text-cyan-700 border-cyan-200",
+  PREPARING:   "bg-purple-100 text-purple-700 border-purple-200",
+  OUT_FOR_DELIVERY: "bg-orange-100 text-orange-700 border-orange-200",
+  DELIVERED:   "bg-emerald-100 text-emerald-700 border-emerald-200",
+  CANCELLED:   "bg-red-100 text-red-700 border-red-200",
+};
+
+const STATUS_DOT: Record<string, string> = {
+  PENDING_CONFIRMATION: "bg-amber-500",
+  CONFIRMED:   "bg-blue-500",
+  PAID:        "bg-cyan-500",
+  PREPARING:   "bg-purple-500",
+  OUT_FOR_DELIVERY: "bg-orange-500",
+  DELIVERED:   "bg-emerald-500",
+  CANCELLED:   "bg-red-500",
+};
 
 const sites = [
-  { name: "Kilkeel Eats",      orders: 142, revenue: "£2,840", restaurants: 30, color: "bg-red-500" },
-  { name: "Newcastle Eats",    orders: 98,  revenue: "£1,960", restaurants: 35, color: "bg-green-600" },
-  { name: "Downpatrick Eats",  orders: 175, revenue: "£3,500", restaurants: 45, color: "bg-blue-600" },
+  { name: "Kilkeel Eats",      orders: 142, revenue: "£2,840", pct: 68, color: "bg-red-500" },
+  { name: "Newcastle Eats",    orders: 98,  revenue: "£1,960", pct: 46, color: "bg-green-600" },
+  { name: "Downpatrick Eats",  orders: 175, revenue: "£3,500", pct: 82, color: "bg-blue-600" },
 ];
 
 export default function OwnerOverview({ user }: { user: SessionUser }) {
   const { orders, loading } = useOwnerOrders();
 
-  const activeOrders = orders.filter(o => 
-    o.status === "PENDING_CONFIRMATION" || 
-    o.status === "CONFIRMED" ||
-    o.status === "PAID" || 
-    o.status === "PREPARING" ||
-    o.status === "OUT_FOR_DELIVERY"
-  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4);
+  const activeOrders = orders
+    .filter(o =>
+      ["PENDING_CONFIRMATION","CONFIRMED","PAID","PREPARING","OUT_FOR_DELIVERY"].includes(o.status)
+    )
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5);
+
+  const pendingCount  = orders.filter(o => o.status === "PENDING_CONFIRMATION").length;
+  const activeCount   = orders.filter(o => ["PAID","PREPARING","OUT_FOR_DELIVERY"].includes(o.status)).length;
+  const deliveredToday = orders.filter(o => o.status === "DELIVERED").length;
+  const totalRevenue = orders
+    .filter(o => o.status === "DELIVERED")
+    .reduce((s, o) => s + parseFloat(o.totalAmount), 0);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 md:space-y-12 px-4 md:px-0 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6">
-        <PageHeader
-          title={`Welcome, ${user.name.split(' ')[0]}`}
-          subtitle="Platform performance overview"
-        />
-        <div className="flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 bg-white rounded-xl md:rounded-2xl border border-gray-100 shadow-sm self-start md:self-auto">
-           <Activity className="w-3.5 h-3.5 text-blue-500" />
-           <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">System Live</span>
+    <div className="w-full space-y-5 pb-10">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-base font-bold text-gray-900">
+            Good day, {user.name.split(" ")[0]} 👋
+          </h1>
+          <p className="text-xs text-gray-400 mt-0.5">Here's your restaurant platform overview.</p>
+        </div>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-lg border border-gray-100 shadow-sm">
+          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Live</span>
         </div>
       </div>
 
-      {/* Stats Grid - Fixed for Mobile */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {stats.map(s => <StatCard key={s.label} {...s} />)}
+      {/* Stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { label: "Pending",       value: pendingCount,    icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100" },
+          { label: "In Progress",   value: activeCount,     icon: Utensils,    color: "text-blue-600",  bg: "bg-blue-50",  border: "border-blue-100" },
+          { label: "Delivered",     value: deliveredToday,  icon: CheckCircle2,color: "text-emerald-600",bg: "bg-emerald-50",border: "border-emerald-100"},
+          { label: "Revenue",       value: `£${totalRevenue.toFixed(0)}`, icon: TrendingUp, color: "text-purple-600", bg: "bg-purple-50", border: "border-purple-100" },
+        ].map(({ label, value, icon: Icon, color, bg, border }) => (
+          <div key={label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm flex items-center gap-3">
+            <div className={cn("p-2 rounded-lg border", bg, border)}>
+              <Icon className={cn("w-4 h-4", color)} />
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">{label}</p>
+              <p className="text-lg font-bold text-gray-900 mt-0.5 leading-none">{value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 md:gap-10">
-        {/* Recent Live Orders Summary */}
-        <div className="lg:col-span-2 space-y-6 md:space-y-8">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight">Recent Activity</h2>
-            <Link 
+      {/* Main layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Recent Orders */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="w-3.5 h-3.5 text-gray-400" />
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">Live Activity</span>
+            </div>
+            <Link
               href="/dashboard/owner/orders"
-              className="group flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-blue-600 hover:text-blue-700 transition-colors"
             >
-              Order Desk
-              <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+              Order Desk <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
 
-          {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-4 bg-white rounded-2xl md:rounded-[2.5rem] border border-gray-50 shadow-sm">
-               <div className="w-8 h-8 rounded-full border-4 border-gray-100 border-t-blue-500 animate-spin" />
-               <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Syncing...</p>
-            </div>
-          ) : activeOrders.length === 0 ? (
-            <div className="py-20 md:py-24 text-center bg-white rounded-2xl md:rounded-[3.5rem] border-2 md:border-4 border-dashed border-gray-50 shadow-sm">
-               <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6">
-                  <Utensils className="w-6 h-6 text-gray-200" />
-               </div>
-               <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">Queue is Clear</h3>
-               <p className="text-gray-400 font-medium text-xs">No active orders right now.</p>
-            </div>
-          ) : (
-            <div className="grid gap-3 md:gap-4">
-              {activeOrders.map((order) => (
-                <Link 
-                  key={order.id} 
+          <div className="divide-y divide-gray-50">
+            {loading ? (
+              <div className="py-16 flex flex-col items-center gap-3">
+                <div className="w-7 h-7 rounded-full border-2 border-gray-100 border-t-blue-500 animate-spin" />
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Syncing...</p>
+              </div>
+            ) : activeOrders.length === 0 ? (
+              <div className="py-16 text-center">
+                <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <Clock className="w-5 h-5 text-gray-200" />
+                </div>
+                <p className="text-sm font-semibold text-gray-500">Queue is clear</p>
+                <p className="text-xs text-gray-400 mt-0.5">No active orders right now.</p>
+              </div>
+            ) : (
+              activeOrders.map((order) => (
+                <Link
+                  key={order.id}
                   href="/dashboard/owner/orders"
-                  className="group relative flex items-center justify-between p-4 md:p-6 bg-white rounded-xl md:rounded-[2rem] border border-gray-50 shadow-sm hover:shadow-lg transition-all duration-300"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors group"
                 >
-                  <div className="flex items-center gap-4 md:gap-6 min-w-0">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div className={cn(
-                      "w-10 h-10 md:w-12 md:h-12 rounded-lg md:rounded-2xl flex items-center justify-center text-white font-bold text-[9px] md:text-[10px] shadow-lg flex-shrink-0",
-                      order.status === 'PENDING_CONFIRMATION' ? 'bg-amber-500 shadow-amber-100' : 'bg-blue-500 shadow-blue-100'
-                    )}>
-                      #{order.id.slice(0, 4)}
-                    </div>
+                      "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                      STATUS_DOT[order.status] ?? "bg-gray-400"
+                    )} />
                     <div className="min-w-0">
-                      <h4 className="font-bold text-gray-900 text-base md:text-lg leading-none mb-1 group-hover:text-blue-600 transition-colors truncate">
+                      <p className="text-sm font-semibold text-gray-800 truncate group-hover:text-blue-600 transition-colors">
                         {order.restaurant.name}
-                      </h4>
-                      <div className="flex items-center gap-2">
-                         <span className={cn(
-                           "text-[7px] md:text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md leading-none",
-                           order.status === 'PENDING_CONFIRMATION' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                         )}>
-                            {order.status.replace(/_/g, ' ')}
-                         </span>
-                         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">• {order.items.length} items</span>
-                      </div>
+                      </p>
+                      <p className="text-[10px] text-gray-400 font-medium">
+                        #{order.id.slice(0, 8)} · {order.items.length} item{order.items.length !== 1 ? "s" : ""}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 md:gap-6 flex-shrink-0 ml-4">
-                     <span className="text-lg md:text-xl font-extrabold text-gray-900 tracking-tight">£{parseFloat(order.totalAmount).toFixed(2)}</span>
-                     <div className="hidden sm:flex w-8 h-8 md:w-10 md:h-10 rounded-full border border-gray-100 items-center justify-center text-gray-300 group-hover:text-blue-600 group-hover:border-blue-100 transition-all">
-                        <ArrowRight className="w-4 h-4" />
-                     </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className={cn(
+                      "text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border",
+                      STATUS_COLOR[order.status] ?? "bg-gray-100 text-gray-500 border-gray-200"
+                    )}>
+                      {order.status.replace(/_/g, " ")}
+                    </span>
+                    <span className="text-sm font-bold text-gray-900">£{parseFloat(order.totalAmount).toFixed(2)}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-blue-500 transition-colors" />
                   </div>
                 </Link>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Sites Sidebar */}
-        <div className="space-y-6 md:space-y-8">
-           <h2 className="text-xl md:text-2xl font-extrabold text-gray-900 tracking-tight">Zone Metrics</h2>
-           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4 md:gap-6">
-             {sites.map((site) => (
-               <div key={site.name} className="relative bg-white rounded-xl md:rounded-[2rem] p-5 md:p-6 border border-gray-50 shadow-sm hover:shadow-md transition-all overflow-hidden group">
-                  <div className={cn("absolute top-0 right-0 w-24 md:w-32 h-24 md:h-32 -mr-12 md:-mr-16 -mt-12 md:-mt-16 rounded-full blur-3xl opacity-5", site.color)} />
-                  <div className="flex items-center gap-2.5 mb-4 md:mb-6 relative z-10">
+        {/* Zone Metrics */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-50">
+            <BarChart2 className="w-3.5 h-3.5 text-gray-400" />
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">Zone Metrics</span>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {sites.map((site) => (
+              <div key={site.name} className="px-4 py-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
                     <div className={cn("w-1.5 h-1.5 rounded-full", site.color)} />
-                    <span className="font-bold text-gray-700 text-[9px] md:text-[10px] uppercase tracking-widest">{site.name}</span>
+                    <span className="text-xs font-semibold text-gray-700">{site.name}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 md:gap-4 relative z-10">
-                     <div className="bg-gray-50/50 p-3 md:p-4 rounded-xl md:rounded-2xl border border-gray-100/50">
-                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1 leading-none">Orders</p>
-                        <p className="text-lg md:text-xl font-bold text-gray-900 uppercase">{site.orders}</p>
-                     </div>
-                     <div className="bg-gray-50/50 p-3 md:p-4 rounded-xl md:rounded-2xl border border-gray-100/50 text-right">
-                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mb-1 leading-none">Revenue</p>
-                        <p className="text-lg md:text-xl font-bold text-gray-900 uppercase">{site.revenue}</p>
-                     </div>
+                  <span className="text-xs font-bold text-gray-900">{site.revenue}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full", site.color)}
+                      style={{ width: `${site.pct}%` }}
+                    />
                   </div>
-               </div>
-             ))}
-           </div>
+                  <span className="text-[10px] font-bold text-gray-400">{site.orders} orders</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom CTA */}
+          <div className="px-4 py-3 border-t border-gray-50">
+            <Link
+              href="/dashboard/owner/restaurants"
+              className="flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-blue-600 transition-colors"
+            >
+              <span className="flex items-center gap-1.5"><Store className="w-3.5 h-3.5" /> My Restaurants</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
         </div>
       </div>
     </div>
