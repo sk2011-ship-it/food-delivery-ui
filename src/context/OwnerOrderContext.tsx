@@ -82,69 +82,97 @@ export function OwnerOrderProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    // 1. Initial fetch
-    fetchOrders();
+    let active = true;
 
-    // 2. Listen for auth changes to refetch when the user logs in as owner
-    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((event: any) => {
-      if (event === "SIGNED_IN") {
-        console.log("🔐 [OWNER] Auth state changed (SIGNED_IN), refetching...");
-        fetchOrders();
-      }
-    });
-
-    // 3. ── Supabase Realtime Subscription ──────────────────────────
-    const channel = supabase
-      .channel("owner_orders_realtime_dashboard")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "orders" },
-        async (payload: any) => {
-          console.log("🔔 [OWNER] Realtime update received:", payload);
-          
-          if (payload.eventType === "INSERT") {
-            const newOrder = payload.new;
-            
-            // 🔥 ONLY show toast and refresh if the order belongs to one of the owner's restaurants
-            if (ownedRestaurantIdsRef.current.includes(newOrder.restaurant_id)) {
-              console.log("🎯 [OWNER] Relevant new order detected!", newOrder.id);
-              toast.info("A new order just landed at your restaurant!", { icon: "🔔" });
-              fetchOrders(newOrder.id);
-            } else {
-              console.log("⏭️ [OWNER] Ignoring new order for restaurant", newOrder.restaurant_id);
-            }
-          } else if (payload.eventType === "UPDATE") {
-            const row = payload.new;
-            
-            // Map snake_case from DB to camelCase for our state
-            const mappedRow = {
-              id: row.id,
-              userId: row.user_id,
-              restaurantId: row.restaurant_id,
-              status: row.status,
-              totalAmount: row.total_amount,
-              updatedAt: row.updated_at,
-            };
-            
-            setOrders((prev) => 
-               prev.map((o) => (o.id === row.id ? { ...o, ...mappedRow } : o))
-            );
-
-            if (row.status === "PAID") {
-              toast.success("Payment confirmed for an order!", { icon: "💰" });
-            }
-          } else if (payload.eventType === "DELETE") {
-            setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
-          }
+    async function init() {
+      try {
+        // Step 1: Check authentication and role from /api/auth/me
+        const authRes = await fetch("/api/auth/me");
+        if (!authRes.ok) {
+          if (active) setLoading(false);
+          return;
         }
-      )
-      .subscribe((status: string) => {
-        console.log("📡 [OWNER] Realtime sync status:", status);
-      });
+        
+        const { data: userData } = await authRes.json();
+        
+        // Step 2: ONLY proceed if the user is an owner
+        if (userData?.role !== "owner") {
+          console.log("🛡️ [OWNER] Current user is not an owner. Skipping order sync.");
+          if (active) setLoading(false);
+          return;
+        }
+
+        console.log("🏪 [OWNER] Owner verified. Starting order synchronization...");
+        
+        // 1. Initial fetch
+        await fetchOrders();
+
+        // 2. Listen for auth changes to refetch when the user logs in as owner
+        const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((event: any) => {
+          if (event === "SIGNED_IN") {
+            console.log("🔐 [OWNER] Auth state changed (SIGNED_IN), refetching...");
+            fetchOrders();
+          }
+        });
+
+        // 3. ── Supabase Realtime Subscription ──────────────────────────
+        const channel = supabase
+          .channel("owner_orders_realtime_dashboard")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "orders" },
+            async (payload: any) => {
+              console.log("🔔 [OWNER] Realtime update received:", payload);
+              
+              if (payload.eventType === "INSERT") {
+                const newOrder = payload.new;
+                
+                if (ownedRestaurantIdsRef.current.includes(newOrder.restaurant_id)) {
+                  console.log("🎯 [OWNER] Relevant new order detected!", newOrder.id);
+                  toast.info("A new order just landed at your restaurant!", { icon: "🔔" });
+                  fetchOrders(newOrder.id);
+                }
+              } else if (payload.eventType === "UPDATE") {
+                const row = payload.new;
+                const mappedRow = {
+                  id: row.id,
+                  userId: row.user_id,
+                  restaurantId: row.restaurant_id,
+                  status: row.status,
+                  totalAmount: row.total_amount,
+                  updatedAt: row.updated_at,
+                };
+                
+                setOrders((prev) => 
+                   prev.map((o) => (o.id === row.id ? { ...o, ...mappedRow } : o))
+                );
+
+                if (row.status === "PAID") {
+                  toast.success("Payment confirmed for an order!", { icon: "💰" });
+                }
+              } else if (payload.eventType === "DELETE") {
+                setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
+              }
+            }
+          )
+          .subscribe((status: string) => {
+            console.log("📡 [OWNER] Realtime sync status:", status);
+          });
+
+        return () => {
+          authListener.unsubscribe();
+          supabase.removeChannel(channel);
+        };
+      } catch (err) {
+        console.error("OwnerOrderProvider init failed:", err);
+        if (active) setLoading(false);
+      }
+    }
+
+    init();
 
     return () => {
-      authListener.unsubscribe();
-      supabase.removeChannel(channel);
+      active = false;
     };
   }, [fetchOrders]);
 

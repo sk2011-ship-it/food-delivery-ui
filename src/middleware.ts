@@ -1,7 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-export async function proxy(request: NextRequest) {
+/**
+ * Next.js Middleware — refreshes Supabase sessions and handles protected routes.
+ * Must be named 'middleware.ts' and located in /src or root to be recognized.
+ */
+export default async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   // Refresh the session so it doesn't expire mid-visit
