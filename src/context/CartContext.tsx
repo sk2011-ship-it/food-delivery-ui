@@ -93,11 +93,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Init: determine guest vs. logged-in ─────────────────────
-  useEffect(() => {
-    const init = async () => {
-      setLoading(true);
+  const refreshCart = useCallback(async () => {
+    setLoading(true);
+    try {
       const loggedIn = await checkIsLoggedIn();
-
+      
       if (loggedIn) {
         setIsGuest(false);
         // Sync any leftover guest cart into DB first
@@ -107,10 +107,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         setIsGuest(true);
         setCartItems(loadGuestCart());
       }
+    } catch (error) {
+      console.error("Error refreshing cart:", error);
+      setIsGuest(true);
+      setCartItems(loadGuestCart());
+    } finally {
       setLoading(false);
-    };
-    init();
+    }
   }, [fetchDBCart, syncGuestCartToDB]);
+
+  useEffect(() => {
+    refreshCart();
+  }, [refreshCart]);
 
   // ── Add item ─────────────────────────────────────────────────
   const addItem = async (item: Omit<CartItem, "id" | "quantity">) => {
@@ -228,7 +236,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       removeItem,
       updateQuantity,
       clearCart,
-      refreshCart: fetchDBCart,
+      refreshCart,
     }}>
       {children}
     </CartContext.Provider>

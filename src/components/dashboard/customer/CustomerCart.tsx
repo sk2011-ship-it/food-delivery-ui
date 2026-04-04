@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ShoppingBag, ArrowRight, Minus, Plus, Trash2, ChevronRight, Store } from "lucide-react";
-import React from "react";
+import React, { useEffect } from "react";
 import { useSite } from "@/context/SiteContext";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
@@ -25,6 +25,10 @@ export default function CustomerCart() {
       return acc;
     }, {} as Record<string, { name: string; items: typeof cartItems }>);
   }, [cartItems]);
+
+  useEffect(() => {
+    refreshCart();
+  }, [refreshCart]);
 
   const handleCheckout = () => {
     router.push("/dashboard/customer/checkout");

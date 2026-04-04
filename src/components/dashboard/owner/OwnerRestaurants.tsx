@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronsUpDown, ChevronUp, Store,
+  ChevronsUpDown, ChevronUp, Store, Loader2
 } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 
@@ -22,17 +22,6 @@ interface Restaurant {
   createdAt:    string;
 }
 
-const MOCK_RESTAURANTS: Restaurant[] = [
-  { id: "1",  name: "The Anchor Bar",     contactEmail: "anchor@example.com",     contactPhone: "+44 28 4176 2345", site: "Kilkeel Eats",     ownerName: "Declan Walsh",     status: "active",    createdAt: "2024-03-10" },
-  { id: "2",  name: "Pizza Palace",       contactEmail: "pizza@example.com",      contactPhone: "+44 28 4372 1234", site: "Newcastle Eats",   ownerName: "Marie O'Brien",   status: "active",    createdAt: "2024-04-15" },
-  { id: "3",  name: "Burger Barn",        contactEmail: "burger@example.com",     contactPhone: "+44 28 4461 5678", site: "Downpatrick Eats", ownerName: "Conor McAlister", status: "active",    createdAt: "2024-05-20" },
-  { id: "4",  name: "Sushi Station",      contactEmail: "sushi@example.com",      contactPhone: "+44 28 4176 9012", site: "Kilkeel Eats",     ownerName: "Aoife Brennan",   status: "active",    createdAt: "2024-06-01" },
-  { id: "5",  name: "Noodle House",       contactEmail: "noodle@example.com",     contactPhone: "+44 28 4372 3456", site: "Newcastle Eats",   ownerName: "Fiona McGrath",   status: "inactive",  createdAt: "2024-07-14" },
-  { id: "6",  name: "The Chippy",         contactEmail: "chippy@example.com",     contactPhone: "+44 28 4461 7890", site: "Downpatrick Eats", ownerName: "Niall O'Connor",  status: "active",    createdAt: "2024-08-22" },
-  { id: "7",  name: "Curry Corner",       contactEmail: "curry@example.com",      contactPhone: "+44 28 4176 2345", site: "Kilkeel Eats",     ownerName: "Siobhan Murphy",  status: "suspended", createdAt: "2024-09-05" },
-  { id: "8",  name: "Sandwich Co.",       contactEmail: "sandwich@example.com",   contactPhone: "+44 28 4372 6789", site: "Newcastle Eats",   ownerName: "Peter Fitzpatrick",status: "active",   createdAt: "2024-10-11" },
-];
-
 const STATUS_META: Record<RestaurantStatus, { label: string; color: string; bg: string }> = {
   active:    { label: "Active",    color: "#22c55e", bg: "#f0fdf4" },
   inactive:  { label: "Inactive",  color: "#6b7280", bg: "#f3f4f6" },
@@ -42,15 +31,48 @@ const STATUS_META: Record<RestaurantStatus, { label: string; color: string; bg: 
 const PAGE_SIZE = 8;
 
 export default function OwnerRestaurants() {
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [sort,   setSort]   = useState<SortField>("name");
   const [order,  setOrder]  = useState<SortOrder>("asc");
   const [page,   setPage]   = useState(1);
 
-  const filtered = MOCK_RESTAURANTS.filter((r) => {
+  useEffect(() => {
+    async function fetchRestaurants() {
+      try {
+        setIsLoading(true);
+        const res = await fetch("/api/owner/restaurants");
+        const json = await res.json();
+
+        if (!res.ok) throw new Error(json.error || "Failed to fetch");
+
+        // Format dates if needed
+        const items = (json.data?.items || []).map((r: any) => ({
+          ...r,
+          createdAt: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : "N/A"
+        }));
+
+        setRestaurants(items);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchRestaurants();
+  }, []);
+
+  const filtered = restaurants.filter((r) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || r.name.toLowerCase().includes(q) || r.contactEmail.toLowerCase().includes(q) || r.site.toLowerCase().includes(q);
+    const matchSearch = !q || 
+      r.name.toLowerCase().includes(q) || 
+      r.contactEmail.toLowerCase().includes(q) || 
+      (r.site?.toLowerCase() || "").includes(q);
     const matchStatus = status === "all" || r.status === status;
     return matchSearch && matchStatus;
   });
@@ -107,8 +129,8 @@ export default function OwnerRestaurants() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[400px] flex flex-col">
+        <div className="overflow-x-auto flex-1">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -128,12 +150,25 @@ export default function OwnerRestaurants() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {sliced.length === 0 ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-gray-400 text-sm">No restaurants found.</td>
+                  <td colSpan={5} className="px-5 py-24 text-center">
+                    <div className="flex flex-col items-center gap-2 text-gray-400">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <p>Loading restaurants...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-24 text-center text-red-500">{error}</td>
+                </tr>
+              ) : sliced.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-24 text-center text-gray-400 text-sm">No restaurants found.</td>
                 </tr>
               ) : sliced.map((r) => {
-                const meta = STATUS_META[r.status];
+                const meta = STATUS_META[r.status] || STATUS_META.inactive;
                 return (
                   <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3.5">
@@ -147,8 +182,8 @@ export default function OwnerRestaurants() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-600 hidden md:table-cell">{r.ownerName}</td>
-                    <td className="px-5 py-3.5 text-gray-600 hidden lg:table-cell">{r.site}</td>
+                    <td className="px-5 py-3.5 text-gray-600 hidden md:table-cell">{r.ownerName || "N/A"}</td>
+                    <td className="px-5 py-3.5 text-gray-600 hidden lg:table-cell">{r.site || "N/A"}</td>
                     <td className="px-5 py-3.5">
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-medium"
                         style={{ color: meta.color, background: meta.bg }}>
@@ -162,7 +197,7 @@ export default function OwnerRestaurants() {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 mt-auto">
           <p className="text-xs text-gray-500">
             {total === 0 ? "No results" : `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} of ${total}`}
           </p>

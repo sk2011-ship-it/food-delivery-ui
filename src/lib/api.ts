@@ -413,3 +413,17 @@ export const adminFeaturedApi = {
     return del<{ id: string }>(`/api/admin/featured/${id}`);
   },
 };
+
+/* ── Owner: Restaurant Management API ── */
+
+export const ownerRestaurantApi = {
+  list() {
+    return get<{ items: AdminRestaurantItem[] }>("/api/owner/restaurants");
+  },
+  get(id: string) {
+    return get<AdminRestaurantItem>(`/api/owner/restaurants/${id}`);
+  },
+  update(id: string, payload: Partial<RestaurantPayload>) {
+    return put<AdminRestaurantItem>(`/api/owner/restaurants/${id}`, payload);
+  },
+};
