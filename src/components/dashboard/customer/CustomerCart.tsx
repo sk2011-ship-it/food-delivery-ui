@@ -3,13 +3,47 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ShoppingBag, ArrowRight, Minus, Plus, Trash2, ChevronRight, Store } from "lucide-react";
+import React from "react";
 import { useSite } from "@/context/SiteContext";
 import { useCart } from "@/context/CartContext";
+import { toast } from "sonner";
 
 export default function CustomerCart() {
   const { site } = useSite();
   const { gradientFrom, accent } = site.theme;
-  const { cartItems, totalItems, totalPrice, updateQuantity, removeItem, clearCart, loading, isGuest } = useCart();
+  const { cartItems, totalItems, totalPrice, updateQuantity, removeItem, clearCart, loading, isGuest, refreshCart } = useCart();
+  const [checkingOut, setCheckingOut] = React.useState(false);
+
+  // Group items by restaurant
+  const groupedItems = React.useMemo(() => {
+    return cartItems.reduce((acc, item) => {
+      const g = acc[item.restaurantId] || { name: item.restaurantName, items: [] };
+      g.items.push(item);
+      acc[item.restaurantId] = g;
+      return acc;
+    }, {} as Record<string, { name: string; items: typeof cartItems }>);
+  }, [cartItems]);
+
+  const handleCheckout = async () => {
+    try {
+      setCheckingOut(true);
+      const res = await fetch("/api/orders", { method: "POST" });
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success("Orders placed successfully!");
+        refreshCart();
+        // Redirect to orders page (to be created)
+        window.location.href = "/dashboard/customer/orders";
+      } else {
+        toast.error(data.message || "Failed to place orders");
+      }
+    } catch (err) {
+      toast.error("Something went wrong during checkout");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
 
   const isEmpty = !loading && cartItems.length === 0;
   const finalTotal = totalPrice;
@@ -80,58 +114,65 @@ export default function CustomerCart() {
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Cart Items List */}
-          <div className="space-y-3">
-            {cartItems.map((item) => (
-              <div
-                key={item.id}
-                className="group relative flex items-center gap-4 p-4 rounded-3xl transition-all hover:shadow-md"
-                style={{ background: "var(--dash-card)", border: "1px solid var(--dash-card-border)" }}
-              >
-                <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-gray-50 flex-shrink-0">
-                  {item.imageUrl ? (
-                    <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-200">
-                       <ShoppingBag className="w-8 h-8" />
+          {/* Cart Items Grouped by Restaurant */}
+          <div className="space-y-6">
+            {Object.entries(groupedItems).map(([rid, group]) => (
+              <div key={rid} className="space-y-3">
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50/50 rounded-2xl border border-dashed border-gray-200">
+                  <Store className="w-4 h-4 text-gray-400" />
+                  <span className="text-xs font-black uppercase tracking-widest text-gray-500">
+                    {group.name}
+                  </span>
+                </div>
+                
+                <div className="space-y-3">
+                  {group.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className="group relative flex items-center gap-4 p-4 rounded-3xl transition-all hover:shadow-md"
+                      style={{ background: "var(--dash-card)", border: "1px solid var(--dash-card-border)" }}
+                    >
+                      <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-gray-50 flex-shrink-0">
+                        {item.imageUrl ? (
+                          <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-200">
+                             <ShoppingBag className="w-8 h-8" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0 pr-2">
+                        <h3 className="text-sm font-black text-gray-900 truncate leading-tight mb-1">
+                          {item.name}
+                        </h3>
+                        <p className="text-sm font-black" style={{ color: accent }}>
+                          £{item.price.toFixed(2)}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-full border border-gray-100">
+                          <button
+                            onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
+                            className="w-7 h-7 rounded-full flex items-center justify-center bg-white border border-gray-100 text-gray-400 hover:text-gray-900 shadow-sm transition-all"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="text-xs font-black text-gray-900 w-4 text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white shadow-sm transition-all hover:scale-105 active:scale-95"
+                            style={{ background: accent }}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-
-                <div className="flex-1 min-w-0 pr-2">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Store className="w-3 h-3 text-gray-400" />
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">
-                      {item.restaurantName}
-                    </span>
-                  </div>
-                  <h3 className="text-sm font-black text-gray-900 truncate leading-tight mb-1">
-                    {item.name}
-                  </h3>
-                  <p className="text-sm font-black" style={{ color: accent }}>
-                    £{item.price.toFixed(2)}
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-3 bg-gray-50 p-1 rounded-full border border-gray-100">
-                    <button
-                      onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center bg-white border border-gray-100 text-gray-400 hover:text-gray-900 shadow-sm transition-all"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </button>
-                    <span className="text-xs font-black text-gray-900 w-4 text-center">
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-white shadow-sm transition-all hover:scale-105 active:scale-95"
-                      style={{ background: accent }}
-                    >
-                      <Plus className="w-3 h-3" />
-                    </button>
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -169,10 +210,12 @@ export default function CustomerCart() {
               </Link>
             ) : (
               <button
-                className="w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-black/5 transition-all hover:opacity-90 hover:scale-[1.01] active:scale-[0.99] mt-2"
+                onClick={handleCheckout}
+                disabled={checkingOut}
+                className="w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-white font-black text-sm uppercase tracking-widest shadow-lg shadow-black/5 transition-all hover:opacity-90 hover:scale-[1.01] active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${accent})` }}
               >
-                Checkout Now
+                {checkingOut ? "Placing Orders..." : "Checkout Now"}
                 <ChevronRight className="w-5 h-5" />
               </button>
             )}

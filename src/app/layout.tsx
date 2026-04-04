@@ -3,6 +3,7 @@ import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { SiteProvider } from "@/context/SiteContext";
 import { CartProvider } from "@/context/CartContext";
+import { OrderProvider } from "@/context/OrderContext";
 import SiteTitle from "@/components/layout/SiteTitle";
 import { Toaster } from "sonner";
 
@@ -45,16 +46,18 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <SiteProvider>
           <CartProvider>
-            <SiteTitle />
-            {children}
-            <Toaster
-              position="top-center"
-              richColors
-              closeButton
-              toastOptions={{
-                style: { fontSize: "14px" },
-              }}
-            />
+            <OrderProvider>
+              <SiteTitle />
+              {children}
+              <Toaster
+                position="top-center"
+                richColors
+                closeButton
+                toastOptions={{
+                  style: { fontSize: "14px" },
+                }}
+              />
+            </OrderProvider>
           </CartProvider>
         </SiteProvider>
       </body>
