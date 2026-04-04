@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { SiteProvider } from "@/context/SiteContext";
+import { CartProvider } from "@/context/CartContext";
 import SiteTitle from "@/components/layout/SiteTitle";
 import { Toaster } from "sonner";
 
@@ -43,16 +44,18 @@ export default function RootLayout({
     <html lang="en" className={`${inter.variable} ${poppins.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <SiteProvider>
-          <SiteTitle />
-          {children}
-          <Toaster
-            position="top-center"
-            richColors
-            closeButton
-            toastOptions={{
-              style: { fontSize: "14px" },
-            }}
-          />
+          <CartProvider>
+            <SiteTitle />
+            {children}
+            <Toaster
+              position="top-center"
+              richColors
+              closeButton
+              toastOptions={{
+                style: { fontSize: "14px" },
+              }}
+            />
+          </CartProvider>
         </SiteProvider>
       </body>
     </html>

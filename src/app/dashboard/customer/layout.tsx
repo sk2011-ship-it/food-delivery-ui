@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth";
 import CustomerShell from "@/components/dashboard/customer/CustomerShell";
 
 export default async function CustomerLayout({
@@ -6,6 +6,7 @@ export default async function CustomerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireRole(["customer"]);
+  // getCurrentUser returns null for guests — no redirect for public pages
+  const user = await getCurrentUser();
   return <CustomerShell user={user}>{children}</CustomerShell>;
 }

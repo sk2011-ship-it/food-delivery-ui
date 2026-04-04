@@ -14,7 +14,7 @@ import type { SessionUser } from "@/lib/auth";
 import { authApi } from "@/lib/api";
 import { toast } from "sonner";
 
-export default function CustomerNavbar({ user }: { user: SessionUser }) {
+export default function CustomerNavbar({ user }: { user: SessionUser | null }) {
   const { site, setSite } = useSite();
   const router = useRouter();
   const pathname = usePathname();
@@ -56,8 +56,8 @@ export default function CustomerNavbar({ user }: { user: SessionUser }) {
     router.push("/login");
   };
 
-  const initials = user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  const firstName = user.name.split(" ")[0];
+  const initials = user ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "";
+  const firstName = user ? user.name.split(" ")[0] : "";
   const { gradientFrom, gradientTo, accent } = site.theme;
 
   return (
@@ -188,74 +188,85 @@ export default function CustomerNavbar({ user }: { user: SessionUser }) {
               <ShoppingBag className="w-5 h-5" />
             </Link>
 
-            {/* Profile dropdown */}
-            <div className="relative ml-0.5" ref={profileRef}>
-              <button
-                onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition-colors"
-              >
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
-                  style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})` }}
+            {/* Profile dropdown — only for logged-in users */}
+            {user ? (
+              <div className="relative ml-0.5" ref={profileRef}>
+                <button
+                  onClick={() => setProfileOpen(!profileOpen)}
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl hover:bg-gray-100 transition-colors"
                 >
-                  {initials}
-                </div>
-                <span className="hidden sm:block text-sm font-semibold text-gray-800 max-w-[80px] truncate">
-                  {firstName}
-                </span>
-                <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-150 ${profileOpen ? "rotate-180" : ""}`} />
-              </button>
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})` }}
+                  >
+                    {initials}
+                  </div>
+                  <span className="hidden sm:block text-sm font-semibold text-gray-800 max-w-[80px] truncate">
+                    {firstName}
+                  </span>
+                  <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-150 ${profileOpen ? "rotate-180" : ""}`} />
+                </button>
 
-              {profileOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
-                  {/* Compact user header */}
-                  <div className="px-3 py-2.5 border-b border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
-                        style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})` }}
-                      >
-                        {initials}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-gray-900 truncate">{user.name}</p>
-                        <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
+                {profileOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                    {/* Compact user header */}
+                    <div className="px-3 py-2.5 border-b border-gray-100">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0"
+                          style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})` }}
+                        >
+                          {initials}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-900 truncate">{user.name}</p>
+                          <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Links */}
-                  <div className="py-1">
-                    {[
-                      { label: "My Profile",  href: "/dashboard/customer/profile",  icon: User },
-                      { label: "My Orders",   href: "/dashboard/customer/orders",   icon: OrdersIcon },
-                      { label: "Settings",    href: "/dashboard/customer/settings", icon: Settings },
-                    ].map(({ label, href, icon: Icon }) => (
-                      <Link
-                        key={href}
-                        href={href}
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    {/* Links */}
+                    <div className="py-1">
+                      {[
+                        { label: "My Profile",  href: "/dashboard/customer/profile",  icon: User },
+                        { label: "My Orders",   href: "/dashboard/customer/orders",   icon: OrdersIcon },
+                        { label: "Settings",    href: "/dashboard/customer/settings", icon: Settings },
+                      ].map(({ label, href, icon: Icon }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          <Icon className="w-3.5 h-3.5 text-gray-400" />
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+
+                    {/* Logout */}
+                    <div className="border-t border-gray-100 py-1">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
                       >
-                        <Icon className="w-3.5 h-3.5 text-gray-400" />
-                        {label}
-                      </Link>
-                    ))}
+                        <LogOut className="w-3.5 h-3.5" />
+                        Log out
+                      </button>
+                    </div>
                   </div>
-
-                  {/* Logout */}
-                  <div className="border-t border-gray-100 py-1">
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      Log out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              /* Guest — show Sign In button */
+              <Link
+                href="/login"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm transition-transform hover:-translate-y-0.5 ml-1"
+                style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${accent})` }}
+              >
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       </div>

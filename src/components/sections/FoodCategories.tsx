@@ -3,6 +3,7 @@
 import { useSite } from "@/context/SiteContext";
 import { Pizza, Beef, Soup, Flame, Fish, Salad, Drumstick, Cookie, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface Category {
   icon: LucideIcon;
@@ -23,6 +24,7 @@ const categories: Category[] = [
 
 export default function FoodCategories() {
   const { site } = useSite();
+  const router = useRouter();
 
   return (
     <section id="restaurants" className="py-20 bg-white">
@@ -62,6 +64,7 @@ export default function FoodCategories() {
             return (
               <button
                 key={i}
+                onClick={() => router.push(`/dashboard/customer/category/${encodeURIComponent(c.name)}`)}
                 className="group flex flex-col items-center gap-2 p-3 sm:p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all hover:-translate-y-1 border border-gray-100"
               >
                 <span
@@ -79,7 +82,7 @@ export default function FoodCategories() {
                 <span className="text-xs font-semibold text-gray-700 leading-tight text-center">
                   {c.name}
                 </span>
-                <span className="text-[10px] text-gray-400">{c.count}</span>
+                <span className="text-[10px] text-gray-400 opacity-0 hidden">{c.count}</span>
               </button>
             );
           })}

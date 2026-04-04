@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Sparkles, UtensilsCrossed, Tag, Info, ArrowRight } from "lucide-react";
+import { Sparkles, UtensilsCrossed, Tag, Info, ArrowRight, ShoppingCart } from "lucide-react";
 import type { AdminMenuItemResponse, PublicFeaturedDish } from "@/lib/api";
+import { useCart } from "@/context/CartContext";
 
 interface DishCardProps {
   dish: AdminMenuItemResponse | PublicFeaturedDish;
@@ -25,6 +26,7 @@ export default function DishCard({
   priority = false,
 }: DishCardProps) {
   const router = useRouter();
+  const { addItem } = useCart();
 
   // Normalize data
   const id = "entityId" in dish ? dish.entityId : dish.id;
@@ -129,10 +131,32 @@ export default function DishCard({
         </div>
 
         {/* Footer Actions */}
-        <div className="mt-auto pt-4 border-t border-gray-50 flex justify-end">
+        <div className="mt-auto pt-4 border-t border-gray-50 flex justify-between items-center">
           <button
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 ${isUnavailable ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "text-white shadow-lg hover:shadow-xl hover:scale-105"}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              if (!isUnavailable) {
+                addItem({
+                  menuItemId: id,
+                  name: name,
+                  price: price,
+                  imageUrl: imageUrl || "",
+                  restaurantId: "restaurantId" in dish ? dish.restaurantId : id, // Note: featured dish should probably contain restaurantId. Using id fallback.
+                  restaurantName: restaurantName || "Restaurant"
+                });
+              }
+            }}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${isUnavailable ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "text-white shadow-lg hover:shadow-xl hover:scale-110 active:scale-95"}`}
             style={!isUnavailable ? { background: `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.accent})` } : {}}
+            disabled={isUnavailable}
+            title={isUnavailable ? "Sold Out" : "Add to Order"}
+          >
+             <ShoppingCart className="w-4 h-4" />
+          </button>
+
+          <button
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 ${isUnavailable ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-900 text-white shadow-lg hover:shadow-xl hover:bg-gray-800"}`}
             disabled={isUnavailable}
           >
             <span>Explore Dish</span>

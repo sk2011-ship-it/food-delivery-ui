@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, ChefHat, Store, Tag, ShoppingCart, Info, Sparkles } from "lucide-react";
-import { requireRole } from "@/lib/auth";
+import DishActions from "@/components/dashboard/customer/DishActions";
+import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { restaurants, menuItems, featuredItems } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -46,7 +47,8 @@ export default async function DishDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole(["customer"]);
+  // Guest-friendly — no requireRole
+  await getCurrentUser(); // Soft check — won't redirect guests
   const { id } = await params;
 
   const dish = await getDishDetails(id);
@@ -152,14 +154,10 @@ export default async function DishDetailPage({
             {/* Hardcoded delivery sections completely removed as requested */}
 
             <div className="flex flex-col sm:flex-row gap-3 pt-3">
-              <button
-                disabled={isUnavailable}
-                className="flex-1 flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl text-white font-bold uppercase tracking-wider shadow-md transition-all hover:opacity-90 active:scale-95 disabled:grayscale disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${accent})` }}
-              >
-                <ShoppingCart className="w-4 h-4 shrink-0" />
-                <span className="text-xs sm:text-sm">Add to Order — £{dish.price.toFixed(2)}</span>
-              </button>
+              <DishActions 
+                dish={dish} 
+                siteTheme={{ gradientFrom, accent }} 
+              />
 
               <Link
                 href={`/dashboard/customer/restaurant/${dish.restaurantId}`}

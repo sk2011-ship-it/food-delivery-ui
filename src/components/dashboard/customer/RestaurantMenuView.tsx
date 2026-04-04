@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
+import { useCart } from "@/context/CartContext";
 import { getMenu } from "@/data/menus";
 import type { Restaurant } from "@/data/restaurants";
 import type { AdminMenuItemResponse } from "@/lib/api";
@@ -20,7 +21,7 @@ export default function RestaurantMenuView({
 }: RestaurantMenuViewProps) {
   const { site } = useSite();
   const { gradientFrom, accent } = site.theme;
-  const [cart, setCart] = useState<Record<string, number>>({});
+  const { cartItems, addItem: addToCart, updateQuantity } = useCart();
 
   // 1. Determine the menu source (DB vs Mock)
   const menu = useMemo(() => {
@@ -54,15 +55,7 @@ export default function RestaurantMenuView({
   const [activeTab, setActiveTab] = useState(menu[0]?.category ?? "");
   const activeSection = menu.find((s) => s.category === activeTab);
 
-  const addItem = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
-  const removeItem = (id: string) =>
-    setCart((c) => {
-      const next = { ...c, [id]: (c[id] ?? 1) - 1 };
-      if (next[id] <= 0) delete next[id];
-      return next;
-    });
-
-  const cartCount = Object.values(cart).reduce((a, b) => a + b, 0);
+  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   if (menu.length === 0) {
     return (
@@ -192,7 +185,9 @@ export default function RestaurantMenuView({
         {activeSection && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {activeSection.items.map((item) => {
-              const qty = cart[item.id] ?? 0;
+              const cartItem = cartItems.find(i => i.menuItemId === item.id);
+              const qty = cartItem?.quantity ?? 0;
+              
               return (
                 <div
                   key={item.id}
@@ -230,7 +225,14 @@ export default function RestaurantMenuView({
 
                       {qty === 0 ? (
                         <button
-                          onClick={() => addItem(item.id)}
+                          onClick={() => addToCart({
+                            menuItemId: item.id,
+                            name: item.name,
+                            price: typeof item.price === "string" ? parseFloat(item.price.replace("£", "")) : (item.price as unknown as number),
+                            imageUrl: "imageUrl" in item && item.imageUrl ? item.imageUrl : "",
+                            restaurantId: restaurant.id,
+                            restaurantName: restaurant.name
+                          })}
                           className="bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full transition-transform hover:scale-105 active:scale-95"
                         >
                           Add to order
@@ -238,7 +240,7 @@ export default function RestaurantMenuView({
                       ) : (
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => removeItem(item.id)}
+                            onClick={() => updateQuantity(item.id, qty - 1)}
                             className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-gray-100 transition-colors hover:bg-gray-50"
                           >
                             <Minus className="w-3.5 h-3.5 text-gray-400" />
@@ -247,7 +249,7 @@ export default function RestaurantMenuView({
                             {qty}
                           </span>
                           <button
-                            onClick={() => addItem(item.id)}
+                            onClick={() => updateQuantity(item.id, qty + 1)}
                             className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-transform hover:scale-105 active:scale-95"
                             style={{ background: accent }}
                           >

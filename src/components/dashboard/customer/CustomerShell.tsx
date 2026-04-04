@@ -8,7 +8,7 @@ export default function CustomerShell({
   user,
   children,
 }: {
-  user: SessionUser;
+  user: SessionUser | null;
   children: React.ReactNode;
 }) {
   return (

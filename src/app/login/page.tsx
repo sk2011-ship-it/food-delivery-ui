@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSite } from "@/context/SiteContext";
 import AuthCard from "@/components/auth/AuthCard";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const { site } = useSite();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/dashboard";
 
   const [form, setForm] = useState({ email: "", password: "", remember: false });
   const [showPassword, setShowPassword] = useState(false);
@@ -44,7 +46,26 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    // Sync any guest cart items into the DB
+    try {
+      const guestCartRaw = localStorage.getItem("guest_cart");
+      if (guestCartRaw) {
+        const guestItems = JSON.parse(guestCartRaw) as { menuItemId: string; quantity: number }[];
+        if (guestItems.length > 0) {
+          await fetch("/api/cart/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: guestItems.map(i => ({ menuItemId: i.menuItemId, quantity: i.quantity })) }),
+          });
+          localStorage.removeItem("guest_cart");
+          toast.success(`${guestItems.length} cart item(s) saved to your account!`);
+        }
+      }
+    } catch {
+      // Non-critical — don't block login
+    }
+
+    router.push(redirectTo);
   };
 
   return (
