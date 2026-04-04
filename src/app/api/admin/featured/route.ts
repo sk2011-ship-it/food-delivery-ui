@@ -3,7 +3,7 @@ import { parseBody, ok, fail } from "@/lib/proxy";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { featuredItems, restaurants, menuItems } from "@/lib/db/schema";
-import { eq, and, sql, desc, asc, count, SQL } from "drizzle-orm";
+import { eq, and, sql, desc, asc, count, SQL, inArray } from "drizzle-orm";
 
 async function requireAdmin() {
   const user = await getCurrentUser();
@@ -63,17 +63,26 @@ export async function GET(req: Request) {
         .offset(offset),
     ]);
 
-    // Enhance rows with entity names
-    const enhancedRows = await Promise.all(rows.map(async (row) => {
-      let entityName = "Unknown";
-      if (row.type === "restaurant") {
-        const [r] = await db.select({ name: restaurants.name }).from(restaurants).where(eq(restaurants.id, row.entityId));
-        if (r) entityName = r.name;
-      } else {
-        const [m] = await db.select({ name: menuItems.name }).from(menuItems).where(eq(menuItems.id, row.entityId));
-        if (m) entityName = m.name;
-      }
-      return { ...row, entityName };
+    // Enhance rows with entity names using bulk lookups (N+1 query fix)
+    const restaurantIds = Array.from(new Set(rows.filter(r => r.type === "restaurant").map(r => r.entityId)));
+    const dishIds       = Array.from(new Set(rows.filter(r => r.type === "dish").map(r => r.entityId)));
+
+    const [restaurantNames, dishNames] = await Promise.all([
+      restaurantIds.length > 0 
+        ? db.select({ id: restaurants.id, name: restaurants.name }).from(restaurants).where(inArray(restaurants.id, restaurantIds))
+        : Promise.resolve([]),
+      dishIds.length > 0
+        ? db.select({ id: menuItems.id, name: menuItems.name }).from(menuItems).where(inArray(menuItems.id, dishIds))
+        : Promise.resolve([]),
+    ]);
+
+    const nameMap = new Map<string, string>();
+    restaurantNames.forEach(r => nameMap.set(r.id, r.name));
+    dishNames.forEach(d => nameMap.set(d.id, d.name));
+
+    const enhancedRows = rows.map(row => ({
+      ...row,
+      entityName: nameMap.get(row.entityId) || "Unknown",
     }));
 
     return ok({ items: enhancedRows, total: countRows[0].total, page, pageSize });
