@@ -19,7 +19,7 @@ import PhoneInput from "react-phone-number-input";
 import PhoneCountrySelect from "@/components/ui/PhoneCountrySelect";
 import type { E164Number } from "libphonenumber-js";
 import "react-phone-number-input/style.css";
-import { normalizePhone } from "@/lib/phone";
+import { normalizePhone, phoneDigits } from "@/lib/phone";
 
 interface FormState {
   name: string;
@@ -85,7 +85,7 @@ export default function RegisterPage() {
     if (!phone) {
       e.phone = "Phone number is required.";
     } else {
-      const digits = normalizePhone(phone);
+      const digits = phoneDigits(phone);
       if (digits.length < 10 || digits.length > 15) {
         e.phone = "Phone number must be between 10 and 15 digits.";
       }

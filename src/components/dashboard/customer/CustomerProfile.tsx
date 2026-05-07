@@ -6,7 +6,7 @@ import type { SessionUser } from "@/lib/auth";
 import { useSite } from "@/context/SiteContext";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-import { normalizePhone } from "@/lib/phone";
+import { normalizePhone, phoneDigits } from "@/lib/phone";
 
 export default function CustomerProfile({ user }: { user: SessionUser }) {
   const { site } = useSite();
@@ -21,8 +21,8 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
   };
 
   const isValidPhone = (value: string) => {
-    const normalized = normalizePhone(value);
-    return normalized.length >= 10 && normalized.length <= 15;
+    const digits = phoneDigits(value);
+    return digits.length >= 10 && digits.length <= 15;
   };
 
   const { session, setProfile } = useAuthStore();

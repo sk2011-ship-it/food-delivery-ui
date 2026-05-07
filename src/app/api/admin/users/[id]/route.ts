@@ -12,7 +12,7 @@ const UpdateUserSchema = z.object({
   name:   z.string().min(2).max(150).optional(),
   phone:  z.preprocess(
     (value) => normalizePhone(value),
-    z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only).")
+    z.string().regex(/^\+?\d{10,15}$/, "Phone number must be between 10 and 15 digits, with an optional leading +.")
   ).optional(),
   role:   z.enum(["customer", "driver", "owner", "admin"]).optional(),
   status: z.enum(["active", "banned"]).optional(),

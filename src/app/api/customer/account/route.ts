@@ -11,7 +11,7 @@ const updateProfileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(150),
   phone: z.preprocess(
     (value) => normalizePhone(value),
-    z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only)."),
+    z.string().regex(/^\+?\d{10,15}$/, "Phone number must be between 10 and 15 digits, with an optional leading +."),
   ),
 });
 

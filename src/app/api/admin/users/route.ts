@@ -11,7 +11,7 @@ const CreateUserSchema = z.object({
   email:    z.string().email(),
   phone:    z.preprocess(
     (value) => normalizePhone(value),
-    z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only).")
+    z.string().regex(/^\+?\d{10,15}$/, "Phone number must be between 10 and 15 digits, with an optional leading +.")
   ),
   role:     z.enum(["customer", "driver", "owner", "admin"]),
   password: z.string().min(8).max(72),

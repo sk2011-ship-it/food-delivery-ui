@@ -6,6 +6,7 @@ import { NotificationService } from "@/services/notification.service";
 import { SITES, DEFAULT_SITE } from "@/config/sites";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
+import { normalizePhone, phoneDigits } from "@/lib/phone";
 
 function getSiteFromLocation(location: string | null) {
   if (!location) return SITES[DEFAULT_SITE];
@@ -17,10 +18,6 @@ function getSiteFromLocation(location: string | null) {
 }
 
 export const dynamic = "force-dynamic";
-
-function normalizePhone(value: unknown): string {
-  return typeof value === "string" ? value.replace(/\D/g, "") : "";
-}
 
 function normalizeLocation(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
@@ -44,7 +41,7 @@ export async function POST(req: Request) {
       } = await req.json().catch(() => ({}));
 
       const normalizedPhone = normalizePhone(customerPhone);
-      if (normalizedPhone.length < 10) {
+      if (phoneDigits(normalizedPhone).length < 10) {
         return fail("Contact number must contain at least 10 digits.", 400);
       }
       const activeSiteLocation = normalizeLocation(siteLocation);
