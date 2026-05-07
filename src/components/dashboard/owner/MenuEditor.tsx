@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Plus, Pencil, Trash2, X, Search, 
   ChefHat, Save, Loader2
@@ -39,30 +39,24 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
   });
   const [saving, setSaving] = useState(false);
 
+  const fetchMenu = useCallback(async () => {
+    setLoading(true);
+    const res = await ownerMenuApi.list();
+
+    if (res.success && res.data) {
+      setItems(res.data.items.filter((item) => item.restaurantId === restaurantId));
+    } else {
+      toast.error("Failed to load menu items");
+    }
+    setLoading(false);
+  }, [restaurantId]);
+
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchMenu = async () => {
-      setLoading(true);
-      const res = await ownerMenuApi.list();
-      if (cancelled) return;
-
-      if (res.success && res.data) {
-        setItems(res.data.items.filter((item) => item.restaurantId === restaurantId));
-      } else {
-        toast.error("Failed to load menu items");
-      }
-      setLoading(false);
-    };
-
     if (restaurantId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initial menu load on mount
       void fetchMenu();
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [restaurantId]);
+  }, [restaurantId, fetchMenu]);
 
   const resetForm = () => {
     setForm({

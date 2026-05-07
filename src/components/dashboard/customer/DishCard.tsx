@@ -40,7 +40,7 @@ export default function DishCard({
   const price = typeof dish.price === 'number' ? dish.price : parseFloat(dish.price || "0");
   const category = dish.category;
   const status = "status" in dish ? dish.status : "available";
-  const openingHours = "openingHours" in dish ? dish.openingHours ?? null : null;
+  const openingHours = "openingHours" in dish ? dish.openingHours ?? undefined : undefined;
 
   const isUnavailable = status === "unavailable";
   const isRestaurantClosed = !isRestaurantOpen(openingHours);
