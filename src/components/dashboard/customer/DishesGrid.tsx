@@ -6,6 +6,7 @@ import { useSite } from "@/context/SiteContext";
 import { ArrowRight, Utensils, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { dishesApi, featuredApi } from "@/lib/api";
 import DishCard, { SkeletonDishCard } from "@/components/dashboard/customer/DishCard";
+import type { AdminMenuItemResponse, PublicFeaturedDish } from "@/lib/api";
 
 function getVisibleItems(): number {
   if (typeof window === "undefined") return 1;
@@ -16,8 +17,8 @@ function getVisibleItems(): number {
 
 export default function DishesGrid() {
   const { site } = useSite();
-  const [featured, setFeatured] = useState<any[]>([]);
-  const [popular, setPopular] = useState<any[]>([]);
+  const [featured, setFeatured] = useState<PublicFeaturedDish[]>([]);
+  const [popular, setPopular] = useState<AdminMenuItemResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [visibleCount, setVisibleCount] = useState(1);
@@ -25,6 +26,7 @@ export default function DishesGrid() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef(false);
+  const scrollEndTimer = useRef<number | null>(null);
 
   // Total items = featured + 1 bridge card
   const totalItems = featured.length + 1;
@@ -40,8 +42,8 @@ export default function DishesGrid() {
         ]);
         if (fRes.success && fRes.data) setFeatured(fRes.data.items);
         if (pRes.success && pRes.data) {
-          const fIds = new Set(fRes.data?.items.map((i: any) => i.entityId || i.id) || []);
-          setPopular(pRes.data.items.filter((i: any) => !fIds.has(i.id)));
+          const fIds = new Set(fRes.data?.items.map((i) => i.entityId || i.id) || []);
+          setPopular(pRes.data.items.filter((i) => !fIds.has(i.id)));
         }
       } catch (err) {
         console.error("Dishes fetch error:", err);
@@ -61,7 +63,8 @@ export default function DishesGrid() {
 
   // Reset index on location change
   useEffect(() => {
-    setCurrentIndex(0);
+    const timer = window.setTimeout(() => setCurrentIndex(0), 0);
+    return () => window.clearTimeout(timer);
   }, [site.location]);
 
   // Scroll to card by index
@@ -78,31 +81,42 @@ export default function DishesGrid() {
     }, 450);
   }, []);
 
-  useEffect(() => {
-    scrollToIndex(currentIndex);
-  }, [currentIndex, scrollToIndex]);
+  const goToIndex = useCallback((index: number) => {
+    setCurrentIndex(index);
+    scrollToIndex(index);
+  }, [scrollToIndex]);
 
-  // Update index from user swipe
   const handleScroll = () => {
     if (isProgrammaticScroll.current || !scrollRef.current) return;
-    const container = scrollRef.current;
-    const firstCard = cardRefs.current[0];
-    if (!firstCard) return;
-    const gap = parseInt(window.getComputedStyle(container).columnGap) || 16;
-    const step = firstCard.offsetWidth + gap;
-    const rawIndex = Math.round(container.scrollLeft / step);
-    const clamped = Math.min(rawIndex, maxIndex);
-    setCurrentIndex(clamped);
+    if (scrollEndTimer.current) window.clearTimeout(scrollEndTimer.current);
+    scrollEndTimer.current = window.setTimeout(() => {
+      if (!scrollRef.current) return;
+      const container = scrollRef.current;
+      const firstCard = cardRefs.current[0];
+      if (!firstCard) return;
+      const gap = parseInt(window.getComputedStyle(container).columnGap) || 16;
+      const step = firstCard.offsetWidth + gap;
+      const rawIndex = Math.round(container.scrollLeft / step);
+      const clamped = Math.min(rawIndex, maxIndex);
+      setCurrentIndex(clamped);
+      scrollToIndex(clamped);
+    }, 120);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollEndTimer.current) window.clearTimeout(scrollEndTimer.current);
+    };
+  }, []);
 
   const prev = () => {
     if (isProgrammaticScroll.current) return;
-    setCurrentIndex((p) => Math.max(0, p - 1));
+    goToIndex(Math.max(0, currentIndex - 1));
   };
 
   const next = () => {
     if (isProgrammaticScroll.current) return;
-    setCurrentIndex((p) => Math.min(maxIndex, p + 1));
+    goToIndex(Math.min(maxIndex, currentIndex + 1));
   };
 
   if (!loading && featured.length === 0 && popular.length === 0) return null;
@@ -128,8 +142,14 @@ export default function DishesGrid() {
             <div
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-3"
-              style={{ scrollSnapType: "x mandatory", msOverflowStyle: "none", scrollbarWidth: "none" }}
+              className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-3 touch-pan-x"
+              style={{
+                scrollSnapType: "x mandatory",
+                scrollBehavior: "smooth",
+                WebkitOverflowScrolling: "touch",
+                msOverflowStyle: "none",
+                scrollbarWidth: "none",
+              }}
             >
               {loading ? (
                 [1, 2, 3].map((n) => (
@@ -215,20 +235,20 @@ export default function DishesGrid() {
             {!loading && totalItems > 1 && (
               <div className="flex justify-center gap-1.5 mt-4">
                 {Array.from({ length: maxIndex + 1 }).map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentIndex(i)}
-                    aria-label={`Go to slide ${i + 1}`}
-                    className="rounded-full transition-all duration-300"
-                    style={{
-                      width: currentIndex === i ? "20px" : "6px",
-                      height: "6px",
-                      background: currentIndex === i ? accent : "#d1d5db",
-                    }}
-                  />
-                ))}
-              </div>
-            )}
+                <button
+                  key={i}
+                  onClick={() => goToIndex(i)}
+                  aria-label={`Go to slide ${i + 1}`}
+                  className="rounded-full transition-all duration-300"
+                style={{
+                  width: currentIndex === i ? "20px" : "6px",
+                  height: "6px",
+                  background: currentIndex === i ? accent : "#d1d5db",
+                }}
+              />
+            ))}
+          </div>
+        )}
           </div>
         </section>
       )}
