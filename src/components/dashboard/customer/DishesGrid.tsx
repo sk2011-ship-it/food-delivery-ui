@@ -10,6 +10,7 @@ import type { AdminMenuItemResponse, PublicFeaturedDish } from "@/lib/api";
 
 function getVisibleItems(): number {
   if (typeof window === "undefined") return 1;
+  if (window.innerWidth >= 1280) return 4;
   if (window.innerWidth >= 1024) return 3;
   if (window.innerWidth >= 640) return 2;
   return 1;
@@ -155,7 +156,7 @@ export default function DishesGrid() {
                 [1, 2, 3].map((n) => (
                   <div
                     key={n}
-                    className="w-full sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)] flex-none self-start"
+                    className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                     style={{ scrollSnapAlign: "start" }}
                   >
                     <SkeletonDishCard />
@@ -167,13 +168,12 @@ export default function DishesGrid() {
                     <div
                       key={dish.entityId || dish.id}
                       ref={(el) => { cardRefs.current[i] = el; }}
-                      className="w-full sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)] flex-none self-start"
+                      className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                       style={{ scrollSnapAlign: "start" }}
                     >
                       <DishCard
                         dish={dish}
                         theme={site.theme}
-                        featured
                         priority={i < 3}
                       />
                     </div>
@@ -182,7 +182,7 @@ export default function DishesGrid() {
                   {/* See All Bridge Card */}
                   <div
                     ref={(el) => { cardRefs.current[featured.length] = el; }}
-                    className="w-full sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)] flex-none self-start"
+                    className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                     style={{ scrollSnapAlign: "start" }}
                   >
                     <Link

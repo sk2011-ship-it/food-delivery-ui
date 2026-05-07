@@ -42,8 +42,23 @@ const ALL_STATUSES = [
 
 const PAGE_SIZE = 8;
 
+function SortIcon({
+  field,
+  activeField,
+  order,
+}: {
+  field: SortField;
+  activeField: SortField;
+  order: SortOrder;
+}) {
+  if (activeField !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400" />;
+  return order === "asc"
+    ? <ChevronUp className="w-3.5 h-3.5 text-gray-700" />
+    : <ChevronDown className="w-3.5 h-3.5 text-gray-700" />;
+}
+
 export default function AdminOrders() {
-  const { orders, stats, loading } = useAdminOrders();
+  const { orders, stats } = useAdminOrders();
   const [search,    setSearch]    = useState("");
   const [status,    setStatus]    = useState("all");
   const [sort,      setSort]      = useState<SortField>("createdAt");
@@ -94,13 +109,6 @@ export default function AdminOrders() {
     setPage(1);
   };
 
-  function SortIcon({ field }: { field: SortField }) {
-    if (sort !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400" />;
-    return order === "asc"
-      ? <ChevronUp   className="w-3.5 h-3.5 text-gray-700" />
-      : <ChevronDown className="w-3.5 h-3.5 text-gray-700" />;
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader title="Orders" subtitle="Monitor and manage all platform orders" />
@@ -109,7 +117,7 @@ export default function AdminOrders() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="Total Revenue"
-          value={`£${parseFloat(stats.totalRevenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          value={`£${Number.parseFloat(stats.totalRevenue || "0").toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
           icon={PoundSterling}
           color="green"
         />
@@ -184,20 +192,20 @@ export default function AdminOrders() {
               <tr className="border-b border-gray-100 bg-gray-50/30">
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">
                   <button className="flex items-center gap-1" onClick={() => toggleSort("id")}>
-                    Order <SortIcon field="id" />
+                    Order <SortIcon field="id" activeField={sort} order={order} />
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">Customer</th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400 hidden md:table-cell">Restaurant</th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400 hidden lg:table-cell">
                   <button className="flex items-center gap-1" onClick={() => toggleSort("createdAt")}>
-                    Added <SortIcon field="createdAt" />
+                    Added <SortIcon field="createdAt" activeField={sort} order={order} />
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">Status</th>
                 <th className="px-6 py-4 text-right font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">
                   <button className="flex items-center gap-1 ml-auto" onClick={() => toggleSort("totalAmount")}>
-                    Total <SortIcon field="totalAmount" />
+                    Total <SortIcon field="totalAmount" activeField={sort} order={order} />
                   </button>
                 </th>
                 <th className="px-6 py-4 text-center font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">Detail</th>
