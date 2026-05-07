@@ -2,7 +2,7 @@ import { z } from "zod";
 import { parseBody, ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { menuItems, restaurants } from "@/lib/db/schema";
-import { eq, and, ilike, count, asc, SQL } from "drizzle-orm";
+import { eq, and, ilike, count, desc, SQL } from "drizzle-orm";
 import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 const CreateMenuItemSchema = z.object({
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
         .from(menuItems)
         .leftJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
         .where(where)
-        .orderBy(asc(menuItems.createdAt))
+        .orderBy(desc(menuItems.createdAt))
         .limit(pageSize)
         .offset(offset),
     ]);
