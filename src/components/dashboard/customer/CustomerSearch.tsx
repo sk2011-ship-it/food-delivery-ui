@@ -2,8 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { Search, X, Clock, Star, Truck, ArrowRight, Flame, Store, ChevronLeft } from "lucide-react";
+import { Search, X, Clock, ArrowRight, Flame, Store, ChevronLeft } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
 import { customerService } from "@/services/customer.service";
 import type { RestaurantItem, MenuItem } from "@/types/api.types";
@@ -36,7 +35,7 @@ export default function CustomerSearch() {
   const [dishResults, setDishResults] = useState<MenuItem[]>([]);
   const [defaultRestaurants, setDefaultRestaurants] = useState<RestaurantItem[]>([]);
 
-  const { gradientFrom, gradientTo, accent } = site.theme;
+  const { gradientFrom, accent } = site.theme;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -218,7 +217,7 @@ export default function CustomerSearch() {
                       style={{ background: `${gradientFrom}10` }}
                     >
                       {dish.imageUrl ? (
-                        <Image src={dish.imageUrl} alt={dish.name} fill className="object-cover" />
+                        <img src={dish.imageUrl} alt={dish.name} className="absolute inset-0 h-full w-full object-cover" />
                       ) : (
                         "🍽️"
                       )}
@@ -272,7 +271,7 @@ function RestaurantRow({
     >
       <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-gray-50 flex items-center justify-center">
         {r.logoUrl ? (
-          <Image src={r.logoUrl} alt={r.name} fill className="object-cover" sizes="56px" />
+          <img src={r.logoUrl} alt={r.name} className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <Store className="w-8 h-8 text-gray-300" style={{ color: theme.accent }} />
         )}

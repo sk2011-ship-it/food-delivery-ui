@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ShoppingBag, ArrowRight, Minus, Plus, Trash2,
@@ -184,7 +183,7 @@ export default function CustomerCart() {
                         <div key={item.id} className="py-4 flex gap-6 transition-all">
                           <div className="relative w-20 h-20 rounded-2xl overflow-hidden bg-white shrink-0 border border-gray-100">
                             {item.imageUrl ? (
-                              <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                              <img src={item.imageUrl} alt={item.name} className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
                             ) : (
                               <div className="w-full h-full flex items-center justify-center text-gray-200">
                                 <ShoppingBag className="w-8 h-8" />

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
-import { orders, users, orderItems, restaurants } from "@/lib/db/schema";
-import { sql, desc, ne, and, eq, gte, lte, inArray } from "drizzle-orm";
+import { orders, users, orderItems, restaurants, type OrderStatus } from "@/lib/db/schema";
+import { sql, desc, and, eq, gte, lte, inArray } from "drizzle-orm";
 import { ok, fail, withAuth } from "@/lib/proxy";
 
 /**
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
     async () => {
       try {
         const { searchParams } = new URL(req.url);
-        const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 100);
+        const limit = Math.min(parseInt(searchParams.get("limit") || "1000"), 1000);
         const offset = parseInt(searchParams.get("offset") || "0");
         const status = searchParams.get("status");
         const startDate = searchParams.get("startDate");
@@ -22,7 +22,7 @@ export async function GET(req: Request) {
         // 1. Build dynamic filters
         const conditions = [];
         if (status) {
-          conditions.push(eq(orders.status, status as any));
+          conditions.push(eq(orders.status, status as OrderStatus));
         }
         if (startDate) {
           conditions.push(gte(orders.createdAt, new Date(startDate)));
@@ -114,9 +114,10 @@ export async function GET(req: Request) {
             offset,
           }
         });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("[AdminOrders API Error]:", error);
-        return fail(error.message || "Failed to fetch platform orders.", 500);
+        const message = error instanceof Error ? error.message : "Failed to fetch platform orders.";
+        return fail(message, 500);
       }
     },
     ["admin"]

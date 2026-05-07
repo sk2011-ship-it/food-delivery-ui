@@ -2,6 +2,7 @@ import { ok, fail, withOwnerAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { menuItems, restaurants } from "@/lib/db/schema";
 import { eq, and, asc, inArray } from "drizzle-orm";
+import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 /* ── GET /api/owner/menu ── */
 export async function GET(req: Request) {
@@ -54,11 +55,15 @@ export async function POST(req: Request) {
   return withOwnerAuth(req, async (user) => {
     try {
       const body = await req.json();
-      const { restaurantId, name, description, category, price, status, imageUrl } = body;
+      const { restaurantId, name, description, category, price, status } = body;
+      const imageUrl = normalizeImageUrl(body.imageUrl);
 
       // Manual Validation
       if (!restaurantId || !name || !category || !price || !imageUrl) {
         return fail("Missing required fields.", 400);
+      }
+      if (!isLikelyImageUrl(imageUrl)) {
+        return fail("Please provide a valid image URL.", 400);
       }
 
       /* 1. Verify user owns the restaurant */

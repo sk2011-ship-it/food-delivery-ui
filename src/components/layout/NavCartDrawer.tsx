@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { X, ShoppingBag, Plus, Minus, ChevronRight } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
 import { useCart } from "@/context/CartContext";
@@ -137,11 +136,11 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
                     {/* Image */}
                     <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
                       {item.imageUrl ? (
-                        <Image
+                        <img
                           src={item.imageUrl}
                           alt={item.name}
-                          fill
-                          className="object-cover"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">

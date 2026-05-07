@@ -41,7 +41,7 @@ export default function Navbar() {
     { label: "Home",        href: "/#home" },
     { label: "Restaurants", href: "/#restaurants" },
     { label: "How It Works",href: "/#how-it-works" },
-    { label: "Offers",      href: "/#offers" },
+    // { label: "Offers",      href: "/#offers" },
     { label: "Contact",     href: "/contact" },
   ];
 

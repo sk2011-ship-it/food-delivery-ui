@@ -3,6 +3,7 @@ import { parseBody, ok, fail, withOwnerAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { menuItems, restaurants } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 const UpdateMenuItemSchema = z.object({
   restaurantId: z.string().uuid().optional(),
@@ -11,7 +12,9 @@ const UpdateMenuItemSchema = z.object({
   category:     z.string().min(1).max(100).optional(),
   price:        z.number().positive().optional(),
   status:       z.enum(["available", "unavailable"]).optional(),
-  imageUrl:     z.string().url().optional(),
+  imageUrl:     z.string().transform(normalizeImageUrl).refine((value) => !value || isLikelyImageUrl(value), {
+    message: "Please provide a valid image URL.",
+  }).optional(),
 });
 
 /* ── PUT /api/admin/menu/[id] ── */

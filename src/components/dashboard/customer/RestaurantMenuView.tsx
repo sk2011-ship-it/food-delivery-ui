@@ -1,16 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
-import type { Restaurant } from "@/data/restaurants";
 import type { AdminMenuItemResponse } from "@/lib/api";
 import ReviewSheet from "./ReviewSheet";
-import ReviewCard from "./ReviewCard";
 import { formatReviewCount } from "@/lib/utils/reviewUtils";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 
@@ -93,13 +90,10 @@ export default function RestaurantMenuView({
       {/* ── Restaurant hero ── */}
       <div className="relative h-64 sm:h-80 w-full overflow-hidden bg-gray-900 flex items-center justify-center">
         {restaurant.image ? (
-          <Image
+          <img
             src={restaurant.image}
             alt={restaurant.name}
-            fill
-            priority
-            className="object-cover z-0 opacity-90"
-            sizes="100vw"
+            className="absolute inset-0 h-full w-full object-cover z-0 opacity-90"
           />
         ) : (
           <Store className="w-20 h-20 text-gray-200 z-0" />
@@ -224,7 +218,7 @@ export default function RestaurantMenuView({
                     className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl shrink-0 bg-gray-50 border border-gray-50 overflow-hidden relative"
                   >
                     {"imageUrl" in item && item.imageUrl ? (
-                      <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                      <img src={item.imageUrl} alt={item.name} className="absolute inset-0 h-full w-full object-cover" />
                     ) : (
                       activeSection.emoji
                     )}

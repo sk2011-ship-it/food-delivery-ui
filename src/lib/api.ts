@@ -365,6 +365,7 @@ export interface PublicFeaturedDish {
   name: string;
   restaurantName: string;
   restaurantId: string;
+  openingHours?: OpeningHours | null;
   price: number;
   imageUrl: string;
   category: string;
@@ -505,6 +506,6 @@ export const adminPaymentApi = {
     return get<UnpaidOrdersDetail>(`/api/admin/payments/${restaurantId}`);
   },
   settle(payload: { restaurantId: string; orderIds: string[]; transactionId?: string; notes?: string }) {
-    return post<{ settlement: any }>("/api/admin/payments/settle", payload);
+    return post<{ settlement: Record<string, unknown> }>("/api/admin/payments/settle", payload);
   },
 };

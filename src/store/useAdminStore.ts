@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { toast } from "sonner";
 
 export interface AdminOrder {
   id: string;
@@ -61,7 +60,7 @@ export const useAdminStore = create<AdminState>()((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const res = await fetch(`/api/admin/orders?t=${Date.now()}`, {
+      const res = await fetch(`/api/admin/orders?limit=1000&t=${Date.now()}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },

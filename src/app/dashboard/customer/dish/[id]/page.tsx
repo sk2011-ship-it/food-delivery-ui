@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ChefHat, Store, Tag, ShoppingCart, Info, Sparkles } from "lucide-react";
+import { ArrowLeft, ChefHat, Store, Tag, Info, Sparkles } from "lucide-react";
 import DishActions from "@/components/dashboard/customer/DishActions";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -76,12 +75,10 @@ export default async function DishDetailPage({
         {/* Left: Image Section */}
         <div className="relative aspect-square rounded-[2.5rem] overflow-hidden shadow-2xl bg-gray-100 border border-gray-100">
           {dish.imageUrl ? (
-            <Image
+            <img
               src={dish.imageUrl}
               alt={dish.name}
-              fill
-              className="object-cover"
-              priority
+              className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -146,8 +143,8 @@ export default async function DishDetailPage({
             </div>
 
             <div className="prose prose-sm prose-gray max-w-none pt-2 pb-4 border-b border-gray-100">
-              <p className="text-gray-500 leading-relaxed text-base italic">
-                "{dish.description || "A delicious signature dish prepared with the finest ingredients."}"
+            <p className="text-gray-500 leading-relaxed text-base italic">
+                &ldquo;{dish.description || "A delicious signature dish prepared with the finest ingredients."}&rdquo;
               </p>
             </div>
 

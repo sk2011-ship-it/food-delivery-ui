@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   Search, Plus, MoreVertical, Shield, ShieldOff,
   Pencil, Trash2, X, ChevronDown, User, Mail,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { adminApi, type AdminUserItem, type UserRole, type UserStatus } from "@/lib/api";
 import { toast } from "sonner";
+import { normalizePhone } from "@/lib/phone";
 import PhoneInput from "react-phone-number-input";
 import PhoneCountrySelect from "@/components/ui/PhoneCountrySelect";
 import type { E164Number } from "libphonenumber-js";
@@ -36,6 +37,21 @@ const ROLE_META: Record<string, { label: string; color: string; bg: string }> = 
 };
 
 const EMPTY_FORM = { name: "", email: "", phone: "", role: "customer" as UserRole, password: "", confirmPassword: "" };
+
+function SortIcon({
+  field,
+  activeField,
+  order,
+}: {
+  field: SortField;
+  activeField: SortField;
+  order: SortOrder;
+}) {
+  if (activeField !== field) return <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />;
+  return order === "asc"
+    ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--dash-accent)" }} />
+    : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--dash-accent)" }} />;
+}
 
 /* ── Main Component ── */
 export default function AdminUsers({ currentUserId }: { currentUserId: string }) {
@@ -148,7 +164,7 @@ export default function AdminUsers({ currentUserId }: { currentUserId: string })
     setSaving(true);
     const res = await adminApi.updateUser(editUser.id, {
       name: editUser.name,
-      phone: editUser.phone,
+      phone: normalizePhone(editUser.phone),
       role: editUser.role,
       status: editUser.status,
     });
@@ -174,7 +190,10 @@ export default function AdminUsers({ currentUserId }: { currentUserId: string })
       return;
     }
     setSaving(true);
-    const res = await adminApi.createUser(form);
+    const res = await adminApi.createUser({
+      ...form,
+      phone: normalizePhone(form.phone),
+    });
     setSaving(false);
     if (res.success && res.data) {
       toast.success("User created.");
@@ -192,13 +211,6 @@ export default function AdminUsers({ currentUserId }: { currentUserId: string })
 
   /* ── Pagination ── */
   const totalPages = Math.max(1, Math.ceil(userData.total / filters.pageSize));
-
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (filters.sort !== field) return <ChevronsUpDown className="w-3.5 h-3.5 opacity-40" />;
-    return filters.order === "asc"
-      ? <ChevronUp className="w-3.5 h-3.5" style={{ color: "var(--dash-accent)" }} />
-      : <ChevronDown className="w-3.5 h-3.5" style={{ color: "var(--dash-accent)" }} />;
-  };
 
   return (
     <div className="space-y-4">
@@ -299,7 +311,7 @@ export default function AdminUsers({ currentUserId }: { currentUserId: string })
             onClick={() => toggleSort("name")}
             className="flex items-center gap-1 text-left hover:opacity-80 transition-opacity"
           >
-            User <SortIcon field="name" />
+            User <SortIcon field="name" activeField={filters.sort} order={filters.order} />
           </button>
           <span>Contact</span>
           <span>Role</span>
@@ -308,7 +320,7 @@ export default function AdminUsers({ currentUserId }: { currentUserId: string })
             onClick={() => toggleSort("createdAt")}
             className="flex items-center gap-1 hover:opacity-80 transition-opacity"
           >
-            Joined <SortIcon field="createdAt" />
+            Joined <SortIcon field="createdAt" activeField={filters.sort} order={filters.order} />
           </button>
           <span />
         </div>

@@ -6,13 +6,12 @@ import { useRouter } from "next/navigation";
 import { useSearchParams, usePathname } from "next/navigation";
 import {
   Search, ShoppingBag, ChevronDown, MapPin,
-  User, Tag, ShoppingBag as OrdersIcon, Settings, LogOut, Store,
+  User, ShoppingBag as OrdersIcon, Settings, LogOut, Store,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSite } from "@/context/SiteContext";
 import { ALL_SITES, SiteKey } from "@/config/sites";
 import type { SessionUser } from "@/lib/auth";
-import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
@@ -195,7 +194,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
               <span>Restaurants</span>
             </Link>
 
-            {/* Offers */}
+            {/*
             <Link
               href="/dashboard/customer"
               className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors hover:bg-gray-100"
@@ -205,6 +204,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
               <Tag className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Offers</span>
             </Link>
+            */}
 
             {/* Cart / Bag */}
             <Link

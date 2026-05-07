@@ -2,7 +2,8 @@ import { z } from "zod";
 import { parseBody, ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { menuItems, restaurants } from "@/lib/db/schema";
-import { eq, and, ilike, count, asc, SQL } from "drizzle-orm";
+import { eq, and, ilike, count, desc, SQL } from "drizzle-orm";
+import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 const CreateMenuItemSchema = z.object({
   restaurantId: z.string().uuid(),
@@ -11,7 +12,9 @@ const CreateMenuItemSchema = z.object({
   category:     z.string().min(1).max(100),
   price:        z.number().positive(),
   status:       z.enum(["available", "unavailable"]).default("available"),
-  imageUrl:     z.string().url(),
+  imageUrl:     z.string().transform(normalizeImageUrl).refine(isLikelyImageUrl, {
+    message: "Please provide a valid image URL.",
+  }),
 });
 
 /* ── GET /api/admin/menu ── */
@@ -59,7 +62,7 @@ export async function GET(req: Request) {
         .from(menuItems)
         .leftJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
         .where(where)
-        .orderBy(asc(menuItems.createdAt))
+        .orderBy(desc(menuItems.createdAt))
         .limit(pageSize)
         .offset(offset),
     ]);

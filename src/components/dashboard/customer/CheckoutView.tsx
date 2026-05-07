@@ -16,10 +16,7 @@ import Link from "next/link";
 import { getOSRMDistance, calculateDeliveryFee } from "@/lib/delivery";
 import { cn } from "@/lib/utils";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
-
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, "");
-}
+import { normalizePhone, phoneDigits } from "@/lib/phone";
 
 export default function CheckoutView() {
   const { currentCartItems, totalPrice, clearCart } = useCart();
@@ -57,7 +54,7 @@ export default function CheckoutView() {
       toast.error("Please allow location access before checking out.");
       router.replace("/dashboard/customer/cart");
     }
-  }, [site.deliveryPricing?.type, userCoords]);
+  }, [site.deliveryPricing?.type, userCoords, router]);
 
   // Option B: Sum fees for all restaurants
   React.useEffect(() => {
@@ -108,7 +105,7 @@ export default function CheckoutView() {
       setDeliveryFee(total);
       setIsCalculating(false);
     })();
-  }, [site, userCoords, currentCartItems]);
+  }, [site, userCoords, currentCartItems, deliveryFeesBreakdown, isCalculating]);
 
 
   const groupedItems = React.useMemo(() =>
@@ -168,7 +165,7 @@ export default function CheckoutView() {
       return;
     }
     if (!phone.trim()) { toast.error("Enter your phone number"); return; }
-    const digitsOnlyPhone = normalizePhone(phone);
+    const digitsOnlyPhone = phoneDigits(phone);
     if (digitsOnlyPhone.length < 10 || digitsOnlyPhone.length > 15) {
       toast.error("Contact number must be between 10 and 15 digits.");
       return;
@@ -304,24 +301,8 @@ export default function CheckoutView() {
                   type="tel"
                   placeholder="e.g. 07700 900000"
                   value={phone}
-                  onKeyDown={(e) => {
-                    // Allow: backspace, delete, tab, escape, enter, and numbers
-                    if (
-                      [46, 8, 9, 27, 13].indexOf(e.keyCode) !== -1 ||
-                      // Allow: Ctrl+A, Command+A, Ctrl+V, Ctrl+C, etc.
-                      ((e.keyCode === 65 || e.keyCode === 86 || e.keyCode === 67) && (e.ctrlKey === true || e.metaKey === true)) ||
-                      // Allow: home, end, left, right
-                      (e.keyCode >= 35 && e.keyCode <= 40)
-                    ) {
-                      return;
-                    }
-                    // Ensure that it is a number and stop the keypress
-                    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-                      e.preventDefault();
-                    }
-                  }}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, ""); // Remove all non-digits
+                    const val = normalizePhone(e.target.value);
                     setPhone(val);
                     setPhoneEdited(true);
                   }}

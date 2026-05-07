@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { ShoppingBag, Clock, Star, Flame, Zap, TrendingUp,
   ChevronRight, MapPin, Search, Gift, Sparkles, Truck, Store,
 } from "lucide-react";
@@ -281,12 +280,11 @@ export default function CustomerOverview({ user }: { user: SessionUser }) {
                 >
                     <div className="relative h-32 w-full bg-gray-50 flex items-center justify-center">
                       {r.image ? (
-                        <Image
+                        <img
                           src={r.image}
                           alt={r.name}
-                          fill
-                          className="object-cover"
-                          sizes="224px"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <Store className="w-10 h-10 text-gray-200" />
