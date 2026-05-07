@@ -5,7 +5,6 @@ import { useSite } from "@/context/SiteContext";
 import { MapPin, Phone, Mail, ExternalLink } from "lucide-react";
 import { FaFacebook, FaInstagram } from "react-icons/fa";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 /**
  * Footer.tsx - Premium site footer with refined typography, 
@@ -20,7 +19,7 @@ export default function Footer() {
     { label: "Home", href: "/#home" },
     { label: "Restaurants", href: "/#restaurants" },
     { label: "How It Works", href: "/#how-it-works" },
-    { label: "Offers", href: "/#offers" },
+    // { label: "Offers", href: "/#offers" },
     { label: "Contact", href: "/contact" },
   ];
 

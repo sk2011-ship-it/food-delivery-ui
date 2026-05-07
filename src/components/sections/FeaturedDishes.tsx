@@ -9,6 +9,7 @@ import DishCard, { SkeletonDishCard } from "@/components/dashboard/customer/Dish
 
 function getVisibleItems(): number {
   if (typeof window === "undefined") return 1;
+  if (window.innerWidth >= 1280) return 4;
   if (window.innerWidth >= 1024) return 3;
   if (window.innerWidth >= 640) return 2;
   return 1;
@@ -149,7 +150,7 @@ export default function FeaturedDishes() {
             [1, 2, 3].map((n) => (
               <div
                 key={n}
-                className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
+                className="w-full sm:basis-[calc(50%-12px)] lg:basis-[calc(33.333%-16px)] xl:basis-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonDishCard />
@@ -160,14 +161,13 @@ export default function FeaturedDishes() {
               <div
                 key={dish.id}
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
+                className="w-full sm:basis-[calc(50%-12px)] lg:basis-[calc(33.333%-16px)] xl:basis-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <DishCard
                   dish={dish}
                   theme={site.theme}
                   priority={i < 2}
-                  featured={true}
                 />
               </div>
             ))

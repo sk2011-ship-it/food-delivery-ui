@@ -1,4 +1,4 @@
-import { ok, fail } from "@/lib/proxy";
+import { fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { featuredItems, restaurants, menuItems } from "@/lib/db/schema";
 import { eq, and, asc, SQL } from "drizzle-orm";
@@ -65,10 +65,10 @@ export async function GET(req: Request) {
         name:           menuItems.name,
         restaurantName: restaurants.name,
         restaurantId:   restaurants.id,
+        openingHours:   restaurants.openingHours,
         price:          menuItems.price,
         imageUrl:       menuItems.imageUrl,
         category:       menuItems.category,
-        openingHours:   restaurants.openingHours,
         sortOrder:      featuredItems.sortOrder,
       })
       .from(featuredItems)
