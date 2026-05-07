@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 import { 
   Plus, Pencil, Trash2, X, Search, 
-  ChefHat, Save, Loader2, Image as ImageIcon,
-  CheckCircle2, ChevronDown, AlertCircle
+  ChefHat, Save, Loader2
 } from "lucide-react";
 import { ownerMenuApi, type AdminMenuItemResponse, type MenuItemStatus } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 /* ── Predefined categories ── */
 const MENU_CATEGORIES = [
@@ -40,20 +40,29 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (restaurantId) fetchMenu();
-  }, [restaurantId]);
+    let cancelled = false;
 
-  const fetchMenu = async () => {
-    setLoading(true);
-    const res = await ownerMenuApi.list();
-    if (res.success && res.data) {
-      // Filter items for the specific restaurant
-      setItems(res.data.items.filter(item => item.restaurantId === restaurantId));
-    } else {
-      toast.error("Failed to load menu items");
+    const fetchMenu = async () => {
+      setLoading(true);
+      const res = await ownerMenuApi.list();
+      if (cancelled) return;
+
+      if (res.success && res.data) {
+        setItems(res.data.items.filter((item) => item.restaurantId === restaurantId));
+      } else {
+        toast.error("Failed to load menu items");
+      }
+      setLoading(false);
+    };
+
+    if (restaurantId) {
+      void fetchMenu();
     }
-    setLoading(false);
-  };
+
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantId]);
 
   const resetForm = () => {
     setForm({
@@ -86,6 +95,10 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (!isLikelyImageUrl(form.imageUrl)) {
+      toast.error("Please provide a valid image URL");
+      return;
+    }
 
     setSaving(true);
     const payload = {
@@ -95,7 +108,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
       category: form.category,
       price: parseFloat(form.price),
       status: form.status,
-      imageUrl: form.imageUrl,
+      imageUrl: normalizeImageUrl(form.imageUrl),
     };
 
     const res = editingItem 
