@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sparkles, UtensilsCrossed, Tag, ShoppingCart } from "lucide-react";
 import type { AdminMenuItemResponse, PublicFeaturedDish } from "@/lib/api";
@@ -74,13 +73,11 @@ export default function DishCard({
         style={{ backgroundColor: `${theme.accent}12` }}
       >
         {imageUrl ? (
-          <Image
+          <img
             src={imageUrl}
             alt={name}
-            fill
-            priority={priority}
-            className={`object-cover transition-transform duration-500 ease-out ${!isBlocked ? "group-hover/dish:scale-105" : ""}`}
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-500 ease-out ${!isBlocked ? "group-hover/dish:scale-105" : ""}`}
+            loading={priority ? "eager" : "lazy"}
           />
         ) : (
            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 gap-2">

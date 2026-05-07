@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import type { CSSProperties } from "react";
@@ -77,13 +76,11 @@ export default function RestaurantCard({
         featured ? "aspect-[1.12/0.78]" : "aspect-[1.06/0.74]"
       )}>
         {image ? (
-          <Image
+          <img
             src={image}
             alt={name}
-            fill
-            className="object-cover transition-transform duration-700 ease-out group-hover:scale-110"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            priority={priority}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+            loading={priority ? "eager" : "lazy"}
           />
         ) : (
           <div className="flex h-full w-full flex-col items-center justify-center text-muted-foreground/30">
