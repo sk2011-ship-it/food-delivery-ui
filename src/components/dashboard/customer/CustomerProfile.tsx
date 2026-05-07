@@ -6,6 +6,7 @@ import type { SessionUser } from "@/lib/auth";
 import { useSite } from "@/context/SiteContext";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
+import { normalizePhone } from "@/lib/phone";
 
 export default function CustomerProfile({ user }: { user: SessionUser }) {
   const { site } = useSite();
@@ -16,11 +17,11 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
   const [saving, setSaving] = useState(false);
 
   const sanitizePhone = (value: string) => {
-    return value.replace(/\D/g, "");
+    return normalizePhone(value);
   };
 
   const isValidPhone = (value: string) => {
-    const normalized = value.replace(/\D/g, "");
+    const normalized = normalizePhone(value);
     return normalized.length >= 10 && normalized.length <= 15;
   };
 
@@ -39,13 +40,14 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
 
     setSaving(true);
     try {
+      const normalizedPhone = sanitizePhone(phone);
       const res = await fetch("/api/customer/account", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${session?.access_token}`,
         },
-        body: JSON.stringify({ name, phone }),
+        body: JSON.stringify({ name, phone: normalizedPhone }),
       });
 
       const data = await res.json();
@@ -59,13 +61,14 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
         setProfile({
           ...user,
           name,
-          phone,
+          phone: normalizedPhone,
         });
       }
 
       toast.success("Profile updated successfully!");
-    } catch (err: any) {
-      toast.error(err.message || "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }

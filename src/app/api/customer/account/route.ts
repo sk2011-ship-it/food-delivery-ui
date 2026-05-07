@@ -5,10 +5,14 @@ import { ok, fail, withAuth, parseBody } from "@/lib/proxy";
 import { invalidateUserCache } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
+import { normalizePhone } from "@/lib/phone";
 
 const updateProfileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters").max(150),
-  phone: z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only)."),
+  phone: z.preprocess(
+    (value) => normalizePhone(value),
+    z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only)."),
+  ),
 });
 
 /**
@@ -105,4 +109,3 @@ export async function DELETE(req: Request) {
     }
   }, ["customer", "admin", "driver", "owner"]);
 }
-

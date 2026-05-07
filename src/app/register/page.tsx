@@ -15,10 +15,11 @@ import {
   Eye, EyeOff, Mail, Lock, User,
   ArrowRight, AlertCircle, CheckCircle2,
 } from "lucide-react";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput from "react-phone-number-input";
 import PhoneCountrySelect from "@/components/ui/PhoneCountrySelect";
 import type { E164Number } from "libphonenumber-js";
 import "react-phone-number-input/style.css";
+import { normalizePhone } from "@/lib/phone";
 
 interface FormState {
   name: string;
@@ -84,7 +85,7 @@ export default function RegisterPage() {
     if (!phone) {
       e.phone = "Phone number is required.";
     } else {
-      const digits = phone.replace(/\D/g, "");
+      const digits = normalizePhone(phone);
       if (digits.length < 10 || digits.length > 15) {
         e.phone = "Phone number must be between 10 and 15 digits.";
       }
@@ -114,7 +115,7 @@ export default function RegisterPage() {
     const result = await authApi.register({
       name: form.name,
       email: form.email,
-      phone: phone as string,
+      phone: normalizePhone(phone),
       password: form.password,
     });
     setLoading(false);

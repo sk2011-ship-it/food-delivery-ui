@@ -5,11 +5,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { checkIpRateLimit } from "@/lib/rate-limit";
+import { normalizePhone } from "@/lib/phone";
 
 const RegisterSchema = z.object({
   name:     z.string().min(2, "Name must be at least 2 characters.").max(150),
   email:    z.string().email("Enter a valid email address."),
-  phone:    z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only)."),
+  phone:    z.preprocess(
+    (value) => normalizePhone(value),
+    z.string().regex(/^\d{10,15}$/, "Phone number must be between 10 and 15 digits (numbers only)."),
+  ),
   password: z.string().min(8, "Password must be at least 8 characters.").max(72),
 });
 
