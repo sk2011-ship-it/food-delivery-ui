@@ -2,7 +2,7 @@
 
 import React from "react";
 import {
-  Clock, CreditCard, ChevronRight, Loader2, Star, RotateCcw,
+  Clock, CreditCard, ChevronRight, Loader2, Star,
   ShoppingBag, Truck, Package, AlertCircle, CheckCircle2,
   Store
 } from "lucide-react";
@@ -24,10 +24,8 @@ interface OrderSessionCardProps {
   accent: string;
   gradientFrom: string;
   isPaying: boolean;
-  isReordering?: string | null;
   onPay: (id: string) => void;
   onTrack: (subOrderId: string) => void;
-  onReorder?: (subOrderId: string) => void;
   onRate?: (order: Order) => void;
 }
 
@@ -36,7 +34,7 @@ interface StatusConfig {
   color: string;
   bg?: string;
   hex?: string;
-  icon: any;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 const SESSION_STATUS_CONFIG: Record<string, StatusConfig> = {
@@ -62,10 +60,8 @@ export default function OrderSessionCard({
   accent,
   gradientFrom,
   isPaying,
-  isReordering,
   onPay,
   onTrack,
-  onReorder,
   onRate
 }: OrderSessionCardProps) {
   const config = SESSION_STATUS_CONFIG[session.status] || SESSION_STATUS_CONFIG.PENDING;
@@ -86,18 +82,17 @@ export default function OrderSessionCard({
   const totalAmount = sessionTotalAmount > 0 ? sessionTotalAmount : derivedTotalAmount;
   const restaurantCount = session.orders.length;
   const itemCount = session.orders.reduce((sum, order) => {
-    return sum + ((order.items || []).reduce((itemSum: number, item: any) => itemSum + (item.quantity || 0), 0));
+    return sum + ((order.items || []).reduce((itemSum: number, item: { quantity?: number }) => itemSum + (item.quantity || 0), 0));
   }, 0);
-  const subtitle = `${date} · ${restaurantCount} restaurant${restaurantCount !== 1 ? "s" : ""} · ${itemCount} item${itemCount !== 1 ? "s" : ""}`;
-  const sessionTitle = restaurantCount > 1 ? "Group Order" : "Multi-Order";
   const sessionDescription =
-    session.status === "READY_TO_PAY"
+      session.status === "READY_TO_PAY"
       ? "Everything is confirmed. Complete payment to lock it in."
       : session.status === "PAID"
         ? "Paid successfully. We'll keep you updated as each kitchen progresses."
         : session.status === "CANCELLED"
           ? "This order could not be completed."
           : "We're checking with the restaurant and lining everything up.";
+  const sessionTitle = restaurantCount > 1 ? "Group Order" : "Order Session";
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md group">
