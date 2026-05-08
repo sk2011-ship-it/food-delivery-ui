@@ -20,13 +20,15 @@ interface AuthState {
   setAuthError: (error: string | null)  => void;
   logout:     () => Promise<void>;
   refresh:    () => Promise<void>;
+  sync:       (profile: AuthUser) => Promise<void>;
 }
 
 const supabase = createClient();
+let loadingProfileFor: string | null = null;
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       session:  null,
       user:     null,
       profile:  null,
@@ -49,25 +51,39 @@ export const useAuthStore = create<AuthState>()(
       refresh: async () => {
         try {
           set({ authError: null });
-          // Use getUser() instead of getSession() to force a server-side check
-          // and ensure cookies set by API routes are picked up.
-          const { data: { user }, error } = await supabase.auth.getUser();
+          const { data: { session } } = await supabase.auth.getSession();
           
-          if (user) {
-            // We need a session object for loadProfile. 
-            // getSession is fine here as getUser already verified the cookie.
-            const { data: { session } } = await supabase.auth.getSession();
-            if (session) {
-              await loadProfile(session);
-            } else {
-              set({ session: null, user: null, profile: null, role: null, isReady: true, authError: null });
-            }
+          if (session) {
+            await loadProfile(session);
           } else {
             set({ session: null, user: null, profile: null, role: null, isReady: true, authError: null });
           }
         } catch (error) {
           console.error("[auth-store] refresh failed:", error);
           set({ isReady: true, authError: "We could not verify your session. Please retry." });
+        }
+      },
+
+      sync: async (profile: AuthUser) => {
+        try {
+          // Force a getSession to ensure the client-side session is active
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session && session.user.id === profile.id) {
+            set({
+              session,
+              user: session.user,
+              profile,
+              role: profile.role,
+              isReady: true,
+              authError: null
+            });
+          } else {
+            // Fallback to refresh if session doesn't match or isn't found
+            await get().refresh();
+          }
+        } catch (error) {
+          console.error("[auth-store] sync failed:", error);
+          await get().refresh();
         }
       },
     }),
@@ -86,15 +102,20 @@ export const useAuthStore = create<AuthState>()(
 // then marks the store as ready. Used on INITIAL_SESSION and SIGNED_IN.
 async function loadProfile(session: Session) {
   const store = useAuthStore.getState();
-  store.setAuthError(null);
+  const userId = session.user.id;
 
-  if (store.profile && store.profile.id === session.user.id) {
+  // 1. Prevent concurrent loads for the same user
+  if (loadingProfileFor === userId) return;
+  
+  // 2. Skip if already loaded correctly
+  if (store.profile && store.profile.id === userId && store.isReady) {
     store.setSession(session);
     store.setUser(session.user);
-    store.setIsReady(true);
     return;
   }
 
+  loadingProfileFor = userId;
+  store.setAuthError(null);
   store.setSession(session);
   store.setUser(session.user);
 
@@ -109,13 +130,13 @@ async function loadProfile(session: Session) {
       store.setRole(null);
       store.setAuthError("We could not load your account profile. You can retry.");
     }
-  } catch {
+  } catch (err) {
+    console.error("[auth-store] profile fetch failed:", err);
     store.setProfile(null);
     store.setRole(null);
     store.setAuthError("We could not load your account profile. You can retry.");
   } finally {
-    // isReady only becomes true AFTER profile is resolved —
-    // prevents CartContext / OrderContext from firing with a null role.
+    loadingProfileFor = null;
     store.setIsReady(true);
   }
 }
