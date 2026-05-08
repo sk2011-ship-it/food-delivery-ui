@@ -11,7 +11,7 @@ import type { SiteConfig } from "@/config/sites";
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: Order;
+  order: Order | null;
   site: SiteConfig;
   onSuccess: () => void;
 }
@@ -25,6 +25,7 @@ export default function FeedbackModal({ isOpen, onClose, order, site, onSuccess 
   const charLimit = 500;
 
   const handleSubmit = async () => {
+    if (!order) return;
     if (rating === 0) {
       toast.error("Please select a rating");
       return;

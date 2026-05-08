@@ -190,7 +190,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
                   )}
                 </div>
                 <h4 className="font-heading text-[13px] font-bold text-gray-900 truncate tracking-tight">{item.name}</h4>
-                <p className="font-heading text-[11px] font-bold text-gray-900 mt-0.5">£{item.price.toFixed(2)}</p>
+                <p className="font-heading text-[11px] font-bold text-gray-900 mt-0.5">£{Number(item.price).toFixed(2)}</p>
               </div>
 
               <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

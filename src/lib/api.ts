@@ -132,6 +132,13 @@ import type {
   Review as API_Review
 } from "@/types/api.types";
 
+export type { 
+  RestaurantStatus, 
+  DayKey, 
+  DayHours, 
+  OpeningHours, 
+};
+
 export interface AdminRestaurantItem {
   id: string;
   name: string;
