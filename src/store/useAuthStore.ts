@@ -23,8 +23,20 @@ interface AuthState {
   sync:       (profile: AuthUser) => Promise<void>;
 }
 
-const supabase = createClient();
 let loadingProfileFor: string | null = null;
+let supabaseInstance: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (typeof window === "undefined") {
+    throw new Error("Supabase browser client is only available in the browser.");
+  }
+
+  if (!supabaseInstance) {
+    supabaseInstance = createClient();
+  }
+
+  return supabaseInstance;
+}
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -46,14 +58,14 @@ export const useAuthStore = create<AuthState>()(
       logout: async () => {
         // Clear the server-side auth cookie first, then wipe the browser client.
         await authApi.logout().catch(() => null);
-        await supabase.auth.signOut();
+        await getSupabaseClient().auth.signOut();
         set({ session: null, user: null, profile: null, role: null, isReady: true, authError: null });
       },
 
       refresh: async () => {
         try {
           set({ authError: null });
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session } } = await getSupabaseClient().auth.getSession();
           
           if (session) {
             await loadProfile(session);
@@ -69,7 +81,7 @@ export const useAuthStore = create<AuthState>()(
       sync: async (profile: AuthUser) => {
         try {
           // Force a getSession to ensure the client-side session is active
-          const { data: { session } } = await supabase.auth.getSession();
+          const { data: { session } } = await getSupabaseClient().auth.getSession();
           if (session && session.user.id === profile.id) {
             set({
               session,
@@ -148,7 +160,7 @@ async function loadProfile(session: Session) {
 // INITIAL_SESSION fires after Supabase has verified + refreshed the token,
 // so we never set isReady before we have a trustworthy session.
 if (typeof window !== 'undefined') {
-  supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
+  getSupabaseClient().auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
     const store = useAuthStore.getState();
 
     switch (event) {

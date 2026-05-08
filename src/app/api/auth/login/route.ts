@@ -29,11 +29,16 @@ export async function POST(req: Request) {
 
   // If this browser is already signed in as the same account, avoid creating
   // a second Supabase session. That keeps repeated login clicks idempotent.
-  if (existingSession?.user?.email?.trim().toLowerCase() === normalizedEmail) {
+  const { data: existingUserData } = existingSession?.access_token
+    ? await supabase.auth.getUser(existingSession.access_token)
+    : { data: { user: null } };
+  const existingUser = existingUserData.user;
+
+  if (existingUser?.email?.trim().toLowerCase() === normalizedEmail) {
     const [dbUser] = await db
       .select()
       .from(users)
-      .where(eq(users.id, existingSession.user.id))
+      .where(eq(users.id, existingUser.id))
       .limit(1);
 
     if (!dbUser) {
