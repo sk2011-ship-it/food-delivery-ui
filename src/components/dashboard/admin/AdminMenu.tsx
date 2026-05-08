@@ -56,7 +56,7 @@ interface MenuItem {
   name:               string;
   description:        string;
   category:           string;
-  price:              number;
+  price:              number | string;
   status:             MenuItemStatus;
   imageUrl:           string;
 }
@@ -930,7 +930,7 @@ export default function AdminMenu() {
                 {/* Price */}
                 <div className="min-w-0">
                   <p className="text-base font-bold tabular-nums" style={{ color: "var(--dash-text-primary)" }}>
-                    £{item.price.toFixed(2)}
+                    £{Number(item.price).toFixed(2)}
                   </p>
                 </div>
 
@@ -1035,7 +1035,7 @@ export default function AdminMenu() {
                             Price
                           </p>
                           <p className="text-lg font-bold tabular-nums" style={{ color: "var(--dash-text-primary)" }}>
-                            £{item.price.toFixed(2)}
+                            £{Number(item.price).toFixed(2)}
                           </p>
                         </div>
                         <div>

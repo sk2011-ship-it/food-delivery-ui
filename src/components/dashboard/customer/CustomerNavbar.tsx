@@ -165,7 +165,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
                   style={{ 
                     "--tw-ring-color": `${accent}33`,
                     borderColor: searchValue ? accent : "border-gray-100" 
-                  } as any}
+                  } as React.CSSProperties}
                 />
               </div>
             </div>

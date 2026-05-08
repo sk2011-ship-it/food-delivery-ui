@@ -20,7 +20,7 @@ interface OrderCardProps {
   isReordering: boolean;
   onPay: (id: string) => void;
   onReorder: (id: string) => void;
-  onRate: (order: any) => void;
+  onRate: (order: Order) => void;
   onTrack: (id: string) => void;
   onExpire: (id: string) => void;
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Menu, LogOut, Bell } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useOwnerStore } from "@/store/useOwnerStore";
 import { toast } from "sonner";
 import NotificationDropdown from "./NotificationDropdown";
+import { NOTIFICATION_REFRESH_EVENT } from "@/lib/notification-events";
+import { getUnreadNotificationCount, markNotificationsSeen } from "@/lib/notification-state";
 
 const roleBadge: Record<string, string> = {
   owner:    "bg-purple-100 text-purple-700",
@@ -26,13 +27,52 @@ export default function DashboardHeader({
   hideMenuButton?: boolean;
 }) {
   const router = useRouter();
-  const { orders } = useOwnerStore();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const bellRef = useRef<HTMLButtonElement>(null);
 
-  const pendingOrdersCount = user.role === "owner" 
-    ? orders.filter(o => ["PENDING_CONFIRMATION", "PAID"].includes(o.status)).length
-    : 0;
+  const refreshNotificationCount = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      const data = await res.json();
+      const notifications = data.data?.notifications ?? [];
+      setNotificationCount(getUnreadNotificationCount(user.id, notifications));
+    } catch (err) {
+      console.error("Failed to refresh notification badge:", err);
+    }
+  }, [user.id]);
+
+  const handleNotificationsSeen = useCallback(
+    (notifications: { createdAt: string }[]) => {
+      markNotificationsSeen(user.id, notifications);
+      setNotificationCount(0);
+    },
+    [user.id]
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void refreshNotificationCount();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [refreshNotificationCount]);
+
+  useEffect(() => {
+    const refresh = () => {
+      void refreshNotificationCount();
+    };
+
+    window.addEventListener(NOTIFICATION_REFRESH_EVENT, refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+
+    return () => {
+      window.removeEventListener(NOTIFICATION_REFRESH_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, [refreshNotificationCount]);
 
   const handleLogout = async () => {
     await useAuthStore.getState().logout();
@@ -69,18 +109,24 @@ export default function DashboardHeader({
         <div className="relative">
           <button 
             ref={bellRef}
-            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            onClick={() => {
+              setNotificationCount(0);
+              setIsNotificationsOpen((open) => !open);
+            }}
             className="p-2 rounded-lg hover:bg-gray-100 transition-colors relative"
           >
             <Bell className="w-5 h-5" style={{ color: "var(--dash-text-secondary)" }} />
-            {pendingOrdersCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white animate-pulse" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[10px] font-black leading-5 text-center border border-white shadow-sm">
+                {notificationCount > 99 ? "99+" : notificationCount}
+              </span>
             )}
           </button>
           
           <NotificationDropdown 
             isOpen={isNotificationsOpen}
             onClose={() => setIsNotificationsOpen(false)}
+            onNotificationsSeen={handleNotificationsSeen}
           />
         </div>
 

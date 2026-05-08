@@ -122,10 +122,22 @@ export const authApi = {
 
 /* ── Admin: Restaurant Management API ── */
 
-export type RestaurantStatus = "active" | "inactive" | "suspended";
-export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export type DayHours = { open: string; close: string } | null;
-export type OpeningHours = Partial<Record<DayKey, DayHours>>;
+import type { 
+  RestaurantStatus, 
+  DayKey, 
+  DayHours, 
+  OpeningHours, 
+  RestaurantItem as API_RestaurantItem,
+  MenuItem as API_MenuItem,
+  Review as API_Review
+} from "@/types/api.types";
+
+export type { 
+  RestaurantStatus, 
+  DayKey, 
+  DayHours, 
+  OpeningHours, 
+};
 
 export interface AdminRestaurantItem {
   id: string;
@@ -273,7 +285,7 @@ export interface AdminMenuItemResponse {
   name: string;
   description: string | null;
   category: string;
-  price: number;
+  price: number | string;
   status: MenuItemStatus;
   imageUrl: string;
   createdAt: string;

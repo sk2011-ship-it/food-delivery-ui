@@ -4,15 +4,10 @@ import React from "react";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import type { Review } from "@/types/api.types";
 
 interface ReviewCardProps {
-  review: {
-    id: string;
-    userName: string;
-    rating: number;
-    comment: string;
-    createdAt: string | Date;
-  };
+  review: Review;
   compact?: boolean;
 }
 

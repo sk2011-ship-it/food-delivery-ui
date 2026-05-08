@@ -15,6 +15,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import FeedbackModal from "@/components/dashboard/customer/FeedbackModal";
 import OrderCard from "@/components/dashboard/customer/OrderCard";
+import OrderSessionCard from "@/components/dashboard/customer/OrderSessionCard";
+import type { Order } from "@/types/api.types";
 
 export interface StatusConfig {
   label: string;
@@ -94,6 +96,15 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
 
 const ACTIVE_STATUSES: string[] = ["PENDING_CONFIRMATION", "CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"];
 
+type SessionOrder = {
+  id: string;
+  status: string;
+  totalItemsAmount: string;
+  totalDeliveryFee: string;
+  createdAt: string;
+  orders: Order[];
+};
+
 export default function CustomerOrdersPage() {
   const {
     orders,
@@ -111,6 +122,8 @@ export default function CustomerOrdersPage() {
   const [isFeedbackOpen, setIsFeedbackOpen] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"all" | "active" | "past">("all");
+  const [sessions, setSessions] = React.useState<SessionOrder[]>([]);
+  const [isSessionPaying, setIsSessionPaying] = React.useState<string | null>(null);
   const expiringOrdersRef = React.useRef<Set<string>>(new Set());
 
   const tabScope = activeTab === "all" ? "all" : activeTab;
@@ -119,6 +132,41 @@ export default function CustomerOrdersPage() {
     const limit = tabScope === "all" ? 20 : 100;
     void refreshOrders(1, tabScope, limit);
   }, [activeTab, refreshOrders, tabScope]);
+
+  React.useEffect(() => {
+    const sessionIds = Array.from(new Set(orders.map((order) => order.sessionId).filter((id): id is string => Boolean(id))));
+    if (sessionIds.length === 0) {
+      setSessions([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSessions = async () => {
+      const fetchedSessions = await Promise.all(
+        sessionIds.map(async (sessionId) => {
+          try {
+            const res = await fetch(`/api/orders/session/${sessionId}`);
+            const data = await res.json();
+            return (data.data?.session ?? null) as SessionOrder | null;
+          } catch (err) {
+            console.error(`Failed to fetch session ${sessionId}:`, err);
+            return null;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        setSessions(fetchedSessions.filter((session): session is SessionOrder => Boolean(session)));
+      }
+    };
+
+    void loadSessions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orders]);
 
   const handleReorder = async (orderId: string) => {
     try {
@@ -160,6 +208,30 @@ export default function CustomerOrdersPage() {
       toast.error("A network error occurred. Please try again.");
     } finally {
       setIsPaying(null);
+    }
+  };
+
+  const handleSessionPayment = async (sessionId: string) => {
+    try {
+      setIsSessionPaying(sessionId);
+      const session = useAuthStore.getState().session;
+      const res = await fetch(`/api/orders/session/${sessionId}/stripe/session`, {
+        method: "POST",
+        headers: {
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+        },
+      });
+      const data = await res.json();
+      const sessionUrl = data.url || data.data?.url;
+      if (sessionUrl) {
+        window.location.href = sessionUrl;
+      } else {
+        toast.error(data.message || data.error || "Failed to initialize payment session");
+      }
+    } catch {
+      toast.error("A network error occurred. Please try again.");
+    } finally {
+      setIsSessionPaying(null);
     }
   };
 
@@ -225,6 +297,22 @@ export default function CustomerOrdersPage() {
     }
     return orders.filter((order) => ["DELIVERED", "CANCELLED"].includes(order.status));
   }, [activeTab, orders]);
+
+  const displayedSessions = React.useMemo(() => {
+    if (activeTab === "all") return sessions;
+    if (activeTab === "active") {
+      return sessions.filter((session) => ["PENDING", "READY_TO_PAY"].includes(session.status));
+    }
+    return sessions.filter((session) => ["PAID", "CANCELLED"].includes(session.status));
+  }, [activeTab, sessions]);
+
+  const sessionOrderIds = React.useMemo(() => {
+    return new Set(displayedSessions.flatMap((session) => session.orders.map((order) => order.id)));
+  }, [displayedSessions]);
+
+  const standaloneOrders = React.useMemo(() => {
+    return displayedOrders.filter((order) => !sessionOrderIds.has(order.id));
+  }, [displayedOrders, sessionOrderIds]);
 
   if (loading) {
     return (
@@ -300,12 +388,29 @@ export default function CustomerOrdersPage() {
 
           {/* Conditional List Rendering */}
           <div className="space-y-6">
-            {displayedOrders.length === 0 ? (
+            {displayedSessions.length > 0 && (
+              <div className="space-y-4">
+                {displayedSessions.map((session) => (
+                  <OrderSessionCard
+                    key={session.id}
+                    session={session}
+                    accent={accent}
+                    gradientFrom={gradientFrom}
+                    isPaying={isSessionPaying === session.id}
+                    onPay={handleSessionPayment}
+                    onTrack={(id) => router.push(`/dashboard/customer/status/${id}`)}
+                    onRate={(o) => { setSelectedOrderForFeedback(o); setIsFeedbackOpen(true); }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {standaloneOrders.length === 0 && displayedSessions.length === 0 ? (
               <div className="py-20 text-center bg-gray-50/50 rounded-3xl border border-gray-100">
                 <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No {activeTab} orders found</p>
               </div>
             ) : (
-              displayedOrders.map((order) => (
+              standaloneOrders.map((order) => (
                 <OrderCard
                   key={`order-${order.id}`}
                   order={order}

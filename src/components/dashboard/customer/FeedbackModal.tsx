@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Star, Send, X, MessageSquare, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import type { Order } from "@/types/api.types";
+import type { SiteConfig } from "@/config/sites";
 
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: any;
-  site: any;
+  order: Order | null;
+  site: SiteConfig;
   onSuccess: () => void;
 }
 
@@ -23,6 +25,7 @@ export default function FeedbackModal({ isOpen, onClose, order, site, onSuccess 
   const charLimit = 500;
 
   const handleSubmit = async () => {
+    if (!order) return;
     if (rating === 0) {
       toast.error("Please select a rating");
       return;

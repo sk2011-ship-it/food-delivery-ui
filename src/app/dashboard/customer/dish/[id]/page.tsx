@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { restaurants, menuItems, featuredItems } from "@/lib/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { SITES, DEFAULT_SITE } from "@/config/sites";
+import { normalizeLocationName } from "@/lib/locations";
 
 async function getDishDetails(id: string) {
   try {
@@ -54,7 +55,9 @@ export default async function DishDetailPage({
   if (!dish) notFound();
 
   // Determine site theme based on location or default
-  const siteKey = Object.keys(SITES).find(k => SITES[k as keyof typeof SITES].location === dish.restaurantLocation) || DEFAULT_SITE;
+  const siteKey = Object.keys(SITES).find(
+    (k) => normalizeLocationName(SITES[k as keyof typeof SITES].location) === normalizeLocationName(dish.restaurantLocation)
+  ) || DEFAULT_SITE;
   const site = SITES[siteKey as keyof typeof SITES];
   const { gradientFrom, accent } = site.theme;
 

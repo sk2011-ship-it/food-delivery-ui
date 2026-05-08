@@ -173,7 +173,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
           <p className="text-sm text-gray-500">No dishes found in your menu.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
             <div key={item.id} className={cn(
               "group relative flex items-center gap-4 p-3 rounded-xl border border-gray-100 bg-white hover:shadow-md transition-all",
@@ -190,7 +190,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
                   )}
                 </div>
                 <h4 className="font-heading text-[13px] font-bold text-gray-900 truncate tracking-tight">{item.name}</h4>
-                <p className="font-heading text-[11px] font-bold text-gray-900 mt-0.5">£{item.price.toFixed(2)}</p>
+                <p className="font-heading text-[11px] font-bold text-gray-900 mt-0.5">£{Number(item.price).toFixed(2)}</p>
               </div>
 
               <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

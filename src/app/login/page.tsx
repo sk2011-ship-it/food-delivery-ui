@@ -42,11 +42,12 @@ function LoginContent() {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   useEffect(() => {
-    if (isReady && session) {
-      // Once the client auth store is hydrated, move straight into the app.
+    // If the user lands here already logged in, send them to the dashboard.
+    // We check !loading to prevent this from firing while a manual login is in progress.
+    if (isReady && session && !loading) {
       router.replace(redirectTo);
     }
-  }, [isReady, session, redirectTo, router]);
+  }, [isReady, session, redirectTo, router, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,17 +68,16 @@ function LoginContent() {
     setLoading(true);
     const result = await authApi.login(form.email, form.password);
 
-    if (!result.success) {
+    if (!result.success || !result.data) {
       setLoading(false);
       toast.error(result.error || "Login failed.");
       return;
     }
 
-    // Sync the browser auth store before navigating so the dashboard reads
-    // the new session immediately without needing a manual refresh.
-    await useAuthStore.getState().refresh();
-    router.replace(redirectTo);
-    router.refresh();
+    // Fast-track the session into the store to skip redundant profile fetches.
+    // Then force a full page load to the dashboard to clear any lingering stale state.
+    await useAuthStore.getState().sync(result.data);
+    window.location.href = redirectTo;
   };
 
   return (
