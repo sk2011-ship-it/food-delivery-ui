@@ -35,7 +35,7 @@ export default function AdminSettings() {
     <div>
       <PageHeader title="Settings" subtitle="Platform configuration and preferences" />
 
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6 w-full">
 
         {/* General */}
         <Section icon={Globe} title="General">

@@ -173,7 +173,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
           <p className="text-sm text-gray-500">No dishes found in your menu.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
             <div key={item.id} className={cn(
               "group relative flex items-center gap-4 p-3 rounded-xl border border-gray-100 bg-white hover:shadow-md transition-all",

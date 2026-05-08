@@ -35,7 +35,7 @@ export default function DriverSettings({ user }: { user: SessionUser }) {
     <div>
       <PageHeader title="Settings" subtitle="Manage your driver profile and preferences" />
 
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6 w-full">
 
         {/* Profile */}
         <Section icon={User} title="Profile">

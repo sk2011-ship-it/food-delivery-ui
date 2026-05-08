@@ -82,7 +82,7 @@ export default function CustomerSettings() {
   const icons = [Shield, LogOut, Trash2];
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 space-y-5">
+    <div className="w-full mx-auto px-4 sm:px-6 space-y-5">
 
       {/* Page header */}
       <div>
