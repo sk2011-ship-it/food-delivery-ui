@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useOrderStore } from "@/store/useOrderStore";
 import { useOwnerStore } from "@/store/useOwnerStore";
 import { useAdminStore } from "@/store/useAdminStore";
+import { dispatchNotificationRefresh } from "@/lib/notification-events";
 
 export const useFcmToken = (userId: string | undefined) => {
   const [token, setToken] = useState<string | null>(null);
@@ -170,6 +171,7 @@ export const useFcmToken = (userId: string | undefined) => {
         }
       }
 
+      dispatchNotificationRefresh();
     });
 
     return () => unsubscribe();
