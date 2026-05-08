@@ -8,13 +8,15 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import type { Order } from "@/types/api.types";
+
 interface OrderSession {
   id: string;
   status: string;
   totalItemsAmount: string;
   totalDeliveryFee: string;
   createdAt: string;
-  orders: any[];
+  orders: Order[];
 }
 
 interface OrderSessionCardProps {
@@ -26,17 +28,25 @@ interface OrderSessionCardProps {
   onPay: (id: string) => void;
   onTrack: (subOrderId: string) => void;
   onReorder?: (subOrderId: string) => void;
-  onRate?: (order: any) => void;
+  onRate?: (order: Order) => void;
 }
 
-const SESSION_STATUS_CONFIG: Record<string, any> = {
+interface StatusConfig {
+  label: string;
+  color: string;
+  bg?: string;
+  hex?: string;
+  icon: any;
+}
+
+const SESSION_STATUS_CONFIG: Record<string, StatusConfig> = {
   PENDING: { label: "Confirming", color: "text-amber-700", bg: "bg-amber-50", hex: "#F59E0B", icon: Clock },
   READY_TO_PAY: { label: "Accepted - Ready to Pay", color: "text-green-700", bg: "bg-green-50", hex: "#22C55E", icon: CheckCircle2 },
   PAID: { label: "Paid", color: "text-blue-700", bg: "bg-blue-50", hex: "#3B82F6", icon: CreditCard },
   CANCELLED: { label: "Cancelled", color: "text-red-500", bg: "bg-red-50", hex: "#EF4444", icon: AlertCircle },
 };
 
-const SUB_ORDER_STATUS_CONFIG: Record<string, any> = {
+const SUB_ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   PENDING_CONFIRMATION: { label: "Confirming", color: "text-amber-500", icon: Clock },
   CONFIRMED: { label: "Confirmed", color: "text-green-600", icon: CheckCircle2 },
   PAID: { label: "Paid", color: "text-blue-600", icon: CreditCard },

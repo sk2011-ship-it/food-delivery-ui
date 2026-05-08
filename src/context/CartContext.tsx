@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
-import { type OpeningHours } from "@/lib/api";
+import { type OpeningHours } from "@/types/api.types";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 import { useSite } from "@/context/SiteContext";
 

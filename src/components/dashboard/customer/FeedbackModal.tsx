@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Star, Send, X, MessageSquare, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import type { Order } from "@/types/api.types";
+import type { SiteConfig } from "@/config/sites";
 
 interface FeedbackModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: any;
-  site: any;
+  order: Order;
+  site: SiteConfig;
   onSuccess: () => void;
 }
 

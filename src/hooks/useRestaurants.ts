@@ -47,10 +47,10 @@ export function useRestaurants(searchQuery: string = "") {
     fetchRestaurants();
   }, [fetchRestaurants]);
 
-  // Filtering Logic - Only show OPEN restaurants
+  // Filtering Logic - Show all restaurants in location, even if closed (UI handles status)
   const filteredFeatured = useMemo(() => {
     const base = featured.filter(
-      (r) => isSameLocation(r.location, site.location) && isRestaurantOpen(r.openingHours as OpeningHours | null | undefined)
+      (r) => isSameLocation(r.location, site.location)
     );
     if (!searchQuery) return base;
     return base.filter(r => 
@@ -60,7 +60,7 @@ export function useRestaurants(searchQuery: string = "") {
 
   const filteredNormal = useMemo(() => {
     const base = normal.filter(
-      (r) => isSameLocation(r.location, site.location) && isRestaurantOpen(r.openingHours as OpeningHours | null | undefined)
+      (r) => isSameLocation(r.location, site.location)
     );
     if (!searchQuery) return base;
     const query = searchQuery.toLowerCase();

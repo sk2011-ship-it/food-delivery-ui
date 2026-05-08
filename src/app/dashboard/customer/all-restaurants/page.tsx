@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useConfigStore } from "@/store/useConfigStore";
+import { useSite } from "@/context/SiteContext";
 import { useRestaurants } from "@/hooks/useRestaurants";
 import RestaurantCard from "@/components/dashboard/customer/RestaurantCard";
 import { RestaurantCardSkeleton } from "@/components/ui/Skeleton";
 import { Sparkles, Utensils, Search, ChevronLeft, RefreshCcw } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, Variants } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -26,23 +26,25 @@ export default function AllRestaurantsPage() {
 
 function LoadingState() {
   return (
-    <div className="min-h-screen bg-dash-bg p-8 flex flex-col gap-8">
-      <div className="flex gap-4">
-        {[1, 2, 3, 4].map(i => <RestaurantCardSkeleton key={i} />)}
+    <div className="min-h-screen bg-[var(--dash-bg)] p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => <RestaurantCardSkeleton key={i} />)}
+        </div>
       </div>
     </div>
   );
 }
 
 function AllRestaurantsContent() {
-  const { site } = useConfigStore();
+  const { site } = useSite();
   const searchParams = useSearchParams();
   const [localSearch, setLocalSearch] = useState(searchParams.get("search") || "");
   
   // Custom hook for unified data management
   const { featured, normal, isLoading, error, refresh } = useRestaurants(localSearch);
 
-  const containerVariants: import("framer-motion").Variants = {
+  const containerVariants: Variants = {
     hidden: { opacity: 0 },
     show: {
       opacity: 1,
@@ -53,13 +55,13 @@ function AllRestaurantsContent() {
     }
   };
 
-  const itemVariants: import("framer-motion").Variants = {
+  const itemVariants: Variants = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
   };
 
   return (
-    <div className="min-h-screen bg-dash-bg pb-20 selection:bg-primary/20 selection:text-primary">
+    <div className="min-h-screen bg-[var(--dash-bg)] pb-20 selection:bg-primary/20 selection:text-primary">
       {/* Premium Header */}
       <div className="glass-premium sticky top-16 z-30 !border-none !shadow-none">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
