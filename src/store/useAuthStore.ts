@@ -56,9 +56,9 @@ export const useAuthStore = create<AuthState>()(
       setAuthError: (authError) => set({ authError }),
 
       logout: async () => {
-        // Clear the server-side auth cookie first, then wipe the browser client.
-        await authApi.logout().catch(() => null);
-        await getSupabaseClient().auth.signOut();
+        // Clear only the browser session here. This avoids revoking the same
+        // refresh token twice, which can trigger "Refresh Token Not Found".
+        await getSupabaseClient().auth.signOut({ scope: "local" });
         set({ session: null, user: null, profile: null, role: null, isReady: true, authError: null });
       },
 
