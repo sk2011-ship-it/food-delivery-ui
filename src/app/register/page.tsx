@@ -54,13 +54,6 @@ export default function RegisterPage() {
   const { site } = useSite();
   const router = useRouter();
   const { isReady, session } = useAuthStore();
-
-  useEffect(() => {
-    if (isReady && session) {
-      router.replace("/dashboard");
-    }
-  }, [isReady, session, router]);
-
   const [form, setForm] = useState<FormState>({
     name: "", email: "", password: "", confirmPassword: "", terms: false,
   });
@@ -71,6 +64,13 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
+
+  useEffect(() => {
+    // Redirect if already logged in, but not if we are in the middle of a registration
+    if (isReady && session && !loading) {
+      router.replace("/dashboard");
+    }
+  }, [isReady, session, router, loading]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));

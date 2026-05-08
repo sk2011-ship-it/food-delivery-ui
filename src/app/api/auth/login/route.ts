@@ -16,6 +16,7 @@ export async function POST(req: Request) {
   const parsed = await parseBody(req, LoginSchema);
   if ("error" in parsed) return parsed.error;
   const { email, password } = parsed.data;
+  const normalizedEmail = email.trim().toLowerCase();
 
   const blocked = await checkIpRateLimit("LOGIN_FAILED", req, { email });
   if (!blocked.allowed) {
@@ -24,6 +25,42 @@ export async function POST(req: Request) {
 
   // 1. Verify credentials — sets session cookie
   const supabase = await createClient();
+  const { data: { session: existingSession } } = await supabase.auth.getSession();
+
+  // If this browser is already signed in as the same account, avoid creating
+  // a second Supabase session. That keeps repeated login clicks idempotent.
+  if (existingSession?.user?.email?.trim().toLowerCase() === normalizedEmail) {
+    const [dbUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, existingSession.user.id))
+      .limit(1);
+
+    if (!dbUser) {
+      await supabase.auth.signOut();
+      return fail("Account not found. Please contact support.", 404);
+    }
+
+    if (dbUser.status === "banned") {
+      await supabase.auth.signOut();
+      return fail("Your account has been suspended. Please contact support.", 403);
+    }
+
+    return ok({
+      id: dbUser.id,
+      email: dbUser.email,
+      role: dbUser.role,
+      name: dbUser.name,
+      phone: dbUser.phone,
+    });
+  }
+
+  // If a different session is already present in this browser, revoke it
+  // first so we do not leave stale auth cookies behind.
+  if (existingSession) {
+    await supabase.auth.signOut();
+  }
+
   const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
     email,
     password,

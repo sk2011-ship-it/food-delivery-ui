@@ -42,11 +42,12 @@ function LoginContent() {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
 
   useEffect(() => {
-    if (isReady && session) {
-      // Once the client auth store is hydrated, move straight into the app.
+    // If the user lands here already logged in, send them to the dashboard.
+    // We check !loading to prevent this from firing while a manual login is in progress.
+    if (isReady && session && !loading) {
       router.replace(redirectTo);
     }
-  }, [isReady, session, redirectTo, router]);
+  }, [isReady, session, redirectTo, router, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
