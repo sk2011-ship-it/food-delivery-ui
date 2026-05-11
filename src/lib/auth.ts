@@ -45,7 +45,6 @@ interface CacheEntry {
 // Module-level singleton — survives between requests in the same process.
 // In dev (hot-reload), globalThis prevents duplicate instances.
 declare global {
-  // eslint-disable-next-line no-var
   var _userCache: Map<string, CacheEntry> | undefined;
 }
 
@@ -56,7 +55,7 @@ if (process.env.NODE_ENV !== "production") {
   globalThis._userCache = userCache;
 }
 
-const CACHE_TTL_MS = 2_000; // 2 seconds (was 60s)
+const CACHE_TTL_MS = 60_000; // 60 seconds
 
 /** Call this whenever a user's role or status is mutated. */
 export function invalidateUserCache(userId: string): void {
@@ -118,17 +117,24 @@ export async function getCurrentUser(
     }
   }
 
-  // ── Slow path: verify via Supabase when no header is available ───────────
-  if (!userId) {
-    const supabase = await createClient();
-    const token = typeof reqOrToken === "string" ? reqOrToken : bearerToken;
-    const { data: { user: authUser } } = token
-      ? await supabase.auth.getUser(token)
-      : await supabase.auth.getUser();
+  // ── Slow path: verify via Supabase to prevent header spoofing ───────────
+  // Even if we have a userId from the header, we MUST verify the token
+  // to ensure the request is actually coming from that user.
+  const supabase = await createClient();
+  const token = typeof reqOrToken === "string" ? reqOrToken : bearerToken;
+  const { data: { user: authUser } } = token
+    ? await supabase.auth.getUser(token)
+    : await supabase.auth.getUser();
 
-    if (!authUser) return null;
-    userId = authUser.id;
+  if (!authUser) return null;
+
+  // Security Check: If x-user-id was provided, it MUST match the verified token's sub
+  if (userId && userId !== authUser.id) {
+    console.error(`[Auth Security] User ID mismatch! Header: ${userId}, Token: ${authUser.id}`);
+    return null; 
   }
+
+  userId = authUser.id;
 
   // ── Fast path 2: in-process cache hit (no DB query) ──────────────────────
   const cached = userCache.get(userId);

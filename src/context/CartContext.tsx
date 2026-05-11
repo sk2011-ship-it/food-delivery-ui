@@ -165,11 +165,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       initCalledFor.current = sessionKey;
 
       setLoading(true);
-      if (session) {
-        await syncGuestCartToDB(session.access_token);
-        await fetchDBCart(session.access_token);
-      } else {
-        setCartItems(loadGuestCart());
+      try {
+        if (session) {
+          const guestItems = loadGuestCart();
+          if (guestItems.length > 0) {
+            console.log(`[CartContext] Syncing ${guestItems.length} guest items...`);
+            await syncGuestCartToDB(session.access_token);
+          }
+          await fetchDBCart(session.access_token);
+        } else {
+          setCartItems(loadGuestCart());
+        }
+      } catch (err) {
+        console.error("[CartContext] initCart failed:", err);
+      } finally {
         setLoading(false);
       }
     };
@@ -178,7 +187,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [session, isReady, fetchDBCart, syncGuestCartToDB]);
 
   // ── Add item ─────────────────────────────────────────────────
-  const addItem = async (item: Omit<CartItem, "id" | "quantity">) => {
+  const addItem = useCallback(async (item: Omit<CartItem, "id" | "quantity">) => {
     // Validate Restaurant Operational Hours before adding
     if (!isRestaurantOpen(item.openingHours)) {
       toast.error(`${item.restaurantName} is currently closed.`);
@@ -234,7 +243,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       toast.error(message);
       await fetchDBCart(); // rollback to server state
     }
-  };
+  }, [cartItems, isGuest, fetchDBCart]);
 
 
   // ── Update quantity ──────────────────────────────────────────
@@ -289,9 +298,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // ── Clear cart ───────────────────────────────────────────────
   const clearCart = useCallback(async (silent?: boolean) => {
     const activeLocation = normalizeLocation(site.location);
-    const scopedItems = cartItems.filter(
-      item => normalizeLocation(item.restaurantLocation) === activeLocation
-    );
 
     if (isGuest) {
       const remainingItems = cartItems.filter(
@@ -310,18 +316,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCartItems(remainingItems);
     try {
       const currentSession = useAuthStore.getState().session;
-      await Promise.all(
-        scopedItems.map(item =>
-          fetch(`/api/cart/${item.menuItemId}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: currentSession ? `Bearer ${currentSession.access_token}` : ""
-            }
-          }).then((res) => {
-            if (!res.ok) throw new Error();
-          })
-        )
-      );
+      const res = await fetch("/api/cart/clear", {
+        method: "POST",
+        headers: {
+          Authorization: currentSession ? `Bearer ${currentSession.access_token}` : ""
+        }
+      });
+      if (!res.ok) throw new Error();
       if (!silent) toast.success("Cart cleared");
     } catch {
       if (!silent) toast.error("Failed to clear cart");
@@ -354,34 +355,27 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
 
     try {
-      const clearRes = await fetch("/api/cart/clear", {
+      const bulkRes = await fetch("/api/cart/bulk", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
+        body: JSON.stringify({ items }),
       });
 
-      if (!clearRes.ok) {
-        throw new Error("CLEAR_FAILED");
+      if (!bulkRes.ok) {
+        const data = await bulkRes.json().catch(() => null);
+        throw new Error(data?.error || data?.message || "BULK_FAILED");
       }
 
-      for (const item of items) {
-        const addRes = await fetch("/api/cart", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(item),
-        });
-
-        if (!addRes.ok) {
-          const data = await addRes.json().catch(() => null);
-          throw new Error(data?.error || data?.message || "ADD_FAILED");
-        }
+      const data = await bulkRes.json().catch(() => null);
+      const updatedItems = data?.data?.items;
+      if (Array.isArray(updatedItems)) {
+        setCartItems(updatedItems);
+      } else {
+        await fetchDBCart(accessToken);
       }
-
-      await fetchDBCart(accessToken);
       return true;
     } catch (error) {
       console.error("[CartContext] Failed to replace cart:", error);
@@ -404,10 +398,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const currentCartItems = useMemo(() => {
     const activeLocation = normalizeLocation(site.location);
-    return cartItems.filter(
+    const items = cartItems.length > 0 ? cartItems : loadGuestCart();
+    return items.filter(
       item => normalizeLocation(item.restaurantLocation) === activeLocation
     );
-  }, [cartItems, site.location]);
+  }, [cartItems, site.location, isGuest]);
 
   const totalItems = useMemo(() => currentCartItems.reduce((acc, item) => acc + item.quantity, 0), [currentCartItems]);
   const totalPrice = useMemo(() => currentCartItems.reduce((acc, item) => acc + item.price * item.quantity, 0), [currentCartItems]);

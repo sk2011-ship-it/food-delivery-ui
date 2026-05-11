@@ -118,6 +118,9 @@ export const authApi = {
   deleteAccount() {
     return del<{ message: string }>("/api/customer/account");
   },
+  clearFcmToken() {
+    return del<null>("/api/user/fcm-token");
+  },
 };
 
 /* ── Admin: Restaurant Management API ── */

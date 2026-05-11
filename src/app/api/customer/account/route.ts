@@ -68,29 +68,33 @@ export async function DELETE(req: Request) {
     const userId = user.id;
 
     try {
-      // 1. Nullify userId in orders (preserves the order, shows as anonymous)
-      await db.update(orders).set({ userId: null }).where(eq(orders.userId, userId));
+      // 1. Database Operations in a Transaction
+      await db.transaction(async (tx) => {
+        // a. Nullify userId in orders (preserves the order, shows as anonymous)
+        await tx.update(orders).set({ userId: null }).where(eq(orders.userId, userId));
 
-      // 2. Nullify userId in reviews (preserves the review, shows as anonymous)
-      await db.update(reviews).set({ userId: null }).where(eq(reviews.userId, userId));
+        // b. Nullify userId in reviews (preserves the review, shows as anonymous)
+        await tx.update(reviews).set({ userId: null }).where(eq(reviews.userId, userId));
 
-      // 3. Delete notifications (no formal FK with cascade)
-      await db.delete(notifications).where(eq(notifications.recipientId, userId));
+        // c. Delete notifications (no formal FK with cascade)
+        await tx.delete(notifications).where(eq(notifications.recipientId, userId));
 
-      // 4. Delete cart items explicitly
-      await db.delete(cartItems).where(eq(cartItems.userId, userId));
+        // d. Delete cart items explicitly
+        await tx.delete(cartItems).where(eq(cartItems.userId, userId));
 
-      // 5. Delete the user from the database
-      const [deletedUser] = await db
-        .delete(users)
-        .where(eq(users.id, userId))
-        .returning();
+        // e. Delete the user from the database
+        const [deletedUser] = await tx
+          .delete(users)
+          .where(eq(users.id, userId))
+          .returning();
 
-      if (!deletedUser) {
-        return fail("User record not found in database.", 404);
-      }
+        if (!deletedUser) {
+          throw new Error("USER_NOT_FOUND");
+        }
+      });
 
-      // 6. Delete from Supabase Auth
+      // 2. Delete from Supabase Auth (Service Role)
+      // This happens after the DB transaction succeeds.
       const adminClient = createAdminClient();
       const { error: authError } = await adminClient.auth.admin.deleteUser(userId);
       
@@ -99,7 +103,7 @@ export async function DELETE(req: Request) {
         // We continue anyway since the DB record is gone, but log it.
       }
 
-      // 7. Invalidate cache
+      // 3. Invalidate cache
       invalidateUserCache(userId);
 
       return ok({ message: "Account deleted successfully." });

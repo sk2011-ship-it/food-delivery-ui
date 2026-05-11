@@ -35,28 +35,36 @@ export async function checkIpRateLimit(
   const url = getSupabaseFunctionUrl("rate-limitor");
   const ip = getRequestIp(req);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY ?? ""}`,
-    },
-    body: JSON.stringify({
-      action,
-      ip,
-      meta: meta ?? {},
-    }),
-  });
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.SUPABASE_SECRET_KEY ?? ""}`,
+      },
+      body: JSON.stringify({
+        action,
+        ip,
+        meta: meta ?? {},
+      }),
+    });
 
   if (response.status === 429) {
     return { allowed: false };
   }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`Rate limit check failed (${response.status}):`, errorText);
-    throw new Error(`Rate limit check failed with status ${response.status}`);
-  }
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Rate limit check failed (${response.status}):`, errorText);
+      return { allowed: true };
+    }
 
-  return (await response.json()) as RateLimitResult;
+    return (await response.json()) as RateLimitResult;
+  } catch (error) {
+    console.error("Rate limit check failed (network/server error):", error);
+    // Security Bug 1: Fail closed for sensitive actions. If the rate limiter is down,
+    // we should NOT allow the request to proceed.
+    const criticalActions: RateLimitAction[] = ["LOGIN_FAILED", "REGISTER"];
+    return { allowed: !criticalActions.includes(action) };
+  }
 }

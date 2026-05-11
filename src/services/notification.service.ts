@@ -428,11 +428,12 @@ export class NotificationService {
         }))
       ).returning({ id: notifications.id });
 
-      await Promise.all(
-        insertedNotifications.map(async (notif) => {
-          await this.trigger(notif.id);
-        })
-      );
+      insertedNotifications.forEach((notif) => {
+        // Critical Bug 3: Trigger notifications in the background to avoid blocking the main request
+        this.trigger(notif.id).catch(err => 
+          console.error(`[NotificationService] Failed to trigger notification ${notif.id}:`, err)
+        );
+      });
 
       return insertedNotifications.map((notif) => notif.id);
     } catch (err) {

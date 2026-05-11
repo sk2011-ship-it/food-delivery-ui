@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Package, Store, Settings, ShoppingBag } from "lucide-react";
@@ -20,6 +21,15 @@ export default function CustomerBottomNav() {
   const { site } = useSite();
   const { gradientFrom, accent } = site.theme;
   const { totalItems } = useCart();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setMounted(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.07)]">
@@ -44,12 +54,12 @@ export default function CustomerBottomNav() {
               <span className="relative z-10">
                 <Icon
                   className="w-5 h-5 transition-colors"
-                  style={{ color: active ? gradientFrom : isCart && totalItems > 0 ? gradientFrom : "#9ca3af" }}
-                  strokeWidth={active || (isCart && totalItems > 0) ? 2.5 : 2}
+                  style={{ color: active ? gradientFrom : isCart && mounted && totalItems > 0 ? gradientFrom : "#9ca3af" }}
+                  strokeWidth={active || (isCart && mounted && totalItems > 0) ? 2.5 : 2}
                 />
                 {isCart && (
                   <AnimatePresence>
-                    {totalItems > 0 && (
+                    {mounted && totalItems > 0 && (
                       <motion.span
                         key={totalItems}
                         initial={{ scale: 0, opacity: 0 }}
@@ -68,7 +78,7 @@ export default function CustomerBottomNav() {
 
               <span
                 className="text-[10px] font-semibold relative z-10 transition-colors"
-                style={{ color: active ? gradientFrom : isCart && totalItems > 0 ? gradientFrom : "#9ca3af" }}
+                style={{ color: active ? gradientFrom : isCart && mounted && totalItems > 0 ? gradientFrom : "#9ca3af" }}
               >
                 {label}
               </span>

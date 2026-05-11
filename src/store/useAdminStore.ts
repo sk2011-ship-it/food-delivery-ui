@@ -55,24 +55,57 @@ export const useAdminStore = create<AdminState>()((set, get) => ({
   isLoading: false,
 
   refreshOrders: async () => {
-    const { session } = (await import("@/store/useAuthStore")).useAuthStore.getState();
-    if (!session?.access_token) return;
-
     set({ isLoading: true });
     try {
-      const res = await fetch(`/api/admin/orders?limit=1000&t=${Date.now()}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      const { useAuthStore } = await import("@/store/useAuthStore");
+      const { createClient } = await import("@/lib/supabase/client");
+      const supabase = createClient();
 
-      const data = await res.json();
-      if (res.ok && data.data) {
-        set({ 
-          orders: data.data.orders,
-          stats: data.data.stats
-        });
-      }
+      const fetchOrders = async (retry = false) => {
+        const { session } = useAuthStore.getState();
+        if (!session?.access_token) return false;
+
+        try {
+          const res = await fetch(`/api/admin/orders?limit=1000&t=${Date.now()}`, {
+            cache: "no-store",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (res.status === 401 && !retry) {
+            const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+
+            if (refreshedSession?.access_token && refreshedSession.access_token !== session.access_token) {
+              useAuthStore.getState().setSession(refreshedSession);
+              return fetchOrders(true);
+            }
+          }
+
+          const data = await res.json();
+          if (res.ok && data.data) {
+            set({
+              orders: data.data.orders,
+              stats: data.data.stats
+            });
+            return true;
+          }
+        } catch (error) {
+          if (!retry) {
+            const { data: { session: refreshedSession } } = await supabase.auth.getSession();
+            if (refreshedSession?.access_token) {
+              useAuthStore.getState().setSession(refreshedSession);
+              return fetchOrders(true);
+            }
+          }
+
+          throw error;
+        }
+
+        return false;
+      };
+
+      await fetchOrders();
     } catch (err) {
       console.error("[useAdminStore] Failed to fetch orders", err);
     } finally {

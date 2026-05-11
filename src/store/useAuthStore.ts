@@ -56,6 +56,13 @@ export const useAuthStore = create<AuthState>()(
       setAuthError: (authError) => set({ authError }),
 
       logout: async () => {
+        // Clear FCM token from database first so user doesn't get notifications for previous account
+        try {
+          await authApi.clearFcmToken();
+        } catch (err) {
+          console.error("[auth-store] Failed to clear FCM token during logout:", err);
+        }
+
         // Clear only the browser session here. This avoids revoking the same
         // refresh token twice, which can trigger "Refresh Token Not Found".
         await getSupabaseClient().auth.signOut({ scope: "local" });

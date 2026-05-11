@@ -7,6 +7,7 @@ import { SITES, DEFAULT_SITE } from "@/config/sites";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
 import { normalizePhone, phoneDigits } from "@/lib/phone";
+import { calculateDeliveryFee } from "@/lib/delivery";
 
 function getSiteFromLocation(location: string | null) {
   if (!location) return SITES[DEFAULT_SITE];
@@ -51,6 +52,19 @@ export async function POST(req: Request) {
 
       // Validate or fallback for deliveryFeesBreakdown
       const fees = deliveryFeesBreakdown || {};
+
+      // CRITICAL-4: Recalculate and validate delivery fee server-side
+      const siteConfig = getSiteFromLocation(activeSiteLocation);
+      if (siteConfig.deliveryPricing?.type === "fixed_areas") {
+        const expectedFee = calculateDeliveryFee(siteConfig, { area: deliveryArea });
+        if (Math.abs(expectedFee - (deliveryFee || 0)) > 0.01) {
+          return fail(`Invalid delivery fee for area: ${deliveryArea}. Expected £${expectedFee.toFixed(2)}`, 400);
+        }
+      }
+      /**
+       * NOTE: distance_slabs sites require restaurant coordinates stored in DB to fully validate 
+       * distance-based fees server-side. Currently, we rely on client-sent distance for those.
+       */
 
       const createdOrders = await db.transaction(async (tx) => {
         const cartRows = await tx
@@ -209,7 +223,8 @@ export async function POST(req: Request) {
       });
 
       // --- Notification Logic (Background) ---
-      (async () => {
+      // Security Bug 2: Use waitUntil to ensure background tasks finish in serverless
+      const notificationTask = (async () => {
         try {
           await Promise.all(
             createdOrders.orders.map(async (newOrder) => {
@@ -269,6 +284,12 @@ export async function POST(req: Request) {
           console.error("[api/orders POST] Background notification error:", notifyErr);
         }
       })();
+
+      // Use waitUntil if available (standard in Next.js 15+ middleware/routes)
+      // or just fire-and-forget (risky but better than blocking)
+      if (typeof (req as any).waitUntil === "function") {
+        (req as any).waitUntil(notificationTask);
+      }
 
       console.log(`[api/orders POST] Order created for user ${user.id}`);
       return ok({
