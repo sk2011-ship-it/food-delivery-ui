@@ -18,8 +18,6 @@ async function ensureKitchenStartsFromPaid(orderId: string) {
       inArray(orders.status, [
         "PENDING_CONFIRMATION",
         "CONFIRMED",
-        "DISPATCH_REQUESTED",
-        "OUT_FOR_DELIVERY",
       ])
     ));
 }
@@ -146,7 +144,6 @@ export async function POST(req: Request) {
           try {
             const { ShipdayService } = await import("@/services/shipday.service");
             await ShipdayService.triggerShipdayOrder(updatedOrder.id, "DISPATCH_REQUESTED");
-            await ensureKitchenStartsFromPaid(updatedOrder.id);
             console.log(`[Stripe Webhook] Shipday scheduled delivery created for order ${orderId}.`);
           } catch (shipdayErr) {
             console.error("[Stripe Webhook] Failed to create Shipday scheduled delivery:", shipdayErr);

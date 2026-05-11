@@ -132,7 +132,7 @@ export default function OrderCard({
 
           {/* Actions Container */}
           <div className="flex items-center gap-2 shrink-0">
-            {order.status === "CONFIRMED" && !order.sessionId && (
+            {order.status === "CONFIRMED" && (
               <button
                 onClick={() => onPay(order.id)}
                 disabled={isPaying}

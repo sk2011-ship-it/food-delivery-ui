@@ -178,7 +178,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [session, isReady, fetchDBCart, syncGuestCartToDB]);
 
   // ── Add item ─────────────────────────────────────────────────
-  const addItem = async (item: Omit<CartItem, "id" | "quantity">) => {
+  const addItem = useCallback(async (item: Omit<CartItem, "id" | "quantity">) => {
     // Validate Restaurant Operational Hours before adding
     if (!isRestaurantOpen(item.openingHours)) {
       toast.error(`${item.restaurantName} is currently closed.`);
@@ -234,7 +234,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       toast.error(message);
       await fetchDBCart(); // rollback to server state
     }
-  };
+  }, [cartItems, isGuest, fetchDBCart]);
 
 
   // ── Update quantity ──────────────────────────────────────────
@@ -310,18 +310,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCartItems(remainingItems);
     try {
       const currentSession = useAuthStore.getState().session;
-      await Promise.all(
-        scopedItems.map(item =>
-          fetch(`/api/cart/${item.menuItemId}`, {
-            method: "DELETE",
-            headers: {
-              Authorization: currentSession ? `Bearer ${currentSession.access_token}` : ""
-            }
-          }).then((res) => {
-            if (!res.ok) throw new Error();
-          })
-        )
-      );
+      const res = await fetch("/api/cart/clear", {
+        method: "POST",
+        headers: {
+          Authorization: currentSession ? `Bearer ${currentSession.access_token}` : ""
+        }
+      });
+      if (!res.ok) throw new Error();
       if (!silent) toast.success("Cart cleared");
     } catch {
       if (!silent) toast.error("Failed to clear cart");

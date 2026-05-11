@@ -7,6 +7,7 @@ import { SITES, DEFAULT_SITE } from "@/config/sites";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
 import { normalizePhone, phoneDigits } from "@/lib/phone";
+import { calculateDeliveryFee } from "@/lib/delivery";
 
 function getSiteFromLocation(location: string | null) {
   if (!location) return SITES[DEFAULT_SITE];
@@ -51,6 +52,19 @@ export async function POST(req: Request) {
 
       // Validate or fallback for deliveryFeesBreakdown
       const fees = deliveryFeesBreakdown || {};
+
+      // CRITICAL-4: Recalculate and validate delivery fee server-side
+      const siteConfig = getSiteFromLocation(activeSiteLocation);
+      if (siteConfig.deliveryPricing?.type === "fixed_areas") {
+        const expectedFee = calculateDeliveryFee(siteConfig, { area: deliveryArea });
+        if (Math.abs(expectedFee - (deliveryFee || 0)) > 0.01) {
+          return fail(`Invalid delivery fee for area: ${deliveryArea}. Expected £${expectedFee.toFixed(2)}`, 400);
+        }
+      }
+      /**
+       * NOTE: distance_slabs sites require restaurant coordinates stored in DB to fully validate 
+       * distance-based fees server-side. Currently, we rely on client-sent distance for those.
+       */
 
       const createdOrders = await db.transaction(async (tx) => {
         const cartRows = await tx

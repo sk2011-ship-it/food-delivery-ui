@@ -89,8 +89,6 @@ export async function POST(req: Request) {
     return fail("Registration failed. Please try again.", 500);
   }
 
-  await checkIpRateLimit("REGISTER", req, { email });
-
   return ok({
     id: userId,
     name,

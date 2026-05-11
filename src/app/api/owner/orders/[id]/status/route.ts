@@ -1,9 +1,14 @@
-import { ok, fail, withOwnerAuth } from "@/lib/proxy";
+import { ok, fail, withOwnerAuth, parseBody } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NotificationService } from "@/services/notification.service";
 import { syncSessionStatus } from "@/lib/order-session";
+import { z } from "zod";
+
+const OwnerStatusSchema = z.object({
+  status: z.enum(["CONFIRMED", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"])
+});
 
 // Human-readable labels for customer-facing notifications
 const STATUS_LABELS: Record<string, { subject: string; body: (id: string, restaurant: string) => string }> = {
@@ -40,19 +45,11 @@ export async function PATCH(
     console.log(`[PATCH /api/owner/orders/status] Start. User: ${user.email}`);
     try {
       const { id } = await params;
-      const json = await req.json();
-      const { status } = json;
+      const body = await parseBody(req, OwnerStatusSchema);
+      if ("error" in body) return body.error;
+      const { status } = body.data;
 
       console.log(`[api/owner/orders/status] Received status: "${status}" for order: ${id}`);
-
-      if (!status) {
-        return fail("Status is required.", 400);
-      }
-
-      const ALLOWED = ["CONFIRMED", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
-      if (!ALLOWED.includes(status)) {
-        return fail(`Invalid status: ${status}. Allowed values: ${ALLOWED.join(", ")}`, 400);
-      }
 
       // 1. Ownership Validation: 
       const [ownedOrder] = await db
@@ -147,9 +144,6 @@ export async function PATCH(
             const body = label.body(id.slice(0, 8), restaurantName);
 
             const customerChannels: (typeof notificationChannelEnum)[number][] = ["FCM", "WHATSAPP"];
-            if (nextStatus === "PAID") {
-              customerChannels.push("EMAIL");
-            }
 
             await NotificationService.dispatchOrderNotifications({
               userId: ownedOrder.userId,

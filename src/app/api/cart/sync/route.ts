@@ -7,8 +7,8 @@ import { z } from "zod";
 const SyncSchema = z.object({
   items: z.array(z.object({
     menuItemId: z.string().uuid(),
-    quantity: z.number().int().positive(),
-  })),
+    quantity: z.number().int().positive().max(99),
+  })).max(50),
 });
 
 /**
@@ -25,42 +25,21 @@ export async function POST(req: Request) {
       const { items } = body.data;
       let syncedCount = 0;
 
-      for (const item of items) {
-        /* 1. Verify item exists and is available */
-        const [menuItem] = await db
-          .select({ status: menuItems.status })
-          .from(menuItems)
-          .where(eq(menuItems.id, item.menuItemId))
-          .limit(1);
-
-        if (!menuItem || menuItem.status !== "available") {
-          console.warn(`[cart/sync] Skipping unavailable/missing item: ${item.menuItemId}`);
-          continue;
-        }
-
-        // Manual upsert: try update, then insert if not found.
-        const [updated] = await db
-          .update(cartItems)
-          .set({
-            quantity: sql`${cartItems.quantity} + ${item.quantity}`,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(cartItems.userId, user.id),
-              eq(cartItems.menuItemId, item.menuItemId)
-            )
-          )
-          .returning();
-
-        if (!updated) {
-          await db.insert(cartItems).values({
+      if (items.length > 0) {
+        await db.insert(cartItems)
+          .values(items.map(item => ({
             userId: user.id,
             menuItemId: item.menuItemId,
             quantity: item.quantity,
+          })))
+          .onConflictDoUpdate({
+            target: [cartItems.userId, cartItems.menuItemId],
+            set: {
+              quantity: sql`${cartItems.quantity} + excluded.quantity`,
+              updatedAt: new Date(),
+            }
           });
-        }
-        syncedCount++;
+        syncedCount = items.length;
       }
 
       return ok({ message: `Synced ${syncedCount} guest cart items` });

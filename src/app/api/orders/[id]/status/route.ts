@@ -60,10 +60,10 @@ export async function PATCH(
 
       // 2. Permission Check: 
       if (status === "PAID") {
-        // Only the customer who placed the order can mark it as PAID
-        // Admins can also mark orders as PAID (for manual confirmation)
-        if (order.userId !== user.id && user.role !== "admin") {
-          return fail("You don't have permission to mark this order as paid.", 403);
+        // Only admins can mark orders as PAID (for manual confirmation)
+        // Customers must pay via Stripe, which updates status via webhook
+        if (user.role !== "admin") {
+          return fail("You don't have permission to mark this order as paid manually.", 403);
         }
         if (!allowedTransitions.includes("PAID")) {
           return fail(`Cannot change order from ${order.status} to PAID.`, 409);
@@ -154,7 +154,7 @@ export async function PATCH(
       }
 
       // 4. Session Status Aggregation (Post-update)
-      if (updated.sessionId && (status === "CONFIRMED" || status === "CANCELLED")) {
+      if (updated.sessionId && ["CONFIRMED", "CANCELLED", "PAID"].includes(status)) {
         await syncSessionStatus(updated.sessionId);
       }
 

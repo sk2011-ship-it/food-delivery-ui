@@ -9,8 +9,8 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const location = searchParams.get("location");
-    const type     = searchParams.get("type") ?? "restaurant"; // default to restaurant
-    const rId      = searchParams.get("restaurantId");
+    const type = searchParams.get("type") ?? "restaurant"; // default to restaurant
+    const rId = searchParams.get("restaurantId");
 
     const normalizedLocation = normalizeLocationName(location);
     if (!normalizedLocation) return fail("Location is required.", 400);
@@ -29,12 +29,12 @@ export async function GET(req: Request) {
       ];
       const rows = await db
         .select({
-          id:        featuredItems.id,
-          entityId:  featuredItems.entityId,
-          type:      featuredItems.type,
-          name:      restaurants.name,
-          location:  restaurants.location,
-          logoUrl:   restaurants.logoUrl,
+          id: featuredItems.id,
+          entityId: featuredItems.entityId,
+          type: featuredItems.type,
+          name: restaurants.name,
+          location: restaurants.location,
+          logoUrl: restaurants.logoUrl,
           openingHours: restaurants.openingHours,
           sortOrder: featuredItems.sortOrder,
         })
@@ -61,17 +61,17 @@ export async function GET(req: Request) {
 
     const rows = await db
       .select({
-        id:             featuredItems.id,
-        entityId:       featuredItems.entityId,
-        type:           featuredItems.type,
-        name:           menuItems.name,
+        id: featuredItems.id,
+        entityId: featuredItems.entityId,
+        type: featuredItems.type,
+        name: menuItems.name,
         restaurantName: restaurants.name,
-        restaurantId:   restaurants.id,
-        openingHours:   restaurants.openingHours,
-        price:          menuItems.price,
-        imageUrl:       menuItems.imageUrl,
-        category:       menuItems.category,
-        sortOrder:      featuredItems.sortOrder,
+        restaurantId: restaurants.id,
+        openingHours: restaurants.openingHours,
+        price: menuItems.price,
+        imageUrl: menuItems.imageUrl,
+        category: menuItems.category,
+        sortOrder: featuredItems.sortOrder,
       })
       .from(featuredItems)
       .innerJoin(menuItems, eq(featuredItems.entityId, menuItems.id))
