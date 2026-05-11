@@ -1,6 +1,6 @@
 import { ok, fail, withAdminAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { restaurants, orders, menuItems } from "@/lib/db/schema";
+import { restaurants, orders } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { NotificationService } from "@/services/notification.service";
 
@@ -10,7 +10,7 @@ export async function DELETE(
 ) {
   const { id: restaurantId } = await params;
 
-  return withAdminAuth(req, async (user) => {
+  return withAdminAuth(req, async () => {
     // 1. Fetch restaurant
     const [restaurant] = await db
       .select()
@@ -38,27 +38,17 @@ export async function DELETE(
       );
     }
 
-    // 3. Permanent deletion immediately
-    await db.transaction(async (tx) => {
-      // Set all menu items to unavailable
-      await tx
-        .update(menuItems)
-        .set({ status: "unavailable" })
-        .where(eq(menuItems.restaurantId, restaurantId));
-
-      // Update restaurant
-      await tx
-        .update(restaurants)
-        .set({
-          deletionStatus: "DELETED",
-          isActive: false,
-          name: "Deleted Restaurant",
-          ownerId: null as any,
-          deletionScheduledAt: null as any,
-          status: "inactive",
-        })
-        .where(eq(restaurants.id, restaurantId));
-    });
+    // 3. Schedule deletion with a 14-day cooling period
+    await db
+      .update(restaurants)
+      .set({
+        deletionStatus: "PENDING_DELETION",
+        deletionRequestedAt: new Date(),
+        deletionScheduledAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+        isActive: false,
+        status: "inactive",
+      })
+      .where(eq(restaurants.id, restaurantId));
 
     // 4. Notify owner
     if (restaurant.ownerId) {
@@ -66,11 +56,11 @@ export async function DELETE(
         userId: restaurant.ownerId,
         type: "SYSTEM",
         subject: "Your Restaurant Has Been Removed",
-        body: `${restaurant.name} has been permanently removed by the admin.`,
-        channels: ["FCM", "WHATSAPP"],
-      });
-    }
+      body: `${restaurant.name} has been scheduled for deletion in 14 days by the admin.`,
+      channels: ["FCM", "WHATSAPP"],
+    });
+  }
 
-    return ok({ message: "Restaurant permanently deleted." });
+    return ok({ message: "Restaurant deletion scheduled." });
   });
 }

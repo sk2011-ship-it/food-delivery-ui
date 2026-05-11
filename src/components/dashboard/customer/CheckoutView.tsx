@@ -127,6 +127,7 @@ export default function CheckoutView() {
     navigator.geolocation.getCurrentPosition(
       async ({ coords }) => {
         setUserCoords({ lat: coords.latitude, lng: coords.longitude });
+        setIsCalculating(false);
         // The effect above will trigger recalculation
       },
       () => { toast.error("Could not get location."); setIsCalculating(false); }

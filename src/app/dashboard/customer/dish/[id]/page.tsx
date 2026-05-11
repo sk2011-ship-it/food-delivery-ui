@@ -5,7 +5,7 @@ import DishActions from "@/components/dashboard/customer/DishActions";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { restaurants, menuItems, featuredItems } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { SITES, DEFAULT_SITE } from "@/config/sites";
 import { normalizeLocationName } from "@/lib/locations";
 
@@ -26,7 +26,15 @@ async function getDishDetails(id: string) {
         isFeatured: sql<boolean>`CASE WHEN ${featuredItems.id} IS NOT NULL THEN true ELSE false END`,
       })
       .from(menuItems)
-      .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
+      .innerJoin(
+        restaurants,
+        and(
+          eq(menuItems.restaurantId, restaurants.id),
+          eq(restaurants.status, "active"),
+          eq(restaurants.isActive, true),
+          isNull(restaurants.deletionStatus)
+        )
+      )
       .leftJoin(featuredItems, and(eq(featuredItems.entityId, menuItems.id), eq(featuredItems.type, 'dish'), eq(featuredItems.status, 'active')))
       .where(eq(menuItems.id, id));
 

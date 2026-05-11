@@ -220,11 +220,11 @@ export const restaurantApi = {
   },
 
   delete(id: string) {
-    return del<{ id: string }>(`/api/admin/restaurants/${id}`);
+    return del<{ message: string }>(`/api/admin/restaurants/${id}/delete`);
   },
 
   forceDelete(id: string) {
-    return del<{ message: string }>(`/api/admin/restaurants/${id}/delete`);
+    return del<{ id: string }>(`/api/admin/restaurants/${id}`);
   },
 
   getPublic(id: string) {
