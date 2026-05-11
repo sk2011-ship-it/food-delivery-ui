@@ -62,6 +62,9 @@ export async function checkIpRateLimit(
     return (await response.json()) as RateLimitResult;
   } catch (error) {
     console.error("Rate limit check failed (network/server error):", error);
-    return { allowed: true };
+    // Security Bug 1: Fail closed for sensitive actions. If the rate limiter is down,
+    // we should NOT allow the request to proceed.
+    const criticalActions: RateLimitAction[] = ["LOGIN_FAILED", "REGISTER"];
+    return { allowed: !criticalActions.includes(action) };
   }
 }

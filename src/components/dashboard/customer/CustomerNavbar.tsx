@@ -70,7 +70,13 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
     router.push("/login");
   };
 
-  const { totalItems } = useCart();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { totalItems: rawTotalItems } = useCart();
+  const totalItems = mounted ? rawTotalItems : 0;
 
   const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "";
   const firstName = user?.name ? user.name.split(" ")[0] : "";
@@ -234,7 +240,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
             </Link>
 
             {/* Profile dropdown — only for logged-in users */}
-            {user ? (
+            {mounted && user ? (
               <div className="relative ml-0.5" ref={profileRef}>
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}

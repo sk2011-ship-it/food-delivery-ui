@@ -1,7 +1,7 @@
 import { ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { orders, orderItems, menuItems, restaurants, deliveryJobs } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, sql as drizzleSql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +44,16 @@ export async function GET(
         .from(orders)
         .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
         .leftJoin(deliveryJobs, eq(deliveryJobs.orderId, orders.id))
-        .where(and(eq(orders.id, id), eq(orders.userId, user.id)))
+        .where(
+          and(
+            eq(orders.id, id),
+            or(
+              eq(orders.userId, user.id),
+              eq(restaurants.ownerId, user.id),
+              drizzleSql`${user.role} = 'admin'`
+            )
+          )
+        )
         .limit(1);
 
       if (!order) {

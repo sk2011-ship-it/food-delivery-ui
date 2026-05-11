@@ -223,7 +223,8 @@ export async function POST(req: Request) {
       });
 
       // --- Notification Logic (Background) ---
-      (async () => {
+      // Security Bug 2: Use waitUntil to ensure background tasks finish in serverless
+      const notificationTask = (async () => {
         try {
           await Promise.all(
             createdOrders.orders.map(async (newOrder) => {
@@ -283,6 +284,12 @@ export async function POST(req: Request) {
           console.error("[api/orders POST] Background notification error:", notifyErr);
         }
       })();
+
+      // Use waitUntil if available (standard in Next.js 15+ middleware/routes)
+      // or just fire-and-forget (risky but better than blocking)
+      if (typeof (req as any).waitUntil === "function") {
+        (req as any).waitUntil(notificationTask);
+      }
 
       console.log(`[api/orders POST] Order created for user ${user.id}`);
       return ok({
