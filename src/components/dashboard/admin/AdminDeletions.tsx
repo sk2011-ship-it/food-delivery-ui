@@ -101,11 +101,8 @@ export default function AdminDeletions() {
     if (!forceDeleteTarget) return;
     setSaving(true);
     try {
-      const res = await fetch(`/api/admin/restaurants/${forceDeleteTarget.id}/delete`, {
-        method: "DELETE"
-      });
-      const json = await res.json();
-      if (res.ok) {
+      const res = await restaurantApi.forceDelete(forceDeleteTarget.id);
+      if (res.success) {
         toast.success("Restaurant permanently removed.");
         setData(d => ({
           total: d.total - 1,
@@ -113,7 +110,7 @@ export default function AdminDeletions() {
         }));
         setForceDeleteTarget(null);
       } else {
-        toast.error(json.error ?? "Failed to force delete.");
+        toast.error(res.error ?? "Failed to force delete.");
       }
     } catch (err) {
       toast.error("An error occurred.");
@@ -408,4 +405,3 @@ function Modal({ title, onClose, children, icon }: {
     </div>
   );
 }
-

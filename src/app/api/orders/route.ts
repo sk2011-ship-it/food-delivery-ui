@@ -31,6 +31,9 @@ function normalizeLocation(value: unknown): string {
 export async function POST(req: Request) {
   return withAuth(req, async (user) => {
     try {
+      const requestWithWaitUntil = req as Request & {
+        waitUntil?: (promise: Promise<unknown>) => void;
+      };
       const {
         deliveryAddress,
         deliveryArea,
@@ -57,8 +60,33 @@ export async function POST(req: Request) {
       const siteConfig = getSiteFromLocation(activeSiteLocation);
       if (siteConfig.deliveryPricing?.type === "fixed_areas") {
         const expectedFee = calculateDeliveryFee(siteConfig, { area: deliveryArea });
-        if (Math.abs(expectedFee - (deliveryFee || 0)) > 0.01) {
-          return fail(`Invalid delivery fee for area: ${deliveryArea}. Expected £${expectedFee.toFixed(2)}`, 400);
+        const cartRows = await db
+          .select({
+            cartItemId: cartItems.id,
+            menuItemId: cartItems.menuItemId,
+            quantity: cartItems.quantity,
+            price: menuItems.price,
+            restaurantId: menuItems.restaurantId,
+            restaurantName: restaurants.name,
+            restaurantLocation: restaurants.location,
+            openingHours: restaurants.openingHours,
+          })
+          .from(cartItems)
+          .innerJoin(menuItems, eq(cartItems.menuItemId, menuItems.id))
+          .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
+          .where(eq(cartItems.userId, user.id));
+
+        const activeSiteItems = cartRows.filter(
+          (row) => normalizeLocation(row.restaurantLocation) === activeSiteLocation
+        );
+        const restaurantCount = new Set(activeSiteItems.map((row) => row.restaurantId)).size;
+        const expectedTotalFee = expectedFee * Math.max(restaurantCount, 1);
+
+        if (Math.abs(expectedTotalFee - (deliveryFee || 0)) > 0.01) {
+          return fail(
+            `Invalid delivery fee for area: ${deliveryArea}. Expected £${expectedTotalFee.toFixed(2)}`,
+            400
+          );
         }
       }
       /**
@@ -287,8 +315,8 @@ export async function POST(req: Request) {
 
       // Use waitUntil if available (standard in Next.js 15+ middleware/routes)
       // or just fire-and-forget (risky but better than blocking)
-      if (typeof (req as any).waitUntil === "function") {
-        (req as any).waitUntil(notificationTask);
+      if (typeof requestWithWaitUntil.waitUntil === "function") {
+        requestWithWaitUntil.waitUntil(notificationTask);
       }
 
       console.log(`[api/orders POST] Order created for user ${user.id}`);

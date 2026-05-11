@@ -1,7 +1,7 @@
 import { fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { restaurants, menuItems } from "@/lib/db/schema";
-import { eq, and, SQL, sql, ilike } from "drizzle-orm";
+import { eq, and, SQL, sql, ilike, isNull } from "drizzle-orm";
 import { normalizeLocationName } from "@/lib/locations";
 
 /* ── GET /api/restaurants ── */
@@ -18,6 +18,7 @@ export async function GET(req: Request) {
       sql<boolean>`lower(trim(${restaurants.location})) = ${normalizedLocation}`,
       eq(restaurants.status, "active"),
       eq(restaurants.isActive, true),
+      isNull(restaurants.deletionStatus),
     ];
 
     if (category) {

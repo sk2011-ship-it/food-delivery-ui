@@ -1,7 +1,7 @@
 import { fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { featuredItems, restaurants, menuItems } from "@/lib/db/schema";
-import { eq, and, asc, SQL, sql } from "drizzle-orm";
+import { eq, and, asc, SQL, sql, isNull } from "drizzle-orm";
 import { normalizeLocationName } from "@/lib/locations";
 
 /* ── GET /api/featured ── */
@@ -19,6 +19,9 @@ export async function GET(req: Request) {
       sql<boolean>`lower(trim(${featuredItems.location})) = ${normalizedLocation}`,
       eq(featuredItems.status, "active"),
       eq(featuredItems.type, type as "restaurant" | "dish"),
+      isNull(restaurants.deletionStatus),
+      eq(restaurants.status, "active"),
+      eq(restaurants.isActive, true),
     ];
 
     // If type is restaurant, join with restaurants

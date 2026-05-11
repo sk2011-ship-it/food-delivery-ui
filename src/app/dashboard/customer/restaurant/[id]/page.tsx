@@ -3,7 +3,7 @@ import RestaurantMenuView from "@/components/dashboard/customer/RestaurantMenuVi
 import { ALL_SITES } from "@/config/sites";
 import { db } from "@/lib/db";
 import { restaurants, menuItems, reviews, users } from "@/lib/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 
 export default async function RestaurantPage({
   params,
@@ -21,7 +21,14 @@ export default async function RestaurantPage({
     const [dbRes] = await db
       .select()
       .from(restaurants)
-      .where(eq(restaurants.id, id));
+      .where(
+        and(
+          eq(restaurants.id, id),
+          eq(restaurants.status, "active"),
+          eq(restaurants.isActive, true),
+          isNull(restaurants.deletionStatus)
+        )
+      );
 
     if (dbRes) {
       restaurantData = {

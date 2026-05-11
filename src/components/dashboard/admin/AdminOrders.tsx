@@ -29,7 +29,6 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
 
 const ALL_STATUSES = [
   { value: "all",                  label: "All Orders" },
-  { value: "PENDING_CONFIRMATION", label: "Pending" },
   { value: "CONFIRMED",            label: "Confirmed" },
   { value: "PAID",                 label: "Paid" },
   { value: "PREPARING",            label: "Preparing" },
