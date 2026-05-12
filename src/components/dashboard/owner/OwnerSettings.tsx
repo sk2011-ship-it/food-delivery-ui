@@ -142,6 +142,7 @@ export default function OwnerSettings() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to bind printer.");
       toast.success("Printer bound successfully.");
+      toast.success("Welcome slip sent automatically.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to bind printer.");
     } finally {

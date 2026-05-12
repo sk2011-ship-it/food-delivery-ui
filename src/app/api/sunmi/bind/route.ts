@@ -49,11 +49,20 @@ export async function POST(req: Request) {
       })
       .returning();
 
+    const welcomeOrderId = `welcome:${encodeURIComponent(restaurant.name)}:${encodeURIComponent(shopId)}:${encodeURIComponent(printerMsn)}`;
+    await sunmiClient.pushPrinter({
+      restaurantId: saved.restaurantId,
+      shopId: saved.shopId,
+      printerMsn: saved.printerMsn,
+      orderId: welcomeOrderId,
+    });
+
     return ok({
       restaurantId: saved.restaurantId,
       shopId: saved.shopId,
       printerMsn: saved.printerMsn,
       status: saved.status,
+      welcomeSlipQueued: true,
     });
   });
 }

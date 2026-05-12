@@ -187,6 +187,44 @@ export function buildEscPosReceipt(order: SunmiReceiptData) {
   return receipt;
 }
 
+export interface SunmiWelcomeSlipData {
+  restaurantName: string;
+  shopId: string;
+  printerMsn: string;
+  message?: string;
+}
+
+export function buildSunmiWelcomeSlip(data: SunmiWelcomeSlipData) {
+  const ESC = "\x1b";
+  const GS = "\x1d";
+  const now = new Date();
+  const lines = [
+    "Welcome to Kilkeel Eats",
+    "",
+    data.message ?? "Your kitchen printer is now connected.",
+    "",
+    `Restaurant: ${data.restaurantName}`,
+    `Shop ID: ${data.shopId}`,
+    `Printer MSN: ${data.printerMsn}`,
+    `Time: ${now.toLocaleString()}`,
+    "",
+    "We are ready to print orders.",
+  ];
+
+  let receipt = "";
+  receipt += ESC + "@";
+  receipt += ESC + "!" + "\x30";
+  receipt += "WELCOME\n";
+  receipt += ESC + "!" + "\x00";
+  receipt += "------------------------------\n";
+  for (const line of lines) {
+    receipt += `${line}\n`;
+  }
+  receipt += "------------------------------\n";
+  receipt += GS + "V" + "\x41" + "\x00";
+  return receipt;
+}
+
 export async function getSunmiReceiptData(orderId: string): Promise<SunmiReceiptData | null> {
   const [order] = await db
     .select({
