@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { 
   Save, Globe, Loader2, Store, MapPin, 
-  Mail, Phone, ChevronDown, Clock, X, AlertTriangle 
+  Mail, Phone, ChevronDown, Clock, X, AlertTriangle, Printer, PlugZap, RefreshCcw 
 } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 import { ownerRestaurantApi, type AdminRestaurantItem, type OpeningHours, type DayKey } from "@/lib/api";
@@ -55,6 +55,9 @@ export default function OwnerSettings() {
   const [loading,     setLoading]     = useState(true);
   const [saving,      setSaving]      = useState(false);
   const [activeTab,   setActiveTab]   = useState<"profile" | "menu">("profile");
+  const [printerMsn, setPrinterMsn] = useState("");
+  const [shopId, setShopId] = useState("");
+  const [printerBusy, setPrinterBusy] = useState(false);
 
   // Form state
   const [form, setForm] = useState({
@@ -118,6 +121,53 @@ export default function OwnerSettings() {
     }
   };
 
+  const handleBindPrinter = async () => {
+    if (!selectedId || !printerMsn.trim() || !shopId.trim()) {
+      toast.error("Add printer MSN and shop ID first.");
+      return;
+    }
+
+    setPrinterBusy(true);
+    try {
+      const res = await fetch("/api/sunmi/bind", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: selectedId,
+          printerMsn: printerMsn.trim(),
+          shopId: shopId.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to bind printer.");
+      toast.success("Printer bound successfully.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to bind printer.");
+    } finally {
+      setPrinterBusy(false);
+    }
+  };
+
+  const handlePrinterStatus = async () => {
+    if (!selectedId) return;
+    setPrinterBusy(true);
+    try {
+      const res = await fetch("/api/sunmi/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId: selectedId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to read printer status.");
+      toast.success("Printer status checked.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to read printer status.");
+    } finally {
+      setPrinterBusy(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-3 text-gray-400">
@@ -133,7 +183,7 @@ export default function OwnerSettings() {
         <Store className="w-12 h-12 mx-auto text-gray-200 mb-3" />
         <h2 className="text-lg font-bold text-gray-900">No restaurants found</h2>
         <p className="text-sm text-gray-500 max-w-sm mx-auto mt-1">
-          You don't have any restaurants assigned to your account yet. 
+          You don&apos;t have any restaurants assigned to your account yet. 
           Please contact administration to set up your business.
         </p>
       </div>
@@ -374,6 +424,60 @@ export default function OwnerSettings() {
               </div>
             </div>
           )}
+
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
+                <Printer className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Sunmi Printer</h3>
+                <p className="text-xs text-gray-500">Bind a kitchen printer to this restaurant.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Printer MSN</label>
+                <input
+                  value={printerMsn}
+                  onChange={(e) => setPrinterMsn(e.target.value)}
+                  placeholder="NT310XXXXXXXX"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Shop ID</label>
+                <input
+                  value={shopId}
+                  onChange={(e) => setShopId(e.target.value)}
+                  placeholder="restaurant_001"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-gray-900"
+                />
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={handleBindPrinter}
+                disabled={printerBusy}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-white disabled:opacity-50"
+              >
+                <PlugZap className="w-4 h-4" />
+                Bind Printer
+              </button>
+              <button
+                type="button"
+                onClick={handlePrinterStatus}
+                disabled={printerBusy}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-gray-700 disabled:opacity-50"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                Check Status
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <MenuEditor restaurantId={selectedId} />

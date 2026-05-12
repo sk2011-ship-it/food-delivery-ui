@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { NotificationService } from "@/services/notification.service";
 
-export const dynamic = "force-dynamic"; // Trigger re-compile
+export const dynamic = "force-dynamic";
 
 async function ensureKitchenStartsFromPaid(orderId: string) {
   await db
@@ -15,171 +15,142 @@ async function ensureKitchenStartsFromPaid(orderId: string) {
       status: "PAID",
       updatedAt: new Date(),
     })
-    .where(and(
-      eq(orders.id, orderId),
-      inArray(orders.status, [
-        "PENDING_CONFIRMATION",
-        "CONFIRMED",
-        "DISPATCH_REQUESTED",
-        "OUT_FOR_DELIVERY",
-      ])
-    ));
+    .where(
+      and(
+        eq(orders.id, orderId),
+        inArray(orders.status, [
+          "PENDING_CONFIRMATION",
+          "CONFIRMED",
+          "DISPATCH_REQUESTED",
+          "OUT_FOR_DELIVERY",
+        ])
+      )
+    );
 }
 
-/**
- * POST /api/orders/[id]/stripe/verify
- * Verifies a Stripe Checkout Session status and updates the order if paid.
- * This acts as a fallback for webhooks that might be missed in local dev.
- */
+async function triggerSunmiPrint(orderId: string, baseUrl: string) {
+  try {
+    const res = await fetch(new URL("/api/sunmi/push", baseUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId }),
+    });
+
+    if (!res.ok) {
+      console.error(`[Stripe Verify] Sunmi push failed for ${orderId}: ${await res.text()}`);
+    }
+  } catch (error) {
+    console.error(`[Stripe Verify] Sunmi push error for ${orderId}:`, error);
+  }
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const baseUrl = new URL(req.url).origin;
     const { id } = await params;
     const { sessionId } = await req.json();
 
-    if (!sessionId) {
-      return fail("Missing session_id", 400);
-    }
+    if (!sessionId) return fail("Missing session_id", 400);
 
     const user = await getCurrentUser();
     if (!user) return fail("Unauthorized", 401);
 
-    // 1. Retrieve the session from Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
-
     if (session.payment_status !== "paid") {
       return fail("Payment not completed", 400);
     }
 
-    // 2. Fetch the order to ensure it belongs to the user and needs updating
     const order = await db.query.orders.findFirst({
       where: and(eq(orders.id, id), eq(orders.userId, user.id)),
     });
+    if (!order) return fail("Order not found.", 404);
 
-    if (!order) {
-      return fail("Order not found.", 404);
-    }
-
-    // 3. Atomic Update: Only proceed if status is NOT already PAID
     const [updatedOrder] = await db
       .update(orders)
       .set({
         status: "PAID",
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
-      .where(and(
-        eq(orders.id, id),
-        inArray(orders.status, ["PENDING_CONFIRMATION", "CONFIRMED"])
-      ))
+      .where(and(eq(orders.id, id), inArray(orders.status, ["PENDING_CONFIRMATION", "CONFIRMED"])))
       .returning();
 
-    if (updatedOrder) {
-      // 4. Notify Restaurant Owner (same logic as webhook)
-      const [restaurant] = await db
+    const orderToUse = updatedOrder ?? order;
+
+    const [restaurant] = await db
+      .select({
+        ownerId: restaurants.ownerId,
+        name: restaurants.name,
+      })
+      .from(restaurants)
+      .where(eq(restaurants.id, orderToUse.restaurantId))
+      .limit(1);
+
+    if (restaurant) {
+      const itemsRows = await db
         .select({
-          ownerId: restaurants.ownerId,
-          name: restaurants.name
+          name: menuItems.name,
+          quantity: orderItems.quantity,
         })
-        .from(restaurants)
-        .where(eq(restaurants.id, updatedOrder.restaurantId))
-        .limit(1);
+        .from(orderItems)
+        .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+        .where(eq(orderItems.orderId, orderToUse.id));
 
-      if (restaurant) {
-        const subject = "Payment Received";
-        
-        const itemsRows = await db
-          .select({
-            name: menuItems.name,
-            quantity: orderItems.quantity,
-          })
-          .from(orderItems)
-          .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
-          .where(eq(orderItems.orderId, updatedOrder.id));
-        
-        const itemsSummary = itemsRows.map(i => `${i.quantity}x ${i.name}`).join("\n");
-        const ownerBody = `Payment Received! 💰\nOrder: #${updatedOrder.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${updatedOrder.totalAmount}`;
+      const itemsSummary = itemsRows.map((i) => `${i.quantity}x ${i.name}`).join("\n");
 
-        // Dispatch Owner Notifications
-        if (restaurant.ownerId) {
-          await NotificationService.dispatchOrderNotifications({
-            userId: restaurant.ownerId,
-            type: "ORDER",
-            subject,
-            body: ownerBody,
-            metadata: {
-              orderId: updatedOrder.id,
-              orderStatus: "PAID",
-              targetRole: "owner",
-              // Twilio verified template: new_order_owner_alert
-              twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
-              twilioVariables: {
-                "1": updatedOrder.id.slice(0, 8).toUpperCase(),
-                "2": restaurant.name,
-                "3": itemsSummary,
-                "4": `£${updatedOrder.totalAmount}`,
-              },
+      if (restaurant.ownerId) {
+        await NotificationService.dispatchOrderNotifications({
+          userId: restaurant.ownerId,
+          type: "ORDER",
+          subject: "Payment Received",
+          body: `Payment Received! 💰\nOrder: #${orderToUse.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${orderToUse.totalAmount}`,
+          metadata: {
+            orderId: orderToUse.id,
+            orderStatus: "PAID",
+            targetRole: "owner",
+            twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
+            twilioVariables: {
+              "1": orderToUse.id.slice(0, 8).toUpperCase(),
+              "2": restaurant.name,
+              "3": itemsSummary,
+              "4": `£${orderToUse.totalAmount}`,
             },
-            channels: ["FCM", "WHATSAPP"]
-          });
-        }
+          },
+          channels: ["FCM", "WHATSAPP"],
+        });
       }
 
-      // 5. Notify Customer
-      try {
-        const subject = "Payment Confirmed";
-        const body = `Your payment was successful. The restaurant will start preparing your meal shortly.`;
-
-        // Dispatch Customer Notifications
-        if (updatedOrder.userId) {
-          await NotificationService.dispatchOrderNotifications({
-            userId: updatedOrder.userId,
-            type: "ORDER",
-            subject,
-            body,
-            metadata: {
-              orderId: updatedOrder.id,
-              orderStatus: "PAID",
-              targetRole: "customer",
-              // Twilio verified template: order_update_notification
-              twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
-              twilioVariables: {
-                "1": updatedOrder.id.slice(0, 8).toUpperCase(),
-                "2": restaurant?.name ?? "the restaurant",
-                "3": "Payment Confirmed",
-              },
+      if (orderToUse.userId) {
+        await NotificationService.dispatchOrderNotifications({
+          userId: orderToUse.userId,
+          type: "ORDER",
+          subject: "Payment Confirmed",
+          body: "Your payment was successful. The restaurant will start preparing your meal shortly.",
+          metadata: {
+            orderId: orderToUse.id,
+            orderStatus: "PAID",
+            targetRole: "customer",
+            twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
+            twilioVariables: {
+              "1": orderToUse.id.slice(0, 8).toUpperCase(),
+              "2": restaurant.name,
+              "3": "Payment Confirmed",
             },
-            channels: ["FCM", "WHATSAPP", "EMAIL"] // PAID is a key stage for Email
-          });
-        }
-      } catch (notifyErr) {
-        console.error("[Stripe Verify] Failed to notify customer:", notifyErr);
+          },
+          channels: ["FCM", "WHATSAPP", "EMAIL"],
+        });
       }
+    }
 
-      // Create the Shipday order immediately after payment, but keep the app order
-      // in kitchen-controlled states until the owner dispatches it manually.
-      try {
-        const { ShipdayService } = await import("@/services/shipday.service");
-        await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
-        await ensureKitchenStartsFromPaid(id);
-        console.log(`[Stripe Verify] Shipday scheduled delivery created for order ${id}.`);
-      } catch (shipdayErr) {
-        console.error("[Stripe Verify] Failed to create Shipday scheduled delivery:", shipdayErr);
-      }
-
-      console.log(`[Stripe Verify] Verification complete for order ${id}.`);
-    } else {
-      console.log(`[Stripe Verify] Order ${id} was already marked as PAID.`);
-
-      try {
-        const { ShipdayService } = await import("@/services/shipday.service");
-        await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
-        await ensureKitchenStartsFromPaid(id);
-        console.log(`[Stripe Verify] Shipday scheduled delivery ensured for already-paid order ${id}.`);
-      } catch (shipdayErr) {
-        console.error("[Stripe Verify] Failed to ensure Shipday scheduled delivery:", shipdayErr);
-      }
+    try {
+      const { ShipdayService } = await import("@/services/shipday.service");
+      await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
+      await ensureKitchenStartsFromPaid(id);
+      await triggerSunmiPrint(id, baseUrl);
+    } catch (shipdayErr) {
+      console.error("[Stripe Verify] Failed to create Shipday scheduled delivery:", shipdayErr);
     }
 
     return ok({ status: "PAID" });

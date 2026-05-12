@@ -22,7 +22,20 @@ async function ensureKitchenStartsFromPaid(orderId: string) {
     ));
 }
 
+async function triggerSunmiPrint(orderId: string, baseUrl: string) {
+  try {
+    await fetch(new URL("/api/sunmi/push", baseUrl), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId }),
+    });
+  } catch (error) {
+    console.error("[Stripe Webhook] Sunmi push error:", error);
+  }
+}
+
 export async function POST(req: Request) {
+  const baseUrl = new URL(req.url).origin;
   const body = await req.text();
   const signature = (await headers()).get("stripe-signature");
 
@@ -72,6 +85,7 @@ export async function POST(req: Request) {
             const { ShipdayService } = await import("@/services/shipday.service");
             await ShipdayService.triggerShipdayOrder(orderId, "DISPATCH_REQUESTED");
             await ensureKitchenStartsFromPaid(orderId);
+            await triggerSunmiPrint(orderId, baseUrl);
             console.log(`[Stripe Webhook] Shipday scheduled delivery ensured for already-paid order ${orderId}.`);
           } catch (shipdayErr) {
             console.error("[Stripe Webhook] Failed to ensure Shipday scheduled delivery:", shipdayErr);
@@ -156,14 +170,16 @@ export async function POST(req: Request) {
               // 5. Trigger Shipday
               const { ShipdayService } = await import("@/services/shipday.service");
               await ShipdayService.triggerShipdayOrder(updatedOrder.id, "DISPATCH_REQUESTED");
+              await triggerSunmiPrint(updatedOrder.id, baseUrl);
               
             } catch (bgErr) {
               console.error("[Stripe Webhook] Background Task Error:", bgErr);
             }
           })();
 
-          if (typeof (req as any).waitUntil === "function") {
-            (req as any).waitUntil(backgroundTask);
+          const waitUntil = (req as Request & { waitUntil?: (promise: Promise<unknown>) => void }).waitUntil;
+          if (typeof waitUntil === "function") {
+            waitUntil(backgroundTask);
           }
         }
       } catch (dbErr) {
