@@ -18,7 +18,10 @@ import {
 } from "../templates/email";
 import { formatCurrency, resolveEmailBrand } from "../templates/email/utils";
 
-type NotificationMetadata = Record<string, unknown>;
+type NotificationMetadata = Record<string, unknown> & {
+  twilioContentSid?: string;
+  twilioVariables?: Record<string, string>;
+};
 
 // Gracefully handle if Twilio env vars are not configured
 let twilioClient: ReturnType<typeof twilio> | null = null;
@@ -239,6 +242,21 @@ export class NotificationService {
         return;
       }
 
+      // 1. Parse Metadata safely
+      let rawMeta: NotificationMetadata = {};
+      try {
+        if (typeof notification.metadata === "string") {
+          rawMeta = JSON.parse(notification.metadata);
+        } else if (notification.metadata && typeof notification.metadata === "object") {
+          rawMeta = notification.metadata as NotificationMetadata;
+        }
+      } catch (e) {
+        console.error(`[NotificationService] Failed to parse metadata for ${notificationId}:`, e);
+      }
+
+      const contentSid = rawMeta.twilioContentSid;
+      const contentVariables = rawMeta.twilioVariables;
+
       // Normalize phone: remove non-digits, ensure + prefix.
       const cleaned = user.phone.replace(/\D/g, "");
       const toPhone = user.phone.startsWith("+") ? `+${cleaned}` : `+${cleaned}`;
@@ -252,14 +270,34 @@ export class NotificationService {
         return;
       }
 
-      const messageBody = `*${notification.subject}*\n\n${notification.body}`;
-      console.log(`[NotificationService] Sending WhatsApp to ${toPhone}. Body:\n${messageBody}`);
+      if (contentSid) {
+        // --- Production Template Path ---
+        // Use pre-approved Twilio Content Template (required for business-initiated WhatsApp)
+        console.log(`[NotificationService] Sending WhatsApp (template ${contentSid}) to ${toPhone}. Variables:`, JSON.stringify(contentVariables));
+        
+        // Note: For Twilio Node SDK, contentVariables should be a JSON-encoded string 
+        // when using the Content API with the messages resource.
+        const response = await twilioClient.messages.create({
+          from: `whatsapp:${twilioWhatsAppNumber}`,
+          to: `whatsapp:${toPhone}`,
+          contentSid,
+          contentVariables: JSON.stringify(contentVariables || {}),
+        });
 
-      await twilioClient.messages.create({
-        from: `whatsapp:${twilioWhatsAppNumber}`,
-        to: `whatsapp:${toPhone}`,
-        body: messageBody,
-      });
+        console.log(`[NotificationService] Twilio Template Response SID: ${response.sid}`);
+      } else {
+        // --- Fallback: plain text (only works inside 24-hour customer-service window) ---
+        const messageBody = `*${notification.subject}*\n\n${notification.body}`;
+        console.log(`[NotificationService] Sending WhatsApp (plain-text fallback) to ${toPhone}. Body length: ${messageBody.length}`);
+        
+        const response = await twilioClient.messages.create({
+          from: `whatsapp:${twilioWhatsAppNumber}`,
+          to: `whatsapp:${toPhone}`,
+          body: messageBody,
+        });
+
+        console.log(`[NotificationService] Twilio Plain-Text Response SID: ${response.sid}`);
+      }
 
       await db
         .update(notifications)

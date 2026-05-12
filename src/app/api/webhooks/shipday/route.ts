@@ -328,7 +328,19 @@ export async function POST(req: Request) {
               type: "ORDER",
               subject,
               body: `Order #${orderData.orderId.slice(0, 8)}: ${statusText.toUpperCase()}`,
-              metadata: { orderId: orderData.orderId, orderStatus: mappedStatus, targetRole: "owner" },
+              metadata: {
+                orderId: orderData.orderId,
+                orderStatus: mappedStatus,
+                targetRole: "owner",
+                // Twilio verified template: new_order_owner_alert
+                twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
+                twilioVariables: {
+                  "1": orderData.orderId.slice(0, 8).toUpperCase(),
+                  "2": orderData.restaurantName,
+                  "3": statusText.toUpperCase(),
+                  "4": `£${orderData.totalAmount}`,
+                },
+              },
               channels: ["FCM", "WHATSAPP"]
             });
           }
@@ -340,7 +352,18 @@ export async function POST(req: Request) {
               type: "ORDER",
               subject,
               body: customerBody,
-              metadata: { orderId: orderData.orderId, orderStatus: mappedStatus, targetRole: "customer" },
+              metadata: {
+                orderId: orderData.orderId,
+                orderStatus: mappedStatus,
+                targetRole: "customer",
+                // Twilio verified template: order_update_notification
+                twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
+                twilioVariables: {
+                  "1": orderData.orderId.slice(0, 8).toUpperCase(),
+                  "2": orderData.restaurantName,
+                  "3": subject,
+                },
+              },
               channels: ["FCM", "WHATSAPP"]
             });
           }

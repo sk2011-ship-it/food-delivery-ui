@@ -150,7 +150,18 @@ export async function PATCH(
               type: "ORDER",
               subject,
               body,
-              metadata: { orderId: id, orderStatus: nextStatus, targetRole: "customer" },
+              metadata: {
+                orderId: id,
+                orderStatus: nextStatus,
+                targetRole: "customer",
+                // Twilio verified template: order_update_notification
+                twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
+                twilioVariables: {
+                  "1": id.slice(0, 8).toUpperCase(),
+                  "2": restaurantName,
+                  "3": subject,
+                },
+              },
               channels: customerChannels
             });
           }
@@ -184,7 +195,19 @@ export async function PATCH(
             type: "ORDER",
             subject,
             body: detailedBody,
-            metadata: { orderId: id, orderStatus: nextStatus, targetRole: "owner" },
+            metadata: {
+              orderId: id,
+              orderStatus: nextStatus,
+              targetRole: "owner",
+              // Twilio verified template: new_order_owner_alert
+              twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
+              twilioVariables: {
+                "1": id.slice(0, 8).toUpperCase(),
+                "2": restaurantName,
+                "3": itemsSummary,
+                "4": `£${totalAmount}`,
+              },
+            },
             channels: ["FCM", "WHATSAPP"]
           });
         } catch (notifyOwnerErr) {

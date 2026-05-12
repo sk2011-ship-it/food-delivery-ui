@@ -107,7 +107,19 @@ export async function POST(
               type: "ORDER",
               subject,
               body: ownerBody,
-              metadata: { orderId: newOrder.id, orderStatus: "PENDING_CONFIRMATION", targetRole: "owner" },
+              metadata: {
+                orderId: newOrder.id,
+                orderStatus: "PENDING_CONFIRMATION",
+                targetRole: "owner",
+                // Twilio verified template: new_order_owner_alert
+                twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
+                twilioVariables: {
+                  "1": newOrder.id.slice(0, 8).toUpperCase(),
+                  "2": restaurant.name,
+                  "3": itemsSummary,
+                  "4": `£${newOrder.totalAmount}`,
+                },
+              },
               channels: ["FCM", "WHATSAPP"]
             });
           }
@@ -119,7 +131,18 @@ export async function POST(
               type: "ORDER",
               subject: "Order Received! 🛍️",
               body: `Your order #${newOrder.id.slice(0, 8)} from ${restaurant.name} has been received.`,
-              metadata: { orderId: newOrder.id, orderStatus: "PENDING_CONFIRMATION", targetRole: "customer" },
+              metadata: {
+                orderId: newOrder.id,
+                orderStatus: "PENDING_CONFIRMATION",
+                targetRole: "customer",
+                // Twilio verified template: order_update_notification
+                twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
+                twilioVariables: {
+                  "1": newOrder.id.slice(0, 8).toUpperCase(),
+                  "2": restaurant.name,
+                  "3": "Order Received",
+                },
+              },
               channels: ["FCM", "WHATSAPP"]
             });
           }

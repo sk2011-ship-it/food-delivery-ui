@@ -108,7 +108,19 @@ export async function POST(
             type: "ORDER",
             subject,
             body: ownerBody,
-            metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "owner" },
+            metadata: {
+              orderId: updatedOrder.id,
+              orderStatus: "PAID",
+              targetRole: "owner",
+              // Twilio verified template: new_order_owner_alert
+              twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
+              twilioVariables: {
+                "1": updatedOrder.id.slice(0, 8).toUpperCase(),
+                "2": restaurant.name,
+                "3": itemsSummary,
+                "4": `£${updatedOrder.totalAmount}`,
+              },
+            },
             channels: ["FCM", "WHATSAPP"]
           });
         }
@@ -126,7 +138,18 @@ export async function POST(
             type: "ORDER",
             subject,
             body,
-            metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "customer" },
+            metadata: {
+              orderId: updatedOrder.id,
+              orderStatus: "PAID",
+              targetRole: "customer",
+              // Twilio verified template: order_update_notification
+              twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
+              twilioVariables: {
+                "1": updatedOrder.id.slice(0, 8).toUpperCase(),
+                "2": restaurant?.name ?? "the restaurant",
+                "3": "Payment Confirmed",
+              },
+            },
             channels: ["FCM", "WHATSAPP", "EMAIL"] // PAID is a key stage for Email
           });
         }

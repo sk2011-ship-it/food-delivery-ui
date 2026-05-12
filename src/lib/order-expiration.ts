@@ -69,7 +69,18 @@ export async function cancelExpiredPendingOrders(now = new Date()): Promise<Expi
             type: "ORDER",
             subject: "Order Cancelled",
             body: customerBody,
-            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "customer" },
+            metadata: {
+              orderId: updated.id,
+              orderStatus: "CANCELLED",
+              targetRole: "customer",
+              // Twilio verified template: order_update_notification
+              twilioContentSid: "HX8fc09c456a92a49269c2ba5a93e8831e",
+              twilioVariables: {
+                "1": updated.id.slice(0, 8).toUpperCase(),
+                "2": order.restaurantName,
+                "3": "Order Cancelled",
+              },
+            },
             channels: ["FCM", "WHATSAPP"],
           });
         }
@@ -86,7 +97,19 @@ export async function cancelExpiredPendingOrders(now = new Date()): Promise<Expi
             type: "ORDER",
             subject: "Order Timed Out",
             body: ownerBody,
-            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "owner" },
+            metadata: {
+              orderId: updated.id,
+              orderStatus: "CANCELLED",
+              targetRole: "owner",
+              // Twilio verified template: new_order_owner_alert
+              twilioContentSid: "HXd342e729a217385fbc2bc86c42e53801",
+              twilioVariables: {
+                "1": updated.id.slice(0, 8).toUpperCase(),
+                "2": order.restaurantName,
+                "3": "Timed out - no confirmation",
+                "4": "N/A",
+              },
+            },
             channels: ["FCM", "WHATSAPP"],
           });
         }
