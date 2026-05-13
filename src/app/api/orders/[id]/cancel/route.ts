@@ -56,7 +56,7 @@ export async function POST(
         return fail("No payment intent found to refund.", 400);
       }
 
-      let refundId = null;
+      let refundId: string | null = null;
       try {
         const refund = await stripe.refunds.create({
           payment_intent: order.paymentIntentId,
@@ -65,7 +65,16 @@ export async function POST(
         refundId = refund.id;
       } catch (stripeErr: any) {
         console.error("[Cancel API] Stripe refund failed:", stripeErr);
-        return fail(`Refund failed: ${stripeErr.message}`, 500);
+        const alreadyRefunded =
+          typeof stripeErr?.message === "string" &&
+          stripeErr.message.toLowerCase().includes("already been refunded");
+
+        if (!alreadyRefunded) {
+          return fail(`Refund failed: ${stripeErr.message}`, 500);
+        }
+
+        // The payment has already been refunded elsewhere, so we can still
+        // mark the order as cancelled and keep the operation idempotent.
       }
 
       // 4. Update Database

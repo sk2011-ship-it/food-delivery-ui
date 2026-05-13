@@ -111,10 +111,28 @@ export default function OrderStatusPage() {
     }
   };
 
+  const handlePaymentExpire = async () => {
+    if (!order || order.status !== "CONFIRMED") return;
+    try {
+      await updateOrderStatus(order.id, "CANCELLED");
+      toast.error("Your order was cancelled because payment was not completed within 5 minutes.", {
+        duration: 5000,
+      });
+    } catch (err) {
+      console.error("[handlePaymentExpire]", err);
+    }
+  };
+
   const { formattedTime, isExpired } = useOrderTimer(
     order?.createdAt || new Date().toISOString(),
     5,
     handleExpire
+  );
+
+  const { formattedTime: paymentTime, isExpired: isPaymentExpired } = useOrderTimer(
+    order?.updatedAt || new Date().toISOString(),
+    5,
+    handlePaymentExpire
   );
 
   const liveTrackingUrl = order?.deliveryJob?.trackingUrl;
@@ -152,7 +170,7 @@ export default function OrderStatusPage() {
       if (res.ok) {
         toast.success("Order cancelled and refund initiated!");
         // We don't have refreshOrders here, so we can just update local status or redirect
-        window.location.reload(); 
+        window.location.reload();
       } else {
         toast.error(data.message || data.error || "Failed to cancel order");
       }
@@ -311,14 +329,23 @@ export default function OrderStatusPage() {
                     <div className="mt-4 animate-in fade-in slide-in-from-top-2">
                       {/* Contextual Action Button integrated into timeline */}
                       {order.status === "CONFIRMED" && (
-                        <button
-                          onClick={handlePayment}
-                          disabled={isPaying}
-                          className="inline-flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-xl text-xs font-sans font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all active:scale-95 disabled:opacity-50"
-                        >
-                          {isPaying ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
-                          {isPaying ? "Processing..." : `Pay £${parseFloat(order.totalAmount).toFixed(2)} Now`}
-                        </button>
+                        <div className="flex flex-col gap-4">
+                          <button
+                            onClick={handlePayment}
+                            disabled={isPaying}
+                            className="inline-flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-xl text-xs font-sans font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isPaying ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
+                            {isPaying ? "Processing..." : `Pay £${parseFloat(order.totalAmount).toFixed(2)} Now`}
+                          </button>
+
+                          {!isPaymentExpired && (
+                            <div className="inline-flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 w-fit">
+                              <Timer className="w-3 h-3" />
+                              <span className="text-[11px] font-sans font-bold tabular-nums">Payment required in {paymentTime}</span>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {order.status === "PENDING_CONFIRMATION" && !isExpired && (
@@ -393,7 +420,7 @@ export default function OrderStatusPage() {
 
         {/* Footer Actions */}
         <div className="mt-12 flex flex-col items-center gap-6">
-          <Link 
+          <Link
             href="/contact"
             className="flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-colors group"
           >
