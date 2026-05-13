@@ -71,12 +71,11 @@ export async function POST(req: Request) {
           .update(orders)
           .set({
             status: "PAID",
-            updatedAt: new Date()
+            updatedAt: new Date(),
+            paidAt: new Date(),
+            paymentIntentId: session.payment_intent as string
           })
-          .where(and(
-            eq(orders.id, orderId),
-            inArray(orders.status, ["PENDING_CONFIRMATION", "CONFIRMED"])
-          ))
+          .where(eq(orders.id, orderId))
           .returning();
 
         if (!updatedOrder) {

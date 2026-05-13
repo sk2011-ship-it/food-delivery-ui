@@ -1,7 +1,7 @@
 import { ok, fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, orderSessions, restaurants, users, notifications, orderItems, menuItems } from "@/lib/db/schema";
-import { eq, and, inArray, ne } from "drizzle-orm";
+import { orders, orderSessions, restaurants, orderItems, menuItems } from "@/lib/db/schema";
+import { eq, and, ne } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { NotificationService } from "@/services/notification.service";
@@ -30,6 +30,14 @@ export async function POST(
     if (stripeSession.payment_status !== "paid") {
       return fail("Payment not completed", 400);
     }
+    const paymentIntentId =
+      typeof stripeSession.payment_intent === "string"
+        ? stripeSession.payment_intent
+        : stripeSession.payment_intent?.id;
+
+    if (!paymentIntentId) {
+      return fail("Stripe payment intent not found for this checkout session", 400);
+    }
 
     // 2. Fetch the Order Session
     const [orderSession] = await db
@@ -44,7 +52,11 @@ export async function POST(
     await db.transaction(async (tx) => {
       const [updatedSession] = await tx
         .update(orderSessions)
-        .set({ status: "PAID", updatedAt: new Date() })
+        .set({
+          status: "PAID",
+          updatedAt: new Date(),
+          paymentIntentId,
+        })
         .where(and(eq(orderSessions.id, id), ne(orderSessions.status, "PAID")))
         .returning();
 
@@ -53,7 +65,12 @@ export async function POST(
       // Update all CONFIRMED orders in this session
       const updatedOrders = await tx
         .update(orders)
-        .set({ status: "PAID", updatedAt: new Date() })
+        .set({
+          status: "PAID",
+          updatedAt: new Date(),
+          paidAt: new Date(),
+          paymentIntentId,
+        })
         .where(and(eq(orders.sessionId, id), eq(orders.status, "CONFIRMED")))
         .returning();
 
@@ -149,8 +166,9 @@ export async function POST(
     });
 
     return ok({ status: "PAID" });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[api/orders/session/[id]/stripe/verify POST] ERROR:", err);
-    return fail(`Verification Error: ${err.message || "Unknown error"}`, 500);
+    return fail(`Verification Error: ${message}`, 500);
   }
 }

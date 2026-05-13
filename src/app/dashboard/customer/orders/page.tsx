@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import FeedbackModal from "@/components/dashboard/customer/FeedbackModal";
 import OrderCard from "@/components/dashboard/customer/OrderCard";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import type { Order } from "@/types/api.types";
 
 export interface StatusConfig {
@@ -91,6 +92,14 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     hex: "#EF4444",
     description: "This order was cancelled",
   },
+  CANCELLED_BY_USER: {
+    label: "Cancelled",
+    icon: AlertCircle,
+    color: "text-red-500",
+    bg: "bg-red-50",
+    hex: "#EF4444",
+    description: "This order was cancelled",
+  },
 };
 
 const ACTIVE_STATUSES: string[] = ["PENDING_CONFIRMATION", "CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"];
@@ -112,6 +121,8 @@ export default function CustomerOrdersPage() {
   const [isReordering, setIsReordering] = React.useState<string | null>(null);
   const [selectedOrderForFeedback, setSelectedOrderForFeedback] = React.useState<import("@/types/api.types").Order | null>(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = React.useState(false);
+  const [isCancelling, setIsCancelling] = React.useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = React.useState<string | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<"all" | "active" | "past">("all");
   const expiringOrdersRef = React.useRef<Set<string>>(new Set());
@@ -165,6 +176,49 @@ export default function CustomerOrdersPage() {
       toast.error("A network error occurred. Please try again.");
     } finally {
       setIsPaying(null);
+    }
+  };
+
+  const handleCancel = async (orderId: string) => {
+    setCancelTarget(orderId);
+  };
+
+  const cancelTargetOrder = cancelTarget ? orders.find((order) => order.id === cancelTarget) : null;
+  const cancelDeadlineSource = cancelTargetOrder?.paidAt || cancelTargetOrder?.createdAt || null;
+  const cancelTimeRemaining = React.useMemo(() => {
+    if (!cancelDeadlineSource) return null;
+    const start = new Date(cancelDeadlineSource).getTime();
+    const durationMs = 3 * 60 * 1000;
+    const remainingMs = Math.max(0, durationMs - (Date.now() - start));
+    const minutes = Math.floor(remainingMs / 1000 / 60);
+    const seconds = Math.floor((remainingMs / 1000) % 60);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  }, [cancelDeadlineSource]);
+
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    try {
+      setIsCancelling(cancelTarget);
+      const session = useAuthStore.getState().session;
+      const res = await fetch(`/api/orders/${cancelTarget}/cancel`, {
+        method: "POST",
+        headers: {
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Order cancelled and refund initiated!");
+        await refreshOrders();
+      } else {
+        toast.error(data.message || data.error || "Failed to cancel order");
+      }
+    } catch {
+      toast.error("A network error occurred. Please try again.");
+    } finally {
+      setIsCancelling(null);
+      setCancelTarget(null);
     }
   };
 
@@ -230,7 +284,7 @@ export default function CustomerOrdersPage() {
     if (activeTab === "active") {
       return orders.filter((order) => ACTIVE_STATUSES.includes(order.status));
     }
-    return orders.filter((order) => ["DELIVERED", "CANCELLED"].includes(order.status));
+    return orders.filter((order) => ["DELIVERED", "CANCELLED", "CANCELLED_BY_USER"].includes(order.status));
   }, [activeTab, orders]);
 
 
@@ -326,6 +380,7 @@ export default function CustomerOrdersPage() {
                   onRate={(o) => { setSelectedOrderForFeedback(o); setIsFeedbackOpen(true); }}
                   onTrack={(id) => router.push(`/dashboard/customer/status/${id}`)}
                   onExpire={handleExpire}
+                  onCancel={handleCancel}
                 />
               ))
             )}
@@ -350,6 +405,23 @@ export default function CustomerOrdersPage() {
         order={selectedOrderForFeedback}
         site={site}
         onSuccess={refreshOrders}
+      />
+      <ConfirmModal
+        isOpen={Boolean(cancelTarget)}
+        onClose={() => {
+          if (!isCancelling) setCancelTarget(null);
+        }}
+        onConfirm={confirmCancel}
+        title="Cancel Order?"
+        message={
+          cancelTimeRemaining
+            ? `Are you sure you want to cancel this order? You have ${cancelTimeRemaining} left to cancel and receive a full refund.`
+            : "Are you sure you want to cancel this order? You will receive a full refund immediately."
+        }
+        confirmText={isCancelling ? "Cancelling..." : "Cancel & Refund"}
+        cancelText="Keep Order"
+        loading={Boolean(isCancelling)}
+        danger
       />
     </div>
   );

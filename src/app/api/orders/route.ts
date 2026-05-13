@@ -359,7 +359,7 @@ export async function GET(req: Request) {
       const offset = (page - 1) * limit;
 
       const activeStatuses = ["PENDING_CONFIRMATION", "CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"] as const;
-      const pastStatuses = ["DELIVERED", "CANCELLED"] as const;
+      const pastStatuses = ["DELIVERED", "CANCELLED", "CANCELLED_BY_USER"] as const;
       const scopeCondition =
         scope === "active"
           ? and(eq(orders.userId, user.id), inArray(orders.status, [...activeStatuses]))
@@ -399,13 +399,14 @@ export async function GET(req: Request) {
           eta: deliveryJobs.eta,
           createdAt: orders.createdAt,
           updatedAt: orders.updatedAt,
+          paidAt: orders.paidAt,
         })
         .from(orders)
         .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
         .leftJoin(deliveryJobs, eq(deliveryJobs.orderId, orders.id))
         .where(scopeCondition)
           .orderBy(
-            sql`CASE WHEN ${orders.status} IN ('DELIVERED', 'CANCELLED') THEN 1 ELSE 0 END ASC`,
+            sql`CASE WHEN ${orders.status} IN ('DELIVERED', 'CANCELLED', 'CANCELLED_BY_USER') THEN 1 ELSE 0 END ASC`,
             desc(orders.createdAt)
           )
           .limit(limit)
@@ -446,6 +447,7 @@ export async function GET(req: Request) {
         paymentIntentId: order.paymentIntentId,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
+        paidAt: order.paidAt,
         restaurant: { name: order.restaurantNameSnapshot || order.restaurantName },
         deliveryJob: order.deliveryJobStatus || order.trackingUrl || order.driverName || order.driverPhone || order.eta
           ? {

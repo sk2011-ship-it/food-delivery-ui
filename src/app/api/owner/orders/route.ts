@@ -63,10 +63,10 @@ export async function GET(req: Request) {
           ] as any)
         );
       } else if (scope === "history") {
-        if (statusFilterParam && ["DELIVERED", "CANCELLED"].includes(statusFilterParam)) {
+        if (statusFilterParam && ["DELIVERED", "CANCELLED", "CANCELLED_BY_USER"].includes(statusFilterParam)) {
           orderConditions.push(eq(orders.status, statusFilterParam as any));
         } else {
-          orderConditions.push(inArray(orders.status, ["DELIVERED", "CANCELLED"] as any));
+          orderConditions.push(inArray(orders.status, ["DELIVERED", "CANCELLED", "CANCELLED_BY_USER"] as any));
         }
       }
       

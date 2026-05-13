@@ -13,6 +13,7 @@ export const orderStatusEnum = [
   "OUT_FOR_DELIVERY",
   "DELIVERED",
   "CANCELLED",
+  "CANCELLED_BY_USER",
 ] as const;
 
 export type OrderStatus = (typeof orderStatusEnum)[number];
@@ -36,6 +37,10 @@ export const orders = pgTable("orders", {
   restaurantNameSnapshot: text("restaurant_name_snapshot"),
   createdAt:       timestamp("created_at").defaultNow().notNull(),
   updatedAt:       timestamp("updated_at").defaultNow().notNull(),
+  paidAt:          timestamp("paid_at"),
+  refundId:        text("refund_id"),
+  refundStatus:    text("refund_status"),
+  cancellationReason: text("cancellation_reason"),
 }, (t) => [
   index("orders_user_idx").on(t.userId),
   index("orders_restaurant_idx").on(t.restaurantId),

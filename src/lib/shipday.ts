@@ -128,3 +128,30 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
   }
   return result;
 }
+
+export async function deleteShipdayOrder(providerOrderId: string): Promise<void> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) {
+    throw new Error("SHIPDAY_API_KEY is not configured.");
+  }
+
+  const response = await fetch(`${SHIPDAY_API_BASE_URL}/orders/${providerOrderId}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${apiKey}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("[Shipday] Delete order failed", {
+      status: response.status,
+      body: text,
+      providerOrderId,
+    });
+    // We don't necessarily want to throw if the order was already deleted, 
+    // but we should log it.
+  }
+}

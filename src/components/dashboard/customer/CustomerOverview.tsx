@@ -98,7 +98,7 @@ export default function CustomerOverview({ user }: { user: SessionUser }) {
   );
 
   const displayRecentOrders = orders
-    .filter((o: Order) => ["DELIVERED", "CANCELLED"].includes(o.status))
+    .filter((o: Order) => ["DELIVERED", "CANCELLED", "CANCELLED_BY_USER"].includes(o.status))
     .slice(0, 3);
 
   const stats = {

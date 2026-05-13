@@ -13,7 +13,8 @@ import {
   ShoppingBag,
   CreditCard,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  XCircle
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,7 @@ import { toast } from "sonner";
 import { Loader2, Timer } from "lucide-react";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
 import { useAuthStore } from "@/store/useAuthStore";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string; description: string; step: number }> = {
   PENDING_CONFIRMATION: {
@@ -79,6 +81,13 @@ const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: st
     description: "This order was cancelled.",
     step: 0
   },
+  CANCELLED_BY_USER: {
+    label: "Cancelled",
+    icon: AlertCircle,
+    color: "#EF4444",
+    description: "This order was cancelled and refunded.",
+    step: 0
+  },
 };
 
 export default function OrderStatusPage() {
@@ -86,6 +95,7 @@ export default function OrderStatusPage() {
   const { orders, loading, updateOrderStatus } = useOrders();
   const { site } = useSite();
   const [isPaying, setIsPaying] = React.useState(false);
+  const [isCancelling, setIsCancelling] = React.useState(false);
 
   const order = orders.find(o => o.id === id);
 
@@ -112,6 +122,47 @@ export default function OrderStatusPage() {
     liveTrackingUrl &&
     ["DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order?.status || "")
   );
+  const { formattedTime: cancelTime, isExpired: isCancelExpired } = useOrderTimer(
+    order?.paidAt || order?.createdAt || "",
+    3,
+    () => { }
+  );
+
+  const canCancel = (order?.status === "PAID" || order?.status === "PREPARING") && !isCancelExpired;
+  const [showCancelModal, setShowCancelModal] = React.useState(false);
+
+  const handleCancel = async () => {
+    if (!order) return;
+    setShowCancelModal(true);
+  };
+
+  const confirmCancel = async () => {
+    if (!order) return;
+    try {
+      setIsCancelling(true);
+      const session = useAuthStore.getState().session;
+      const res = await fetch(`/api/orders/${order.id}/cancel`, {
+        method: "POST",
+        headers: {
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+        },
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success("Order cancelled and refund initiated!");
+        // We don't have refreshOrders here, so we can just update local status or redirect
+        window.location.reload(); 
+      } else {
+        toast.error(data.message || data.error || "Failed to cancel order");
+      }
+    } catch {
+      toast.error("A network error occurred. Please try again.");
+    } finally {
+      setIsCancelling(false);
+      setShowCancelModal(false);
+    }
+  };
 
   const handlePayment = async () => {
     if (!order) return;
@@ -276,6 +327,17 @@ export default function OrderStatusPage() {
                           <span className="text-[11px] font-sans font-bold tabular-nums">{formattedTime}</span>
                         </div>
                       )}
+
+                      {canCancel && (
+                        <button
+                          onClick={handleCancel}
+                          disabled={isCancelling}
+                          className="inline-flex items-center gap-2 bg-red-50 text-red-600 px-6 py-3 rounded-xl text-xs font-sans font-black uppercase tracking-widest border border-red-100 shadow-sm hover:bg-red-100 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          {isCancelling ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                          Cancel & Refund
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -344,6 +406,23 @@ export default function OrderStatusPage() {
           </p>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={showCancelModal}
+        onClose={() => {
+          if (!isCancelling) setShowCancelModal(false);
+        }}
+        onConfirm={confirmCancel}
+        title="Cancel Order?"
+        message={
+          cancelTime
+            ? `Are you sure you want to cancel this order? You have ${cancelTime} left to cancel and receive a full refund.`
+            : "Are you sure you want to cancel this order? You will receive a full refund immediately."
+        }
+        confirmText={isCancelling ? "Cancelling..." : "Cancel & Refund"}
+        cancelText="Keep Order"
+        loading={isCancelling}
+        danger
+      />
     </div>
   );
 }

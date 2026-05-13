@@ -14,6 +14,7 @@ async function ensureKitchenStartsFromPaid(orderId: string) {
     .set({
       status: "PAID",
       updatedAt: new Date(),
+      paidAt: new Date(),
     })
     .where(
       and(
@@ -73,8 +74,10 @@ export async function POST(
       .set({
         status: "PAID",
         updatedAt: new Date(),
+        paidAt: new Date(),
+        paymentIntentId: session.payment_intent as string,
       })
-      .where(and(eq(orders.id, id), inArray(orders.status, ["PENDING_CONFIRMATION", "CONFIRMED"])))
+      .where(eq(orders.id, id))
       .returning();
 
     const orderToUse = updatedOrder ?? order;

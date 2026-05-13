@@ -3,7 +3,7 @@
 import React from "react";
 import {
   Clock, CreditCard, ChevronRight, Star, Loader2,
-  ShoppingBag, Timer, PackageCheck, Truck, Package, AlertCircle, CheckCircle2, RotateCcw
+  ShoppingBag, Timer, PackageCheck, Truck, Package, AlertCircle, CheckCircle2, RotateCcw, XCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
@@ -23,6 +23,7 @@ interface OrderCardProps {
   onRate: (order: Order) => void;
   onTrack: (id: string) => void;
   onExpire: (id: string) => void;
+  onCancel: (id: string) => void;
 }
 
 export default function OrderCard({
@@ -36,17 +37,26 @@ export default function OrderCard({
   onReorder,
   onRate,
   onTrack,
-  onExpire
+  onExpire,
+  onCancel
 }: OrderCardProps) {
   const isPending = order.status === "PENDING_CONFIRMATION";
   const isDelivered = order.status === "DELIVERED";
-  const isCancelled = order.status === "CANCELLED";
+  const isCancelled = order.status === "CANCELLED" || order.status === "CANCELLED_BY_USER";
 
   const { formattedTime, isExpired } = useOrderTimer(
     order.createdAt,
     5,
     () => { if (isPending) onExpire(order.id); }
   );
+
+  const { isExpired: isCancelExpired } = useOrderTimer(
+    order.paidAt || order.createdAt || "",
+    3,
+    () => { }
+  );
+
+  const canCancel = (order.status === "PAID" || order.status === "PREPARING") && !isCancelExpired;
 
   const date = new Date(order.createdAt).toLocaleDateString("en-GB", {
     day: "numeric", month: "short", year: "numeric",
@@ -141,6 +151,16 @@ export default function OrderCard({
               >
                 {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
                 Pay £{parseFloat(order.totalAmount).toFixed(2)}
+              </button>
+            )}
+
+            {canCancel && (
+              <button
+                onClick={() => onCancel(order.id)}
+                className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-all flex items-center justify-center gap-2 animate-in fade-in duration-500 shadow-sm active:scale-95"
+              >
+                <XCircle className="w-4 h-4" />
+                Cancel & Refund
               </button>
             )}
 

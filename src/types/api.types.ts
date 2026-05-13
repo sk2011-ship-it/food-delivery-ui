@@ -107,6 +107,7 @@ export interface Order {
   currency: string;
   createdAt: string;
   updatedAt: string;
+  paidAt?: string | null;
   paymentIntentId?: string | null;
   restaurant?: { name: string };
   deliveryJob?: {
