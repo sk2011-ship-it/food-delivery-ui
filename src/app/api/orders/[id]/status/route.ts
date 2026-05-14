@@ -4,6 +4,7 @@ import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } f
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { syncSessionStatus } from "@/lib/order-session";
+import { trackOrderMetric } from "@/lib/metrics";
 import { NotificationService } from "@/services/notification.service";
 
 const ORDER_ALLOWED_TRANSITIONS: Record<string, string[]> = {
@@ -157,6 +158,20 @@ export async function PATCH(
       if (updated.sessionId && ["CONFIRMED", "CANCELLED", "PAID"].includes(status)) {
         await syncSessionStatus(updated.sessionId);
       }
+
+      // Track metric milestone — background
+      void (async () => {
+        const now = new Date();
+        if (status === "CANCELLED") {
+          const isCustomer = order.userId === user.id && user.role === "customer";
+          void trackOrderMetric(id, {
+            cancelledAt: now,
+            cancellationReason: isCustomer ? "customer_cancelled" : "owner_rejected",
+          });
+        } else if (status === "PAID") {
+          void trackOrderMetric(id, { paidAt: now });
+        }
+      })();
 
       // --- Notify Owner ---
       try {

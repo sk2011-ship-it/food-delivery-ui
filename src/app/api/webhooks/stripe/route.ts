@@ -5,6 +5,7 @@ import { stripe } from "@/lib/stripe";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { NotificationService } from "@/services/notification.service";
+import { trackOrderMetric } from "@/lib/metrics";
 
 async function ensureKitchenStartsFromPaid(orderId: string) {
   await db
@@ -85,11 +86,15 @@ export async function POST(req: Request) {
         }
 
         // Update all CONFIRMED sub-orders to PAID
+        const paidAt = new Date();
         const updatedOrders = await db
           .update(orders)
-          .set({ status: "PAID", updatedAt: new Date() })
+          .set({ status: "PAID", updatedAt: paidAt })
           .where(and(eq(orders.sessionId, orderSessionId), eq(orders.status, "CONFIRMED")))
           .returning();
+
+        // Track paidAt for every sub-order
+        void Promise.all(updatedOrders.map(o => trackOrderMetric(o.id, { paidAt })));
 
         // Background notifications and Shipday
         const backgroundTask = (async () => {
@@ -162,11 +167,12 @@ export async function POST(req: Request) {
 
       try {
         // 1. Atomic Update: Only proceed if status is NOT already PAID
+        const singlePaidAt = new Date();
         const [updatedOrder] = await db
           .update(orders)
           .set({
             status: "PAID",
-            updatedAt: new Date()
+            updatedAt: singlePaidAt,
           })
           .where(and(
             eq(orders.id, orderId),
@@ -188,6 +194,8 @@ export async function POST(req: Request) {
         }
 
         if (updatedOrder) {
+          void trackOrderMetric(orderId, { paidAt: singlePaidAt });
+
           // Offload notifications and external services to the background
           const backgroundTask = (async () => {
             try {

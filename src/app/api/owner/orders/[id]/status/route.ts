@@ -4,6 +4,7 @@ import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } f
 import { eq, and } from "drizzle-orm";
 import { NotificationService } from "@/services/notification.service";
 import { syncSessionStatus } from "@/lib/order-session";
+import { trackOrderMetric } from "@/lib/metrics";
 import { z } from "zod";
 
 const OwnerStatusSchema = z.object({
@@ -58,7 +59,8 @@ export async function PATCH(
           userId: orders.userId,
           restaurantId: orders.restaurantId,
           totalAmount: orders.totalAmount,
-          status: orders.status
+          status: orders.status,
+          createdAt: orders.createdAt,
         })
         .from(orders)
         .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
@@ -94,6 +96,25 @@ export async function PATCH(
       if (!updated) {
         return fail("Order status has changed or order not found. Please refresh and try again.", 409);
       }
+
+      // Track metric milestone — background, never blocks response
+      void (async () => {
+        const now = new Date();
+        if (nextStatus === "CONFIRMED") {
+          void trackOrderMetric(id, {
+            confirmedAt: now,
+            // waitTimeMs calculated inside trackOrderMetric using stored orderPlacedAt
+          });
+        } else if (nextStatus === "PREPARING") {
+          void trackOrderMetric(id, { kitchenStartedAt: now });
+        } else if (nextStatus === "OUT_FOR_DELIVERY" || nextStatus === "DISPATCH_REQUESTED") {
+          void trackOrderMetric(id, { dispatchedAt: now });
+        } else if (nextStatus === "DELIVERED") {
+          void trackOrderMetric(id, { deliveredAt: now });
+        } else if (nextStatus === "CANCELLED") {
+          void trackOrderMetric(id, { cancelledAt: now, cancellationReason: "owner_rejected" });
+        }
+      })();
 
       // 3. Fire-and-forget BACKGROUND tasks
       void (async () => {

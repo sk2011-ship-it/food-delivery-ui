@@ -1,4 +1,5 @@
 import { ok, fail, withAuth } from "@/lib/proxy";
+import { trackOrderMetric } from "@/lib/metrics";
 import { db } from "@/lib/db";
 import { orderSessions, orders, orderItems, menuItems, restaurants } from "@/lib/db/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -126,6 +127,11 @@ export async function POST(
           isSession: "true"
         },
       });
+
+      // Track paymentInitiatedAt for all confirmed sub-orders in this session
+      void Promise.all(
+        confirmedOrders.map(o => trackOrderMetric(o.id, { paymentInitiatedAt: new Date() }))
+      );
 
       return ok({ url: stripeSession.url });
     } catch (err: any) {

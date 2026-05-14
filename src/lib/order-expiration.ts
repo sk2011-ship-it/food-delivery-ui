@@ -2,6 +2,7 @@ import { db } from "./db";
 import { orders, restaurants, orderSessions } from "./db/schema";
 import { eq, lt, and, desc } from "drizzle-orm";
 import { syncSessionStatus } from "./order-session";
+import { trackOrderMetric } from "./metrics";
 import { NotificationService } from "@/services/notification.service";
 
 const EXPIRY_MS = 10 * 60 * 1000;
@@ -49,6 +50,11 @@ export async function cancelExpiredPendingOrders(now = new Date()): Promise<Expi
     if (!updated) continue;
 
     results.push({ orderId: updated.id, sessionId: updated.sessionId });
+
+    void trackOrderMetric(updated.id, {
+      cancelledAt: new Date(),
+      cancellationReason: "timeout",
+    });
 
     try {
       if (updated.sessionId) {

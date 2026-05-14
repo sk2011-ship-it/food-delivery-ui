@@ -1,6 +1,7 @@
 import { ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { orders } from "@/lib/db/schema";
+import { trackOrderMetric } from "@/lib/metrics";
 import { eq, and } from "drizzle-orm";
 import { stripe } from "@/lib/stripe";
 import { headers } from "next/headers";
@@ -110,6 +111,7 @@ export async function POST(
       const session = await Promise.race([sessionPromise, timeoutPromise]) as any;
 
       console.log("Stripe session created successfully:", session.id);
+      void trackOrderMetric(id, { paymentInitiatedAt: new Date() });
       return ok({ url: session.url });
     } catch (err: any) {
       console.error("[api/orders/[id]/stripe/session POST] ERROR DETAIL:", err.message || err);

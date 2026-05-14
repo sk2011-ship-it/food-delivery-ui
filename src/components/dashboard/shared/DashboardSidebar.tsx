@@ -6,7 +6,7 @@ import {
   LayoutDashboard, ShoppingBag, Users, Truck, Store,
   BarChart3, Settings, Globe, X, UtensilsCrossed, MapPin,
   Home, ShoppingCart, User, ChefHat, Star, CreditCard,
-  ShieldCheck, History as HistoryIcon
+  ShieldCheck, History as HistoryIcon, LineChart
 } from "lucide-react";
 
 import type { SessionUser, UserRole } from "@/lib/auth";
@@ -32,7 +32,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Orders",      href: "/dashboard/admin/orders",       icon: ShoppingBag },
     { label: "Moderation",  href: "/dashboard/admin/reviews",      icon: ShieldCheck },
     { label: "Payments",    href: "/dashboard/admin/payments",     icon: CreditCard },
-
+    { label: "Analytics",   href: "/dashboard/admin/analytics",    icon: LineChart },
     { label: "Settings",    href: "/dashboard/admin/settings",     icon: Settings },
   ],
   driver: [

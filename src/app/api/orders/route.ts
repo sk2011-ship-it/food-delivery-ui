@@ -8,6 +8,7 @@ import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
 import { normalizePhone, phoneDigits } from "@/lib/phone";
 import { calculateDeliveryFee } from "@/lib/delivery";
+import { trackOrderMetric } from "@/lib/metrics";
 
 function getSiteFromLocation(location: string | null) {
   if (!location) return SITES[DEFAULT_SITE];
@@ -232,6 +233,19 @@ export async function POST(req: Request) {
           );
 
           ordersList.push(newOrder);
+
+          // Track metric row immediately — background, never blocks the transaction
+          const placedAt = new Date();
+          void trackOrderMetric(newOrder.id, {
+            sessionId: session.id,
+            userId: user.id,
+            restaurantId,
+            orderPlacedAt: placedAt,
+            deliveryArea: deliveryArea || undefined,
+            dayOfWeek: placedAt.getDay(),
+            hourOfDay: placedAt.getHours(),
+            orderTotal: finalTotalAmount.toFixed(2),
+          });
         }
 
         // Update session with correct item total and service charge
@@ -290,6 +304,7 @@ export async function POST(req: Request) {
                     metadata: { orderId: newOrder.id, orderStatus: "PENDING_CONFIRMATION", targetRole: "owner" },
                     channels: ["FCM", "WHATSAPP"]
                   });
+                  void trackOrderMetric(newOrder.id, { ownerNotifiedAt: new Date() });
                 }
 
                 // Add a small delay for customer notification to ensure DB commit is visible 

@@ -5,6 +5,7 @@ export * from "./featured";
 export * from "./cart";
 export * from "./orders";
 export * from "./orderSessions";
+export * from "./orderMetrics";
 export * from "./deliveryJobs";
 export * from "./notifications";
 export * from "./reviews";
