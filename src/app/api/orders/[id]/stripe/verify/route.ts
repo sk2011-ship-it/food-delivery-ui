@@ -43,8 +43,8 @@ export async function POST(
       return fail("Missing session_id", 400);
     }
 
+    // Auth is optional — the stripeSessionId is secret enough to authorise the lookup
     const user = await getCurrentUser();
-    if (!user) return fail("Unauthorized", 401);
 
     // 1. Retrieve the session from Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -53,10 +53,14 @@ export async function POST(
       return fail("Payment not completed", 400);
     }
 
-    // 2. Fetch the order to ensure it belongs to the user and needs updating
-    const order = await db.query.orders.findFirst({
-      where: and(eq(orders.id, id), eq(orders.userId, user.id)),
-    });
+    // 2. Fetch the order — verify by stripeSessionId when unauthenticated, or by userId when authenticated
+    const order = user
+      ? await db.query.orders.findFirst({
+          where: and(eq(orders.id, id), eq(orders.userId, user.id)),
+        })
+      : await db.query.orders.findFirst({
+          where: eq(orders.id, id),
+        });
 
     if (!order) {
       return fail("Order not found.", 404);

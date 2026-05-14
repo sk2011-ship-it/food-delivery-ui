@@ -4,7 +4,7 @@ import { eq, lt, and, desc } from "drizzle-orm";
 import { syncSessionStatus } from "./order-session";
 import { NotificationService } from "@/services/notification.service";
 
-const EXPIRY_MS = 5 * 60 * 1000;
+const EXPIRY_MS = 10 * 60 * 1000;
 
 export type ExpiredOrderResult = {
   orderId: string;
@@ -61,7 +61,7 @@ export async function cancelExpiredPendingOrders(now = new Date()): Promise<Expi
     try {
       if (order.restaurantName) {
         const customerBody = `Your order #${updated.id.slice(0, 8)} from ${order.restaurantName} expired because it was not confirmed in time.`;
-        const ownerBody = `Order #${updated.id.slice(0, 8)} from ${order.restaurantName} expired after 5 minutes without confirmation.`;
+        const ownerBody = `Order #${updated.id.slice(0, 8)} from ${order.restaurantName} expired after 10 minutes without confirmation.`;
 
         if (updated.userId) {
           await NotificationService.dispatchOrderNotifications({

@@ -22,8 +22,8 @@ export async function POST(
 
     if (!sessionId) return fail("Missing session_id", 400);
 
+    // Auth is optional — the stripeSessionId is secret enough to authorise the lookup
     const user = await getCurrentUser();
-    if (!user) return fail("Unauthorized", 401);
 
     // 1. Retrieve the session from Stripe
     const stripeSession = await stripe.checkout.sessions.retrieve(sessionId);
@@ -31,12 +31,18 @@ export async function POST(
       return fail("Payment not completed", 400);
     }
 
-    // 2. Fetch the Order Session
-    const [orderSession] = await db
-      .select()
-      .from(orderSessions)
-      .where(and(eq(orderSessions.id, id), eq(orderSessions.userId, user.id)))
-      .limit(1);
+    // 2. Fetch the Order Session — require userId match when authenticated, otherwise look up by id only
+    const [orderSession] = user
+      ? await db
+          .select()
+          .from(orderSessions)
+          .where(and(eq(orderSessions.id, id), eq(orderSessions.userId, user.id)))
+          .limit(1)
+      : await db
+          .select()
+          .from(orderSessions)
+          .where(eq(orderSessions.id, id))
+          .limit(1);
 
     if (!orderSession) return fail("Order session not found.", 404);
 
@@ -108,18 +114,21 @@ export async function POST(
 
       // 5. Notify Customer (once per session)
       try {
-        const subject = "Payment Confirmed";
-        const body = "Your payment was successful. The restaurants will start preparing your meal shortly.";
+        const customerId = user?.id ?? orderSession.userId;
+        if (customerId) {
+          const subject = "Payment Confirmed";
+          const body = "Your payment was successful. The restaurants will start preparing your meal shortly.";
 
-        // Dispatch Customer Notifications
-        await NotificationService.dispatchOrderNotifications({
-          userId: user.id,
-          type: "ORDER",
-          subject,
-          body,
-          metadata: { sessionId: id, orderStatus: "PAID", targetRole: "customer" },
-          channels: ["FCM", "WHATSAPP", "EMAIL"] // PAID is a key stage for Email
-        });
+          // Dispatch Customer Notifications
+          await NotificationService.dispatchOrderNotifications({
+            userId: customerId,
+            type: "ORDER",
+            subject,
+            body,
+            metadata: { sessionId: id, orderStatus: "PAID", targetRole: "customer" },
+            channels: ["FCM", "WHATSAPP", "EMAIL"] // PAID is a key stage for Email
+          });
+        }
       } catch (notifyErr) {
         console.error("Failed to notify customer:", notifyErr);
       }

@@ -1,7 +1,7 @@
 import { ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { orderSessions, orders, orderItems, menuItems, restaurants } from "@/lib/db/schema";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, ne } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +77,70 @@ export async function GET(
     } catch (err) {
       console.error("[api/orders/session/[id] GET]", err);
       return fail("Failed to fetch session details.", 500);
+    }
+  });
+}
+
+/**
+ * PATCH /api/orders/session/[id]
+ * Cancels an order session and cascades cancellation to all non-PAID sub-orders.
+ */
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  return withAuth(req, async (user) => {
+    try {
+      const { id } = await params;
+
+      // 1. Fetch the session and verify ownership
+      const [session] = await db
+        .select()
+        .from(orderSessions)
+        .where(eq(orderSessions.id, id))
+        .limit(1);
+
+      if (!session) return fail("Session not found", 404);
+
+      if (session.userId !== user.id && user.role !== "admin") {
+        return fail("Unauthorized", 403);
+      }
+
+      // 2. Guard: cannot cancel a session that is already PAID
+      if (session.status === "PAID") {
+        return fail("Cannot cancel a session that has already been paid.", 409);
+      }
+
+      if (session.status === "CANCELLED") {
+        return ok({ session });
+      }
+
+      // 3. Update session to CANCELLED
+      const [updatedSession] = await db
+        .update(orderSessions)
+        .set({ status: "CANCELLED", updatedAt: new Date() })
+        .where(and(eq(orderSessions.id, id), ne(orderSessions.status, "PAID")))
+        .returning();
+
+      if (!updatedSession) {
+        return fail("Session could not be cancelled (it may have just been paid).", 409);
+      }
+
+      // 4. Cascade cancellation to all non-PAID sub-orders
+      await db
+        .update(orders)
+        .set({ status: "CANCELLED", updatedAt: new Date() })
+        .where(
+          and(
+            eq(orders.sessionId, id),
+            ne(orders.status, "PAID")
+          )
+        );
+
+      return ok({ session: updatedSession });
+    } catch (err) {
+      console.error("[api/orders/session/[id] PATCH]", err);
+      return fail("Failed to cancel session.", 500);
     }
   });
 }

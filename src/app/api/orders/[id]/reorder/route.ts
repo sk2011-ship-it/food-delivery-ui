@@ -49,13 +49,14 @@ export async function POST(
 
         const subtotal = originalItems.reduce((sum, item) => sum + (parseFloat(item.price as string) * item.quantity), 0);
         
-        const total = subtotal + parseFloat(originalOrder.deliveryFee || "0");
+        const total = subtotal + parseFloat(originalOrder.deliveryFee || "0") + parseFloat(originalOrder.serviceCharge || "0");
 
         const [insertedOrder] = await tx.insert(orders).values({
           userId: user.id,
           restaurantId: originalOrder.restaurantId,
           totalAmount: total.toFixed(2),
           deliveryFee: originalOrder.deliveryFee,
+          serviceCharge: originalOrder.serviceCharge,
           deliveryAddress: originalOrder.deliveryAddress,
           deliveryArea: originalOrder.deliveryArea,
           distanceMiles: originalOrder.distanceMiles,
