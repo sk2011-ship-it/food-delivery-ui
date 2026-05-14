@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { ShoppingBag, Clock, Star, Flame, Zap, TrendingUp,
   ChevronRight, MapPin, Search, Gift, Sparkles, Truck, Store,
 } from "lucide-react";
@@ -281,12 +280,11 @@ export default function CustomerOverview({ user }: { user: SessionUser }) {
                 >
                     <div className="relative h-32 w-full bg-gray-50 flex items-center justify-center">
                       {r.image ? (
-                        <Image
+                        <img
                           src={r.image}
                           alt={r.name}
-                          fill
-                          className="object-cover"
-                          sizes="224px"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <Store className="w-10 h-10 text-gray-200" />
@@ -332,30 +330,7 @@ export default function CustomerOverview({ user }: { user: SessionUser }) {
             </div>
           </div>
 
-          {/* Promo banner */}
-          <div
-            className="rounded-3xl p-5 flex items-center gap-4 overflow-hidden relative"
-            style={{ background: "linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)" }}
-          >
-            <div className="absolute -right-6 -top-6 w-32 h-32 rounded-full bg-white/10 blur-xl" />
-            <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={{ background: "rgba(255,255,255,0.2)" }}
-            >
-              <Gift className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-bold text-sm">Free delivery this week!</p>
-              <p className="text-white/70 text-xs mt-0.5">Use code FREESHIP at checkout</p>
-            </div>
-            <Link
-              href="/dashboard/customer/search"
-              className="shrink-0 px-3 py-2 rounded-xl text-xs font-bold transition-all hover:opacity-90 whitespace-nowrap"
-              style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
-            >
-              Order now
-            </Link>
-          </div>
+
         </div>
 
         {/* ══════════════ RIGHT COLUMN ══════════════ */}

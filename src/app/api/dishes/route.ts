@@ -1,7 +1,10 @@
-import { ok, fail } from "@/lib/proxy";
+import { fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { menuItems, restaurants, featuredItems } from "@/lib/db/schema";
 import { eq, and, ilike, SQL, desc, sql } from "drizzle-orm";
+import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
+import { normalizeLocationName } from "@/lib/locations";
+import type { OpeningHours } from "@/lib/api";
 
 /* ── GET /api/dishes ── */
 export async function GET(req: Request) {
@@ -12,11 +15,13 @@ export async function GET(req: Request) {
     const category = searchParams.get("category") ?? "";
     const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") ?? "20")));
 
-    if (!location) return fail("Location is required.", 400);
+    const normalizedLocation = normalizeLocationName(location);
+    if (!normalizedLocation) return fail("Location is required.", 400);
 
     const conditions: SQL[] = [
-      ilike(restaurants.location, location),
+      sql<boolean>`lower(trim(${restaurants.location})) = ${normalizedLocation}`,
       eq(menuItems.status, "available"),
+      eq(restaurants.isActive, true), // Only active restaurants
     ];
 
     if (search) {
@@ -32,6 +37,7 @@ export async function GET(req: Request) {
         restaurantId: menuItems.restaurantId,
         restaurantName: restaurants.name,
         restaurantLocation: restaurants.location,
+        restaurantOpeningHours: restaurants.openingHours,
         name: menuItems.name,
         description: menuItems.description,
         category: menuItems.category,
@@ -50,12 +56,16 @@ export async function GET(req: Request) {
       ))
       .where(and(...conditions))
       .orderBy(desc(sql`is_featured`))
-      .limit(limit);
+      .limit(limit * 2); // Fetch more to allow for filtering closed ones
 
-    const items = rows.map((r) => ({
-      ...r,
-      price: parseFloat(r.price as unknown as string),
-    }));
+    const items = rows
+      .filter((r) => isRestaurantOpen(r.restaurantOpeningHours as OpeningHours | null | undefined))
+      .map((r) => ({
+        ...r,
+        price: parseFloat(r.price as unknown as string),
+      }))
+      .slice(0, limit);
+
 
     return new Response(JSON.stringify({ data: { items } }), {
       status: 200,

@@ -1,7 +1,7 @@
 import { ok, fail, parseBody, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { cartItems, menuItems, restaurants } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 
@@ -32,7 +32,7 @@ export async function GET(req: Request) {
         .from(cartItems)
         .innerJoin(menuItems, eq(cartItems.menuItemId, menuItems.id))
         .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
-        .where(eq(cartItems.userId, user.id));
+        .where(and(eq(cartItems.userId, user.id), isNull(restaurants.deletionStatus)));
 
       // Convert numeric price to number
       const formattedItems = items.map(item => ({
@@ -67,7 +67,7 @@ export async function POST(req: Request) {
         })
         .from(menuItems)
         .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
-        .where(eq(menuItems.id, menuItemId));
+        .where(and(eq(menuItems.id, menuItemId), isNull(restaurants.deletionStatus)));
 
       if (!item) return fail("Item not found.", 404);
       if (item.status !== "available") return fail("This item is currently unavailable.", 400);

@@ -13,6 +13,8 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "img.freepik.com" },
       { protocol: "https", hostname: "media.istockphoto.com" },
       { protocol: "https", hostname: "marketplace.canva.com" },
+      { protocol: "https", hostname: "allrecipes.com" },
+      { protocol: "https", hostname: "www.allrecipes.com" },
     ],
   },
 };

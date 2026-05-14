@@ -1,7 +1,8 @@
-import { ok, fail } from "@/lib/proxy";
+import { fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { restaurants, menuItems } from "@/lib/db/schema";
-import { eq, and, SQL, sql, ilike } from "drizzle-orm";
+import { eq, and, SQL, sql, ilike, isNull } from "drizzle-orm";
+import { normalizeLocationName } from "@/lib/locations";
 
 /* ── GET /api/restaurants ── */
 export async function GET(req: Request) {
@@ -10,14 +11,43 @@ export async function GET(req: Request) {
     const location = searchParams.get("location");
     const category = searchParams.get("category");
 
-    if (!location) return fail("Location is required.", 400);
+    const normalizedLocation = normalizeLocationName(location);
+    if (!normalizedLocation) return fail("Location is required.", 400);
 
     const conditions: SQL[] = [
-      ilike(restaurants.location, location),
+      sql<boolean>`lower(trim(${restaurants.location})) = ${normalizedLocation}`,
       eq(restaurants.status, "active"),
+      eq(restaurants.isActive, true),
+      isNull(restaurants.deletionStatus),
     ];
 
-    let query = db
+    if (category) {
+      // Join with menuItems to find restaurants that have at least one dish in this category
+      const rows = await db
+        .select({
+          id:            restaurants.id,
+          name:          restaurants.name,
+          location:      restaurants.location,
+          logoUrl:       restaurants.logoUrl,
+          contactEmail:  restaurants.contactEmail,
+          contactPhone:  restaurants.contactPhone,
+          openingHours:  restaurants.openingHours,
+        })
+        .from(restaurants)
+        .innerJoin(menuItems, eq(restaurants.id, menuItems.restaurantId))
+        .where(and(...conditions, ilike(menuItems.category, category)))
+        .groupBy(restaurants.id);
+
+      return new Response(JSON.stringify({ data: { items: rows } }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        },
+      });
+    }
+
+    const rows = await db
       .select({
         id:            restaurants.id,
         name:          restaurants.name,
@@ -25,20 +55,10 @@ export async function GET(req: Request) {
         logoUrl:       restaurants.logoUrl,
         contactEmail:  restaurants.contactEmail,
         contactPhone:  restaurants.contactPhone,
+        openingHours:  restaurants.openingHours,
       })
-      .from(restaurants);
-
-    if (category) {
-      // Join with menuItems to find restaurants that have at least one dish in this category
-      query = query
-        .innerJoin(menuItems, eq(restaurants.id, menuItems.restaurantId))
-        .where(and(...conditions, ilike(menuItems.category, category)))
-        .groupBy(restaurants.id) as any;
-    } else {
-      query = query.where(and(...conditions)) as any;
-    }
-
-    const rows = await query;
+      .from(restaurants)
+      .where(and(...conditions));
 
     return new Response(JSON.stringify({ data: { items: rows } }), {
       status: 200,

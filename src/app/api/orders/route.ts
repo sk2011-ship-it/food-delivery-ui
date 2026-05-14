@@ -1,10 +1,13 @@
 import { ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, orderItems, cartItems, menuItems, restaurants, orderSessions } from "@/lib/db/schema";
+import { orders, orderItems, cartItems, menuItems, restaurants, orderSessions, deliveryJobs } from "@/lib/db/schema";
 import { eq, inArray, desc, sql, and } from "drizzle-orm";
 import { NotificationService } from "@/services/notification.service";
 import { SITES, DEFAULT_SITE } from "@/config/sites";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
+import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
+import { normalizePhone, phoneDigits } from "@/lib/phone";
+import { calculateDeliveryFee } from "@/lib/delivery";
 
 function getSiteFromLocation(location: string | null) {
   if (!location) return SITES[DEFAULT_SITE];
@@ -17,6 +20,10 @@ function getSiteFromLocation(location: string | null) {
 
 export const dynamic = "force-dynamic";
 
+function normalizeLocation(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
 /**
  * POST /api/orders
  * Creates one or more orders from the current user's cart.
@@ -24,51 +31,117 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   return withAuth(req, async (user) => {
     try {
+      const requestWithWaitUntil = req as Request & {
+        waitUntil?: (promise: Promise<unknown>) => void;
+      };
       const {
         deliveryAddress,
         deliveryArea,
         deliveryFee,
         distanceMiles,
         customerPhone,
+        siteLocation,
         deliveryFeesBreakdown // New field from frontend: { [restaurantId]: fee }
       } = await req.json().catch(() => ({}));
+
+      const normalizedPhone = normalizePhone(customerPhone);
+      if (phoneDigits(normalizedPhone).length < 10) {
+        return fail("Contact number must contain at least 10 digits.", 400);
+      }
+      const activeSiteLocation = normalizeLocation(siteLocation);
+      if (!activeSiteLocation) {
+        return fail("Site location is required.", 400);
+      }
 
       // Validate or fallback for deliveryFeesBreakdown
       const fees = deliveryFeesBreakdown || {};
 
-      const createdOrders = await db.transaction(async (tx) => {
-        // 1. Atomically delete items and capture the original data
-        const deletedCartItems = await tx.delete(cartItems)
-          .where(eq(cartItems.userId, user.id))
-          .returning();
+      // CRITICAL-4: Recalculate and validate delivery fee server-side
+      const siteConfig = getSiteFromLocation(activeSiteLocation);
+      if (siteConfig.deliveryPricing?.type === "fixed_areas") {
+        const expectedFee = calculateDeliveryFee(siteConfig, { area: deliveryArea });
+        const cartRows = await db
+          .select({
+            cartItemId: cartItems.id,
+            menuItemId: cartItems.menuItemId,
+            quantity: cartItems.quantity,
+            price: menuItems.price,
+            restaurantId: menuItems.restaurantId,
+            restaurantName: restaurants.name,
+            restaurantLocation: restaurants.location,
+            openingHours: restaurants.openingHours,
+          })
+          .from(cartItems)
+          .innerJoin(menuItems, eq(cartItems.menuItemId, menuItems.id))
+          .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
+          .where(eq(cartItems.userId, user.id));
 
-        if (deletedCartItems.length === 0) {
+        const activeSiteItems = cartRows.filter(
+          (row) => normalizeLocation(row.restaurantLocation) === activeSiteLocation
+        );
+        const restaurantCount = new Set(activeSiteItems.map((row) => row.restaurantId)).size;
+        const expectedTotalFee = expectedFee * Math.max(restaurantCount, 1);
+
+        if (Math.abs(expectedTotalFee - (deliveryFee || 0)) > 0.01) {
+          return fail(
+            `Invalid delivery fee for area: ${deliveryArea}. Expected £${expectedTotalFee.toFixed(2)}`,
+            400
+          );
+        }
+      }
+      /**
+       * NOTE: distance_slabs sites require restaurant coordinates stored in DB to fully validate 
+       * distance-based fees server-side. Currently, we rely on client-sent distance for those.
+       */
+
+      const createdOrders = await db.transaction(async (tx) => {
+        const cartRows = await tx
+          .select({
+            cartItemId: cartItems.id,
+            menuItemId: cartItems.menuItemId,
+            quantity: cartItems.quantity,
+            price: menuItems.price,
+            restaurantId: menuItems.restaurantId,
+            restaurantName: restaurants.name,
+            restaurantLocation: restaurants.location,
+            openingHours: restaurants.openingHours,
+          })
+          .from(cartItems)
+          .innerJoin(menuItems, eq(cartItems.menuItemId, menuItems.id))
+          .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
+          .where(eq(cartItems.userId, user.id));
+
+        if (cartRows.length === 0) {
           throw new Error("CART_EMPTY");
         }
 
-        // 2. Fetch the corresponding menu items to get prices and restaurantIds
-        const itemIds = deletedCartItems.map(i => i.menuItemId);
-        const menuDetails = await tx.select({
-          id: menuItems.id,
-          price: menuItems.price,
-          restaurantId: menuItems.restaurantId
-        }).from(menuItems).where(inArray(menuItems.id, itemIds));
+        const siteItems = cartRows.filter(
+          (row) => normalizeLocation(row.restaurantLocation) === activeSiteLocation
+        );
+        const skippedItems = cartRows.filter(
+          (row) => normalizeLocation(row.restaurantLocation) !== activeSiteLocation
+        );
 
-        // Create a lookup map for menu details
-        const menuLookup = new Map(menuDetails.map(m => [m.id, m]));
+        const openItems = siteItems.filter((row) => isRestaurantOpen(row.openingHours));
+        const closedItems = siteItems.filter((row) => !isRestaurantOpen(row.openingHours));
 
-        // 3. Assemble the complete payload
-        const userCartItems = deletedCartItems.map(item => {
-          const info = menuLookup.get(item.menuItemId);
-          if (!info) throw new Error("INVALID_MENU_ITEM");
-          return {
-            cartItemId: item.id,
-            menuItemId: item.menuItemId,
-            quantity: item.quantity,
-            price: info.price,
-            restaurantId: info.restaurantId
-          };
-        });
+        if (openItems.length === 0) {
+          throw new Error(
+            `ALL_RESTAURANTS_CLOSED:${[...closedItems, ...skippedItems].map((item) => item.restaurantName).join(", ")}`
+          );
+        }
+
+        await tx
+          .delete(cartItems)
+          .where(inArray(cartItems.id, openItems.map((item) => item.cartItemId)));
+
+        const userCartItems = openItems.map((item) => ({
+          cartItemId: item.cartItemId,
+          menuItemId: item.menuItemId,
+          quantity: item.quantity,
+          price: item.price,
+          restaurantId: item.restaurantId,
+        }));
 
         // 1. Group by restaurant as before
         const itemsByRestaurant: Record<string, typeof userCartItems> = {};
@@ -89,7 +162,7 @@ export async function POST(req: Request) {
           deliveryAddress,
           deliveryArea,
           distanceMiles: distanceMiles ? distanceMiles.toFixed(4) : null,
-          customerPhone,
+          customerPhone: normalizedPhone,
         }).returning();
 
         // 3. Fetch restaurants to get financial settings
@@ -143,7 +216,7 @@ export async function POST(req: Request) {
             deliveryAddress,
             deliveryArea,
             distanceMiles: distanceMiles ? (distanceMiles / Object.keys(itemsByRestaurant).length).toFixed(4) : null,
-            customerPhone,
+            customerPhone: normalizedPhone,
             status: "PENDING_CONFIRMATION",
             isSettled: "NO",
             restaurantNameSnapshot: restaurant.name,
@@ -169,11 +242,17 @@ export async function POST(req: Request) {
           })
           .where(eq(orderSessions.id, session.id));
 
-        return { orders: ordersList, sessionId: session.id };
+        return {
+          orders: ordersList,
+          sessionId: session.id,
+          closedItems: closedItems.map((item) => item.restaurantName),
+          skippedItems: skippedItems.map((item) => item.restaurantName),
+        };
       });
 
       // --- Notification Logic (Background) ---
-      (async () => {
+      // Security Bug 2: Use waitUntil to ensure background tasks finish in serverless
+      const notificationTask = (async () => {
         try {
           await Promise.all(
             createdOrders.orders.map(async (newOrder) => {
@@ -234,16 +313,27 @@ export async function POST(req: Request) {
         }
       })();
 
+      // Use waitUntil if available (standard in Next.js 15+ middleware/routes)
+      // or just fire-and-forget (risky but better than blocking)
+      if (typeof requestWithWaitUntil.waitUntil === "function") {
+        requestWithWaitUntil.waitUntil(notificationTask);
+      }
+
       console.log(`[api/orders POST] Order created for user ${user.id}`);
-      return ok({ orders: createdOrders.orders, sessionId: createdOrders.sessionId });
+      return ok({
+        orders: createdOrders.orders,
+        sessionId: createdOrders.sessionId,
+        skippedRestaurants: createdOrders.closedItems,
+        ignoredRestaurants: createdOrders.skippedItems,
+      });
     } catch (err: unknown) {
       console.error("[api/orders POST]", err);
       if (err instanceof Error && err.message === "CART_EMPTY") {
         return fail("Cart is empty", 400);
       }
-      if (err instanceof Error && err.message.startsWith("RESTAURANT_CLOSED:")) {
-        const name = err.message.split(":")[1];
-        return fail(`${name} is currently closed and not accepting orders.`, 400);
+      if (err instanceof Error && err.message.startsWith("ALL_RESTAURANTS_CLOSED:")) {
+        const names = err.message.split(":")[1];
+        return fail(`${names} is currently closed and not accepting orders.`, 400);
       }
       return fail("Failed to create orders.", 500);
     }
@@ -258,6 +348,10 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   return withAuth(req, async (user) => {
     try {
+      await cancelExpiredPendingOrders().catch((err) => {
+        console.error("[api/orders GET] Failed to sweep expired orders:", err);
+      });
+
       const { searchParams } = new URL(req.url);
       const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
       const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
@@ -297,13 +391,19 @@ export async function GET(req: Request) {
             currency: orders.currency,
             paymentIntentId: orders.paymentIntentId,
             sessionId: orders.sessionId,
-            restaurantNameSnapshot: orders.restaurantNameSnapshot,
-            createdAt: orders.createdAt,
-            updatedAt: orders.updatedAt,
-          })
-          .from(orders)
-          .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
-          .where(scopeCondition)
+          restaurantNameSnapshot: orders.restaurantNameSnapshot,
+          deliveryJobStatus: deliveryJobs.status,
+          trackingUrl: deliveryJobs.trackingUrl,
+          driverName: deliveryJobs.driverName,
+          driverPhone: deliveryJobs.driverPhone,
+          eta: deliveryJobs.eta,
+          createdAt: orders.createdAt,
+          updatedAt: orders.updatedAt,
+        })
+        .from(orders)
+        .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+        .leftJoin(deliveryJobs, eq(deliveryJobs.orderId, orders.id))
+        .where(scopeCondition)
           .orderBy(
             sql`CASE WHEN ${orders.status} IN ('DELIVERED', 'CANCELLED') THEN 1 ELSE 0 END ASC`,
             desc(orders.createdAt)
@@ -347,6 +447,15 @@ export async function GET(req: Request) {
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
         restaurant: { name: order.restaurantNameSnapshot || order.restaurantName },
+        deliveryJob: order.deliveryJobStatus || order.trackingUrl || order.driverName || order.driverPhone || order.eta
+          ? {
+              status: order.deliveryJobStatus,
+              trackingUrl: order.trackingUrl,
+              driverName: order.driverName,
+              driverPhone: order.driverPhone,
+              eta: order.eta,
+            }
+          : undefined,
         items: itemRows
           .filter((i) => i.orderId === order.id)
           .map((i) => ({

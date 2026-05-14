@@ -23,3 +23,19 @@ export async function POST(req: Request) {
     }
   });
 }
+
+export async function DELETE(req: Request) {
+  return withAuth(req, async (user) => {
+    try {
+      await db
+        .update(users)
+        .set({ fcmToken: null })
+        .where(eq(users.id, user.id));
+
+      return ok({ success: true, message: "FCM token cleared" });
+    } catch (err) {
+      console.error("FCM Token Clear error:", err);
+      return fail("Internal Server Error", 500);
+    }
+  });
+}

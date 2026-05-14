@@ -3,38 +3,22 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Bell, MapPin, Shield, Trash2, LogOut,
-  ChevronRight, Smartphone,
+  Shield, Trash2, LogOut,
+  ChevronRight,
 } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-
-function Toggle({ on, onToggle, accentColor }: { on: boolean; onToggle: () => void; accentColor: string }) {
-  return (
-    <button
-      onClick={onToggle}
-      className="relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0"
-      style={{ background: on ? accentColor : "#d1d5db" }}
-    >
-      <span
-        className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
-        style={{ transform: on ? "translateX(20px)" : "translateX(0)" }}
-      />
-    </button>
-  );
-}
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 export default function CustomerSettings() {
   const { site } = useSite();
   const { gradientFrom, accent } = site.theme;
   const router = useRouter();
-  const [notifOrders,   setNotifOrders]   = useState(true);
-  const [notifPromos,   setNotifPromos]   = useState(false);
-  const [smsUpdates,    setSmsUpdates]    = useState(true);
-  const [loggingOut,    setLoggingOut]    = useState(false);
-  const [deleting,      setDeleting]      = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -43,12 +27,13 @@ export default function CustomerSettings() {
     router.push("/login");
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm("Are you sure you want to delete your account? This action is permanent and cannot be undone.")) {
-      return;
-    }
+  const handleDeleteAccount = () => {
+    setShowDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
     setDeleting(true);
+    setShowDeleteModal(false);
     try {
       const res = await authApi.deleteAccount();
       if (res.success) {
@@ -72,51 +57,32 @@ export default function CustomerSettings() {
     danger?: boolean;
     onClick?: () => void;
   }[] = [
-    {
-      label: "Order updates",
-      sub: "Notify when order status changes",
-      action: <Toggle on={notifOrders} onToggle={() => setNotifOrders(!notifOrders)} accentColor={gradientFrom} />,
-    },
-    {
-      label: "Promotions & offers",
-      sub: "Deals and special discounts",
-      action: <Toggle on={notifPromos} onToggle={() => setNotifPromos(!notifPromos)} accentColor={gradientFrom} />,
-    },
-    {
-      label: "SMS updates",
-      sub: "Text messages for delivery tracking",
-      action: <Toggle on={smsUpdates} onToggle={() => setSmsUpdates(!smsUpdates)} accentColor={gradientFrom} />,
-    },
-    {
-      label: "Saved addresses",
-      sub: "Manage delivery locations",
-      action: <ChevronRight className="w-4 h-4" style={{ color: "var(--dash-text-secondary)" }} />,
-    },
-    {
-      label: "Privacy & security",
-      sub: "Password, two-factor authentication",
-      action: <ChevronRight className="w-4 h-4" style={{ color: "var(--dash-text-secondary)" }} />,
-    },
-    {
-      label: loggingOut ? "Logging out…" : "Log out",
-      sub: "Sign out of your account",
-      danger: true,
-      onClick: handleLogout,
-      action: <ChevronRight className="w-4 h-4 text-red-400" />,
-    },
-    {
-      label: deleting ? "Deleting account…" : "Delete account",
-      sub: "Permanently remove your data",
-      danger: true,
-      onClick: handleDeleteAccount,
-      action: <ChevronRight className="w-4 h-4 text-red-400" />,
-    },
-  ];
+      {
+        label: "Privacy",
+        sub: "Review our terms and data policy",
+        onClick: () => router.push("/privacy"),
+        action: <ChevronRight className="w-4 h-4" style={{ color: "var(--dash-text-secondary)" }} />,
+      },
+      {
+        label: loggingOut ? "Logging out…" : "Log out",
+        sub: "Sign out of your account",
+        danger: true,
+        onClick: handleLogout,
+        action: <ChevronRight className="w-4 h-4 text-red-400" />,
+      },
+      {
+        label: deleting ? "Deleting account…" : "Delete account",
+        sub: "Permanently remove your data",
+        danger: true,
+        onClick: handleDeleteAccount,
+        action: <ChevronRight className="w-4 h-4 text-red-400" />,
+      },
+    ];
 
-  const icons = [Bell, Bell, Smartphone, MapPin, Shield, LogOut, Trash2];
+  const icons = [Shield, LogOut, Trash2];
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 space-y-5">
+    <div className="w-full mx-auto px-4 sm:px-6 space-y-5">
 
       {/* Page header */}
       <div>
@@ -179,6 +145,17 @@ export default function CustomerSettings() {
       <p className="text-center text-xs pb-2" style={{ color: "var(--dash-text-secondary)" }}>
         Eats Platform v1.0.0
       </p>
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Account?"
+        message="Are you sure you want to delete your account? This action is permanent and cannot be undone."
+        confirmText="Delete My Account"
+        loading={deleting}
+        danger={true}
+      />
     </div>
   );
 }

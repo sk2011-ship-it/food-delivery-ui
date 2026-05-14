@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Plus, Pencil, Trash2, X, Search, 
-  ChefHat, Save, Loader2, Image as ImageIcon,
-  CheckCircle2, ChevronDown, AlertCircle
+  ChefHat, Save, Loader2
 } from "lucide-react";
 import { ownerMenuApi, type AdminMenuItemResponse, type MenuItemStatus } from "@/lib/api";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 /* ── Predefined categories ── */
 const MENU_CATEGORIES = [
@@ -39,21 +39,24 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
   });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (restaurantId) fetchMenu();
-  }, [restaurantId]);
-
-  const fetchMenu = async () => {
+  const fetchMenu = useCallback(async () => {
     setLoading(true);
     const res = await ownerMenuApi.list();
+
     if (res.success && res.data) {
-      // Filter items for the specific restaurant
-      setItems(res.data.items.filter(item => item.restaurantId === restaurantId));
+      setItems(res.data.items.filter((item) => item.restaurantId === restaurantId));
     } else {
       toast.error("Failed to load menu items");
     }
     setLoading(false);
-  };
+  }, [restaurantId]);
+
+  useEffect(() => {
+    if (restaurantId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- initial menu load on mount
+      void fetchMenu();
+    }
+  }, [restaurantId, fetchMenu]);
 
   const resetForm = () => {
     setForm({
@@ -86,6 +89,10 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (!isLikelyImageUrl(form.imageUrl)) {
+      toast.error("Please provide a valid image URL");
+      return;
+    }
 
     setSaving(true);
     const payload = {
@@ -95,7 +102,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
       category: form.category,
       price: parseFloat(form.price),
       status: form.status,
-      imageUrl: form.imageUrl,
+      imageUrl: normalizeImageUrl(form.imageUrl),
     };
 
     const res = editingItem 
@@ -166,7 +173,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
           <p className="text-sm text-gray-500">No dishes found in your menu.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
             <div key={item.id} className={cn(
               "group relative flex items-center gap-4 p-3 rounded-xl border border-gray-100 bg-white hover:shadow-md transition-all",
@@ -183,7 +190,7 @@ export default function MenuEditor({ restaurantId }: MenuEditorProps) {
                   )}
                 </div>
                 <h4 className="font-heading text-[13px] font-bold text-gray-900 truncate tracking-tight">{item.name}</h4>
-                <p className="font-heading text-[11px] font-bold text-gray-900 mt-0.5">£{item.price.toFixed(2)}</p>
+                <p className="font-heading text-[11px] font-bold text-gray-900 mt-0.5">£{Number(item.price).toFixed(2)}</p>
               </div>
 
               <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

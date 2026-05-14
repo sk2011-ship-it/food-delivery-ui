@@ -59,14 +59,7 @@ export default function WhyChooseUs() {
               <ThumbsUp className="w-4 h-4" style={{ color: site.theme.accent }} />
               Top Rated
             </div>
-            <div
-              className="absolute -bottom-4 right-6 rounded-2xl shadow-xl px-4 py-2 text-white text-sm font-bold"
-              style={{
-                background: `linear-gradient(135deg, ${site.theme.gradientFrom}, ${site.theme.accent})`,
-              }}
-            >
-              Free delivery on first order!
-            </div>
+
           </div>
 
           {/* Right — features */}

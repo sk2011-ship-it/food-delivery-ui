@@ -6,10 +6,9 @@ import { usePathname } from "next/navigation";
 import { useSite } from "@/context/SiteContext";
 import { ALL_SITES, SiteKey } from "@/config/sites";
 import { Menu, X, MapPin, ChevronDown, ShoppingBag, LogIn, LayoutDashboard } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { type Session, type User } from "@supabase/supabase-js";
 import { useCart } from "@/context/CartContext";
 import NavCartDrawer from "@/components/layout/NavCartDrawer";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export default function Navbar() {
   const { site, setSite } = useSite();
@@ -19,23 +18,10 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen]         = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
   const [scrolled, setScrolled]         = useState(!isHome);
-  const [loggedIn, setLoggedIn]         = useState(false);
   const [cartOpen, setCartOpen]         = useState(false);
   const { totalItems } = useCart();
-
-  // Check session on mount
-  useEffect(() => {
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
-      setLoggedIn(!!data?.user);
-    });
-    // Listen for auth state changes (login/logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event: string) => {
-      if (event === "SIGNED_IN") setLoggedIn(true);
-      else if (event === "SIGNED_OUT") setLoggedIn(false);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+  const { session, isReady } = useAuthStore();
+  const loggedIn = isReady ? !!session : false;
 
   useEffect(() => {
     if (!isHome) { setScrolled(true); return; }
@@ -52,10 +38,10 @@ export default function Navbar() {
   }, [locationOpen]);
 
   const navLinks = [
-    { label: "Home",        href: "/" },
+    { label: "Home",        href: "/#home" },
     { label: "Restaurants", href: "/#restaurants" },
     { label: "How It Works",href: "/#how-it-works" },
-    { label: "Offers",      href: "/#offers" },
+    // { label: "Offers",      href: "/#offers" },
     { label: "Contact",     href: "/contact" },
   ];
 
@@ -95,10 +81,12 @@ export default function Navbar() {
           {/* Right side */}
           <div className="flex items-center gap-2 sm:gap-3">
 
-            {/* Location switcher */}
-            <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <div className="relative">
               <button
-                onClick={() => setLocationOpen(!locationOpen)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLocationOpen(!locationOpen);
+                }}
                 className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full transition-all duration-300 ${
                   scrolled ? "bg-gray-100 hover:bg-gray-200 text-gray-700" : "bg-white/20 hover:bg-white/30 text-white"
                 }`}

@@ -1,24 +1,23 @@
 "use client";
 
-import React, { useEffect, Suspense } from "react";
+import React, { useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Check, ShoppingBag, Receipt, MapPin } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useAuthStore } from "@/store/useAuthStore";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order_id");
   const router = useRouter();
+  const hasVerified = useRef(false);
 
   const [verifying, setVerifying] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const { session, isReady } = useAuthStore();
 
   useEffect(() => {
-    // Only verify if the auth store is ready
-    if (!isReady) return;
+    if (hasVerified.current) return;
+    hasVerified.current = true;
 
     const verifyPayment = async () => {
       const sessionId = searchParams.get("session_id");
@@ -28,20 +27,15 @@ function SuccessContent() {
       }
 
       try {
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (session?.access_token) {
-          headers["Authorization"] = `Bearer ${session.access_token}`;
-        }
-
         const res = await fetch(`/api/orders/${orderId}/stripe/verify`, {
           method: "POST",
-          headers,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
         });
         
         if (!res.ok) {
           const data = await res.json();
-          setError(data.message || "Failed to verify payment");
+          setError(data.error || data.message || "Failed to verify payment");
         }
       } catch (err) {
         setError("Network error during verification");
@@ -51,7 +45,7 @@ function SuccessContent() {
     };
 
     verifyPayment();
-  }, [orderId, searchParams, isReady, session]);
+  }, [orderId]);
 
   if (verifying) {
     return (

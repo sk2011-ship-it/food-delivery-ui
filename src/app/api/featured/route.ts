@@ -1,41 +1,49 @@
-import { ok, fail } from "@/lib/proxy";
+import { fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { featuredItems, restaurants, menuItems } from "@/lib/db/schema";
-import { eq, and, asc, SQL } from "drizzle-orm";
+import { eq, and, asc, SQL, sql, isNull } from "drizzle-orm";
+import { normalizeLocationName } from "@/lib/locations";
 
 /* ── GET /api/featured ── */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const location = searchParams.get("location");
-    const type     = searchParams.get("type") ?? "restaurant"; // default to restaurant
-    const rId      = searchParams.get("restaurantId");
+    const type = searchParams.get("type") ?? "restaurant"; // default to restaurant
+    const rId = searchParams.get("restaurantId");
 
-    if (!location) return fail("Location is required.", 400);
+    const normalizedLocation = normalizeLocationName(location);
+    if (!normalizedLocation) return fail("Location is required.", 400);
 
     const conditions: SQL[] = [
-      eq(featuredItems.location, location),
+      sql<boolean>`lower(trim(${featuredItems.location})) = ${normalizedLocation}`,
       eq(featuredItems.status, "active"),
       eq(featuredItems.type, type as "restaurant" | "dish"),
+      isNull(restaurants.deletionStatus),
+      eq(restaurants.status, "active"),
+      eq(restaurants.isActive, true),
     ];
-
-    const where = and(...conditions);
 
     // If type is restaurant, join with restaurants
     if (type === "restaurant") {
+      const restaurantConditions: SQL[] = [
+        ...conditions,
+        sql<boolean>`lower(trim(${restaurants.location})) = ${normalizedLocation}`,
+      ];
       const rows = await db
         .select({
-          id:        featuredItems.id,
-          entityId:  featuredItems.entityId,
-          type:      featuredItems.type,
-          name:      restaurants.name,
-          location:  restaurants.location,
-          logoUrl:   restaurants.logoUrl,
+          id: featuredItems.id,
+          entityId: featuredItems.entityId,
+          type: featuredItems.type,
+          name: restaurants.name,
+          location: restaurants.location,
+          logoUrl: restaurants.logoUrl,
+          openingHours: restaurants.openingHours,
           sortOrder: featuredItems.sortOrder,
         })
         .from(featuredItems)
         .innerJoin(restaurants, eq(featuredItems.entityId, restaurants.id))
-        .where(where)
+        .where(and(...restaurantConditions))
         .orderBy(asc(featuredItems.sortOrder));
 
       return new Response(JSON.stringify({ data: { items: rows } }), {
@@ -49,30 +57,33 @@ export async function GET(req: Request) {
 
     // If type is dish, join with menuItems and restaurants
     // Optionally filter by restaurantId if passed (for the modal)
-    const dishConditions: (SQL | undefined)[] = [where];
+    const dishConditions: SQL[] = [...conditions];
     if (rId) {
       dishConditions.push(eq(menuItems.restaurantId, rId));
     }
 
-    const filteredDishConditions = dishConditions.filter((c): c is SQL => !!c);
-
     const rows = await db
       .select({
-        id:             featuredItems.id,
-        entityId:       featuredItems.entityId,
-        type:           featuredItems.type,
-        name:           menuItems.name,
+        id: featuredItems.id,
+        entityId: featuredItems.entityId,
+        type: featuredItems.type,
+        name: menuItems.name,
         restaurantName: restaurants.name,
-        restaurantId:   restaurants.id,
-        price:          menuItems.price,
-        imageUrl:       menuItems.imageUrl,
-        category:       menuItems.category,
-        sortOrder:      featuredItems.sortOrder,
+        restaurantId: restaurants.id,
+        openingHours: restaurants.openingHours,
+        price: menuItems.price,
+        imageUrl: menuItems.imageUrl,
+        category: menuItems.category,
+        sortOrder: featuredItems.sortOrder,
       })
       .from(featuredItems)
       .innerJoin(menuItems, eq(featuredItems.entityId, menuItems.id))
       .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
-      .where(and(...filteredDishConditions, eq(menuItems.status, "available")))
+      .where(and(
+        ...dishConditions,
+        eq(menuItems.status, "available"),
+        sql<boolean>`lower(trim(${restaurants.location})) = ${normalizedLocation}`,
+      ))
       .orderBy(asc(featuredItems.sortOrder));
 
     const items = rows.map(r => ({

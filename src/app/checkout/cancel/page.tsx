@@ -1,14 +1,48 @@
 "use client";
 
 import React, { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useAuthStore } from "@/store/useAuthStore";
 
 function CancelContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("order_id");
+  const router = useRouter();
+
+  const [isRetrying, setIsRetrying] = React.useState(false);
+
+  const handleRetry = async () => {
+    if (!orderId) {
+      router.push("/dashboard/customer/orders");
+      return;
+    }
+
+    try {
+      setIsRetrying(true);
+      const session = useAuthStore.getState().session;
+      const res = await fetch(`/api/orders/${orderId}/stripe/session`, {
+        method: "POST",
+        headers: {
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+        },
+      });
+      const data = await res.json();
+      const sessionUrl = data.url || data.data?.url;
+
+      if (sessionUrl) {
+        window.location.href = sessionUrl;
+      } else {
+        router.push(`/dashboard/customer/status/${orderId}`);
+      }
+    } catch (err) {
+      router.push(`/dashboard/customer/status/${orderId}`);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-6 text-center">
@@ -45,12 +79,13 @@ function CancelContent() {
         transition={{ delay: 0.4 }}
         className="flex flex-col sm:flex-row gap-4 w-full max-w-md"
       >
-        <Link 
-          href={orderId ? `/dashboard/customer/status/${orderId}` : "/dashboard/customer/orders"}
-          className="flex-1 bg-gray-900 text-white py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-2xl"
+        <button 
+          onClick={handleRetry}
+          disabled={isRetrying}
+          className="flex-1 bg-gray-900 text-white py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-2xl disabled:opacity-50"
         >
-          <RefreshCw className="w-4 h-4" /> Try Again
-        </Link>
+          {isRetrying ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Try Again
+        </button>
         
         <Link 
           href="/dashboard/customer/orders"

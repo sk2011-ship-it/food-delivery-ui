@@ -1,6 +1,6 @@
 "use client";
 
-import { ShoppingBag, Users, Truck, UtensilsCrossed, DollarSign } from "lucide-react";
+import { ShoppingBag, Users, Truck, UtensilsCrossed, PoundSterling } from "lucide-react";
 import StatCard from "@/components/dashboard/shared/StatCard";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 import { useAdminOrders } from "@/context/AdminOrderContext";
@@ -22,8 +22,8 @@ export default function AdminOverview() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard 
           label="Total Revenue"   
-          value={`£${parseFloat(stats.totalRevenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}  
-          icon={DollarSign}     
+          value={`£${parseFloat(stats.totalRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}  
+          icon={PoundSterling}     
           color="green" 
         />
         <StatCard 

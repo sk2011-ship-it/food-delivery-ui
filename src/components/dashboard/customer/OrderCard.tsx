@@ -20,7 +20,7 @@ interface OrderCardProps {
   isReordering: boolean;
   onPay: (id: string) => void;
   onReorder: (id: string) => void;
-  onRate: (order: any) => void;
+  onRate: (order: Order) => void;
   onTrack: (id: string) => void;
   onExpire: (id: string) => void;
 }
@@ -132,7 +132,7 @@ export default function OrderCard({
 
           {/* Actions Container */}
           <div className="flex items-center gap-2 shrink-0">
-            {order.status === "CONFIRMED" && !order.sessionId && (
+            {order.status === "CONFIRMED" && (
               <button
                 onClick={() => onPay(order.id)}
                 disabled={isPaying}
@@ -167,13 +167,15 @@ export default function OrderCard({
               </button>
             )}
 
-            <button
-              onClick={() => onTrack(order.id)}
-              className="px-5 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
-            >
-              Track Order
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
+            {!isCancelled && (
+              <button
+                onClick={() => onTrack(order.id)}
+                className="px-5 py-2 rounded-lg text-[11px] font-bold uppercase tracking-wider text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+              >
+                Track Order
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

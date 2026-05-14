@@ -1,23 +1,33 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
-import type { Restaurant } from "@/data/restaurants";
 import type { AdminMenuItemResponse } from "@/lib/api";
+import type { RestaurantItem, Review } from "@/types/api.types";
 import ReviewSheet from "./ReviewSheet";
-import ReviewCard from "./ReviewCard";
 import { formatReviewCount } from "@/lib/utils/reviewUtils";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 
+interface MappedMenuItem extends Omit<AdminMenuItemResponse, "price"> {
+  price: string;
+  veg: boolean;
+  popular: boolean;
+}
+
+interface MappedSection {
+  category: string;
+  emoji: string;
+  items: MappedMenuItem[];
+}
+
 interface RestaurantMenuViewProps {
-  restaurant: any; // Allow flexible restaurant data
+  restaurant: RestaurantItem;
   initialMenuItems?: AdminMenuItemResponse[];
-  reviews?: any[];
+  reviews?: Review[];
 }
 
 export default function RestaurantMenuView({
@@ -27,12 +37,12 @@ export default function RestaurantMenuView({
 }: RestaurantMenuViewProps) {
   const { site } = useSite();
   const { gradientFrom, accent } = site.theme;
-  const { cartItems, addItem: addToCart, updateQuantity } = useCart();
+  const { cartItems, currentCartItems, addItem: addToCart, updateQuantity } = useCart();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const isOpen = isRestaurantOpen(restaurant.openingHours);
 
   // 1. Determine the menu source (DB vs Mock)
-  const menu = useMemo(() => {
+  const menu = useMemo<MappedSection[]>(() => {
     if (initialMenuItems && initialMenuItems.length > 0) {
       // Transform DB items into categorized sections
       const categories = Array.from(new Set(initialMenuItems.map(m => m.category)));
@@ -41,16 +51,15 @@ export default function RestaurantMenuView({
         emoji: "🍽️", // Default emoji for DB items
         items: initialMenuItems.filter(m => m.category === cat).map(item => ({
           ...item,
-          // DB price is a number or string (numeric), mock price is a string like "£10"
           price: (function () {
-            const p = item.price as any;
+            const p = item.price as unknown;
             if (typeof p === "number") return `£${p.toFixed(2)}`;
             if (typeof p === "string") {
               if (p.startsWith("£")) return p;
               const val = parseFloat(p);
               return !isNaN(val) ? `£${val.toFixed(2)}` : p;
             }
-            return p;
+            return String(p);
           })(),
           veg: false, // Not in DB yet
           popular: false, // Not in DB yet
@@ -58,12 +67,12 @@ export default function RestaurantMenuView({
       }));
     }
     return [];
-  }, [restaurant.id, initialMenuItems]);
+  }, [initialMenuItems]);
 
   const [activeTab, setActiveTab] = useState(menu[0]?.category ?? "");
   const activeSection = menu.find((s) => s.category === activeTab);
 
-  const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+  const cartCount = currentCartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   if (menu.length === 0) {
     return (
@@ -92,14 +101,11 @@ export default function RestaurantMenuView({
     <div className="max-w-4xl mx-auto pb-24">
       {/* ── Restaurant hero ── */}
       <div className="relative h-64 sm:h-80 w-full overflow-hidden bg-gray-900 flex items-center justify-center">
-        {restaurant.image ? (
-          <Image
-            src={restaurant.image}
+        {restaurant.logoUrl || restaurant.image ? (
+          <img
+            src={restaurant.logoUrl || restaurant.image || ""}
             alt={restaurant.name}
-            fill
-            priority
-            className="object-cover z-0 opacity-90"
-            sizes="100vw"
+            className="absolute inset-0 h-full w-full object-cover z-0 opacity-90"
           />
         ) : (
           <Store className="w-20 h-20 text-gray-200 z-0" />
@@ -141,10 +147,10 @@ export default function RestaurantMenuView({
                     Reviews <ArrowLeft className="w-3 h-3 rotate-180" />
                   </span>
                 </button>
-              ) : restaurant.rating !== undefined && (
+              ) : restaurant.rating !== undefined && restaurant.rating !== null && (
                 <span className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/10">
                   <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-                  {restaurant.rating} {restaurant.reviews !== undefined && `(${restaurant.reviews})`}
+                  {restaurant.rating} {restaurant.reviews !== undefined && restaurant.reviews !== null && `(${restaurant.reviews})`}
                 </span>
               )}
 
@@ -223,8 +229,8 @@ export default function RestaurantMenuView({
                   <div
                     className="w-20 h-20 rounded-2xl flex items-center justify-center text-3xl shrink-0 bg-gray-50 border border-gray-50 overflow-hidden relative"
                   >
-                    {"imageUrl" in item && item.imageUrl ? (
-                      <Image src={item.imageUrl} alt={item.name} fill className="object-cover" />
+                    {item.imageUrl ? (
+                      <img src={item.imageUrl} alt={item.name} className="absolute inset-0 h-full w-full object-cover" />
                     ) : (
                       activeSection.emoji
                     )}
@@ -255,11 +261,15 @@ export default function RestaurantMenuView({
                           onClick={() => isOpen && addToCart({
                             menuItemId: item.id,
                             name: item.name,
-                            price: typeof item.price === "string" ? parseFloat(item.price.replace("£", "")) : (item.price as unknown as number),
-                            imageUrl: "imageUrl" in item && item.imageUrl ? item.imageUrl : "",
+                            price: parseFloat(item.price.replace("£", "")),
+                            imageUrl: item.imageUrl || "",
                             restaurantId: restaurant.id,
                             restaurantName: restaurant.name,
-                            isMobileChef: restaurant.isMobileChef
+                            restaurantLocation: restaurant.location ?? site.location,
+                            restaurantLat: restaurant.latitude?.toString(),
+                            restaurantLng: restaurant.longitude?.toString(),
+                            isMobileChef: restaurant.isMobileChef,
+                            openingHours: restaurant.openingHours || {},
                           })}
                           disabled={!isOpen}
                           className={cn(

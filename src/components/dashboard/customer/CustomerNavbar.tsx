@@ -6,13 +6,12 @@ import { useRouter } from "next/navigation";
 import { useSearchParams, usePathname } from "next/navigation";
 import {
   Search, ShoppingBag, ChevronDown, MapPin,
-  User, Tag, ShoppingBag as OrdersIcon, Settings, LogOut, Store,
+  User, ShoppingBag as OrdersIcon, Settings, LogOut, Store,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSite } from "@/context/SiteContext";
 import { ALL_SITES, SiteKey } from "@/config/sites";
 import type { SessionUser } from "@/lib/auth";
-import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useCart } from "@/context/CartContext";
 import { toast } from "sonner";
@@ -27,7 +26,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
   // Once the client-side store is ready, use the DB profile (always fresh).
   // Until then, fall back to the server-passed user to avoid a "Sign In" flash
   // on first render before the auth listener fires.
-  const user = isReady ? profile : serverUser;
+  const user = isReady ? (profile ?? serverUser) : serverUser;
 
   const [locationOpen, setLocationOpen] = useState(false);
   const [profileOpen,  setProfileOpen]  = useState(false);
@@ -71,14 +70,21 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
     router.push("/login");
   };
 
-  const { totalItems } = useCart();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { totalItems: rawTotalItems } = useCart();
+  const totalItems = mounted ? rawTotalItems : 0;
 
   const initials = user?.name ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "";
   const firstName = user?.name ? user.name.split(" ")[0] : "";
 
   const { gradientFrom, gradientTo, accent } = site.theme;
   const isCheckoutPage = pathname.includes("/dashboard/customer/checkout");
-  const canSwitchLocation = !isCheckoutPage;
+  const isRestaurantPage = pathname.includes("/dashboard/customer/restaurant");
+  const canSwitchLocation = !isCheckoutPage && !isRestaurantPage;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-white/96 backdrop-blur-md shadow-sm border-b border-gray-100">
@@ -100,72 +106,76 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
             </Link>
 
             {/* Location pill */}
-            {canSwitchLocation && (
-              <div className="relative" ref={locationRef}>
-                <button
-                  onClick={() => setLocationOpen(!locationOpen)}
-                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-all"
-                  style={{
-                    borderColor: `${gradientFrom}35`,
-                    color: gradientFrom,
-                    background: `${gradientFrom}08`,
-                  }}
-                >
-                  <MapPin className="w-3 h-3 shrink-0" />
-                  <span>{site.location}</span>
+            <div className="relative" ref={locationRef}>
+              <button
+                onClick={() => canSwitchLocation && setLocationOpen(!locationOpen)}
+                className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full border transition-all ${
+                  !canSwitchLocation ? "cursor-default opacity-80" : ""
+                }`}
+                style={{
+                  borderColor: `${gradientFrom}35`,
+                  color: gradientFrom,
+                  background: `${gradientFrom}08`,
+                }}
+              >
+                <MapPin className="w-3 h-3 shrink-0" />
+                <span>{site.location}</span>
+                {canSwitchLocation && (
                   <ChevronDown className={`w-2.5 h-2.5 transition-transform duration-150 ${locationOpen ? "rotate-180" : ""}`} />
-                </button>
-
-                {locationOpen && (
-                  <div className="absolute left-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
-                    <p className="text-[9px] font-black text-gray-400 px-3 pt-2.5 pb-1 uppercase tracking-widest">
-                      Switch location
-                    </p>
-                    {ALL_SITES.map((s) => {
-                      const active = s.key === site.key;
-                      return (
-                        <button
-                          key={s.key}
-                          onClick={() => { setSite(s.key as SiteKey); setLocationOpen(false); }}
-                          className="w-full text-left px-3 py-2 text-xs font-semibold flex items-center gap-2 transition-colors"
-                          style={
-                            active
-                              ? { background: `linear-gradient(135deg, ${s.theme.gradientFrom}, ${s.theme.accent})`, color: "#fff" }
-                              : { color: "#374151" }
-                          }
-                        >
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ background: active ? "#fff" : s.theme.gradientFrom }}
-                          />
-                          {s.name}
-                        </button>
-                      );
-                    })}
-                    <div className="h-1.5" />
-                  </div>
                 )}
-              </div>
-            )}
+              </button>
+
+              {canSwitchLocation && locationOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                  <p className="text-[9px] font-black text-gray-400 px-3 pt-2.5 pb-1 uppercase tracking-widest">
+                    Switch location
+                  </p>
+                  {ALL_SITES.map((s) => {
+                    const active = s.key === site.key;
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => { setSite(s.key as SiteKey); setLocationOpen(false); }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold flex items-center gap-2 transition-colors"
+                        style={
+                          active
+                            ? { background: `linear-gradient(135deg, ${s.theme.gradientFrom}, ${s.theme.accent})`, color: "#fff" }
+                            : { color: "#374151" }
+                        }
+                      >
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: active ? "#fff" : s.theme.gradientFrom }}
+                        />
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                  <div className="h-1.5" />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* ── MIDDLE: Global Search ── */}
-          <div className="flex-1 max-w-md hidden sm:block">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={searchValue}
-                onChange={(e) => handleSearch(e.target.value)}
-                className="w-full h-9 pl-9 pr-4 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 transition-all"
-                style={{ 
-                  "--tw-ring-color": `${accent}33`,
-                  borderColor: searchValue ? accent : "border-gray-100" 
-                } as any}
-              />
+          {!pathname.includes("/dashboard/customer/search") && pathname !== "/dashboard/customer" && (
+            <div className="flex-1 max-w-md hidden sm:block">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={searchValue}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full h-9 pl-9 pr-4 text-sm bg-gray-50 border border-gray-100 rounded-xl focus:outline-none focus:ring-2 transition-all"
+                  style={{ 
+                    "--tw-ring-color": `${accent}33`,
+                    borderColor: searchValue ? accent : "border-gray-100" 
+                  } as React.CSSProperties}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* ── RIGHT: Actions ── */}
           <div className="flex items-center gap-0.5 shrink-0">
@@ -190,7 +200,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
               <span>Restaurants</span>
             </Link>
 
-            {/* Offers */}
+            {/*
             <Link
               href="/dashboard/customer"
               className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-colors hover:bg-gray-100"
@@ -200,6 +210,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
               <Tag className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Offers</span>
             </Link>
+            */}
 
             {/* Cart / Bag */}
             <Link
@@ -229,7 +240,7 @@ export default function CustomerNavbar({ user: serverUser }: { user: SessionUser
             </Link>
 
             {/* Profile dropdown — only for logged-in users */}
-            {user ? (
+            {mounted && user ? (
               <div className="relative ml-0.5" ref={profileRef}>
                 <button
                   onClick={() => setProfileOpen(!profileOpen)}

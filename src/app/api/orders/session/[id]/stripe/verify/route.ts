@@ -96,6 +96,14 @@ export async function POST(
         } catch (notifyErr) {
           console.error("Failed to notify restaurant:", notifyErr);
         }
+
+        // Trigger Shipday for each order
+        try {
+          const { ShipdayService } = await import("@/services/shipday.service");
+          await ShipdayService.triggerShipdayOrder(order.id);
+        } catch (shipdayErr) {
+          console.error(`Failed to trigger Shipday for order ${order.id}:`, shipdayErr);
+        }
       }
 
       // 5. Notify Customer (once per session)

@@ -731,7 +731,7 @@ export default function AdminRestaurants() {
     if (res.success) {
       setData((d) => ({ total: d.total - 1, restaurants: d.restaurants.filter((r) => r.id !== deleteTarget.id) }));
       setDeleteTarget(null);
-      toast.success("Restaurant deleted.");
+      toast.success("Restaurant scheduled for deletion.");
     } else {
       toast.error(res.error ?? "Failed to delete restaurant.");
     }

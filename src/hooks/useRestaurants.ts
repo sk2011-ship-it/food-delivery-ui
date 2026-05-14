@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useConfigStore } from "@/store/useConfigStore";
 import { customerService } from "@/services/customer.service";
-import type { RestaurantItem, FeaturedItem } from "@/types/api.types";
+import type { RestaurantItem, FeaturedItem, OpeningHours } from "@/types/api.types";
+import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
+import { isSameLocation } from "@/lib/locations";
 
 /**
  * useRestaurants.ts - Unified hook for fetching and managing restaurant data.
@@ -34,7 +36,7 @@ export function useRestaurants(searchQuery: string = "") {
       if (normRes.success && normRes.data) {
         setNormal(normRes.data.items);
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred");
     } finally {
       setIsLoading(false);
@@ -45,21 +47,28 @@ export function useRestaurants(searchQuery: string = "") {
     fetchRestaurants();
   }, [fetchRestaurants]);
 
-  // Filtering Logic
+  // Filtering Logic - Show all restaurants in location, even if closed (UI handles status)
   const filteredFeatured = useMemo(() => {
-    if (!searchQuery) return featured;
-    return featured.filter(r => 
+    const base = featured.filter(
+      (r) => isSameLocation(r.location, site.location)
+    );
+    if (!searchQuery) return base;
+    return base.filter(r => 
       r.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [featured, searchQuery]);
+  }, [featured, searchQuery, site.location]);
 
   const filteredNormal = useMemo(() => {
-    if (!searchQuery) return normal;
+    const base = normal.filter(
+      (r) => isSameLocation(r.location, site.location)
+    );
+    if (!searchQuery) return base;
     const query = searchQuery.toLowerCase();
-    return normal.filter(r => 
+    return base.filter(r => 
       r.name.toLowerCase().includes(query)
     );
-  }, [normal, searchQuery]);
+  }, [normal, searchQuery, site.location]);
+
 
   return {
     featured: filteredFeatured,

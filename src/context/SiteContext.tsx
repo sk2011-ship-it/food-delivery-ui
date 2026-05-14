@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext } from "react";
 import { SiteKey, SiteConfig, SITES, DEFAULT_SITE } from "@/config/sites";
 import { useConfigStore } from "@/store/useConfigStore";
 
@@ -18,30 +18,19 @@ const SiteContext = createContext<SiteContextType>({
 
 export function SiteProvider({
   children,
-  initialSite,
 }: {
   children: React.ReactNode;
-  initialSite?: SiteKey;
 }) {
-  const [siteKey, setSiteKey] = useState<SiteKey>(initialSite ?? DEFAULT_SITE);
+  const site = useConfigStore((state) => state.site);
+  const setSiteInStore = useConfigStore((state) => state.setSite);
+  const siteKey = site.key;
 
   const setSite = (key: SiteKey) => {
-    setSiteKey(key);
-    useConfigStore.getState().setSite(key);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("selectedSite", key);
-    }
+    setSiteInStore(key);
   };
 
-  useEffect(() => {
-    if (!initialSite && typeof window !== "undefined") {
-      const stored = localStorage.getItem("selectedSite") as SiteKey | null;
-      if (stored && SITES[stored]) setSite(stored);
-    }
-  }, [initialSite]);
-
   return (
-    <SiteContext.Provider value={{ site: SITES[siteKey], siteKey, setSite }}>
+    <SiteContext.Provider value={{ site, siteKey, setSite }}>
       {children}
     </SiteContext.Provider>
   );

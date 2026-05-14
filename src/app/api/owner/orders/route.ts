@@ -2,6 +2,7 @@ import { ok, fail, withOwnerAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { orders, orderItems, restaurants, menuItems, deliveryJobs } from "@/lib/db/schema";
 import { eq, inArray, desc, sql, and, sum } from "drizzle-orm";
+import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,10 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   return withOwnerAuth(req, async (user) => {
     try {
+      await cancelExpiredPendingOrders().catch((err) => {
+        console.error("[api/owner/orders GET] Failed to sweep expired orders:", err);
+      });
+
       const { searchParams } = new URL(req.url);
       const scope = searchParams.get("scope") || "active"; // active | history
       const page = Math.max(1, parseInt(searchParams.get("page") || "1"));

@@ -9,6 +9,7 @@ import DishCard, { SkeletonDishCard } from "@/components/dashboard/customer/Dish
 
 function getVisibleItems(): number {
   if (typeof window === "undefined") return 1;
+  if (window.innerWidth >= 1280) return 4;
   if (window.innerWidth >= 1024) return 3;
   if (window.innerWidth >= 640) return 2;
   return 1;
@@ -24,6 +25,7 @@ export default function FeaturedDishes() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef(false);
+  const scrollEndTimer = useRef<number | null>(null);
 
   const maxIndex = Math.max(0, featured.length - visibleCount);
 
@@ -49,7 +51,8 @@ export default function FeaturedDishes() {
 
   // Reset index when location changes
   useEffect(() => {
-    setCurrentIndex(0);
+    const timer = window.setTimeout(() => setCurrentIndex(0), 0);
+    return () => window.clearTimeout(timer);
   }, [site.location]);
 
   // Scroll the target card into view programmatically
@@ -66,31 +69,42 @@ export default function FeaturedDishes() {
     }, 450);
   }, []);
 
-  useEffect(() => {
-    scrollToIndex(currentIndex);
-  }, [currentIndex, scrollToIndex]);
+  const goToIndex = useCallback((index: number) => {
+    setCurrentIndex(index);
+    scrollToIndex(index);
+  }, [scrollToIndex]);
 
-  // Update index from user swipe/drag
   const handleScroll = () => {
     if (isProgrammaticScroll.current || !scrollRef.current) return;
-    const container = scrollRef.current;
-    const firstCard = cardRefs.current[0];
-    if (!firstCard) return;
-    const gap = parseInt(window.getComputedStyle(container).columnGap) || 16;
-    const step = firstCard.offsetWidth + gap;
-    const rawIndex = Math.round(container.scrollLeft / step);
-    const clamped = Math.min(rawIndex, maxIndex);
-    setCurrentIndex(clamped);
+    if (scrollEndTimer.current) window.clearTimeout(scrollEndTimer.current);
+    scrollEndTimer.current = window.setTimeout(() => {
+      if (!scrollRef.current) return;
+      const container = scrollRef.current;
+      const firstCard = cardRefs.current[0];
+      if (!firstCard) return;
+      const gap = parseInt(window.getComputedStyle(container).columnGap) || 16;
+      const step = firstCard.offsetWidth + gap;
+      const rawIndex = Math.round(container.scrollLeft / step);
+      const clamped = Math.min(rawIndex, maxIndex);
+      setCurrentIndex(clamped);
+      scrollToIndex(clamped);
+    }, 120);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollEndTimer.current) window.clearTimeout(scrollEndTimer.current);
+    };
+  }, []);
 
   const prev = () => {
     if (isProgrammaticScroll.current) return;
-    setCurrentIndex((p) => Math.max(0, p - 1));
+    goToIndex(Math.max(0, currentIndex - 1));
   };
 
   const next = () => {
     if (isProgrammaticScroll.current) return;
-    setCurrentIndex((p) => Math.min(maxIndex, p + 1));
+    goToIndex(Math.min(maxIndex, currentIndex + 1));
   };
 
   if (!loading && featured.length === 0) return null;
@@ -104,7 +118,7 @@ export default function FeaturedDishes() {
             <Sparkles className="w-5 h-5 text-amber-400 fill-amber-400 shrink-0" />
             <span className="truncate">Spotlight Dishes in {site.location}</span>
           </h2>
-          <p className="text-xs text-gray-400 font-medium mt-1 ml-7">Our chef's top recommendations for you</p>
+              <p className="text-xs text-gray-400 font-medium mt-1 ml-7">Our chef&apos;s top recommendations for you</p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -123,14 +137,20 @@ export default function FeaturedDishes() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-3"
-          style={{ scrollSnapType: "x mandatory", msOverflowStyle: "none", scrollbarWidth: "none" }}
+          className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-3 touch-pan-x"
+          style={{
+            scrollSnapType: "x mandatory",
+            scrollBehavior: "smooth",
+            WebkitOverflowScrolling: "touch",
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          }}
         >
           {loading ? (
             [1, 2, 3].map((n) => (
               <div
                 key={n}
-                className="w-[58vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
+                className="w-full sm:basis-[calc(50%-12px)] lg:basis-[calc(33.333%-16px)] xl:basis-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonDishCard />
@@ -141,14 +161,13 @@ export default function FeaturedDishes() {
               <div
                 key={dish.id}
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="w-[58vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
+                className="w-full sm:basis-[calc(50%-12px)] lg:basis-[calc(33.333%-16px)] xl:basis-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <DishCard
                   dish={dish}
                   theme={site.theme}
                   priority={i < 2}
-                  featured={true}
                 />
               </div>
             ))
@@ -185,7 +204,7 @@ export default function FeaturedDishes() {
             {Array.from({ length: maxIndex + 1 }).map((_, i) => (
               <button
                 key={i}
-                onClick={() => setCurrentIndex(i)}
+                onClick={() => goToIndex(i)}
                 aria-label={`Go to slide ${i + 1}`}
                 className="rounded-full transition-all duration-300"
                 style={{

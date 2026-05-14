@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import FeedbackModal from "@/components/dashboard/customer/FeedbackModal";
 import OrderCard from "@/components/dashboard/customer/OrderCard";
+import type { Order } from "@/types/api.types";
 
 export interface StatusConfig {
   label: string;
@@ -94,6 +95,8 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
 
 const ACTIVE_STATUSES: string[] = ["PENDING_CONFIRMATION", "CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"];
 
+
+
 export default function CustomerOrdersPage() {
   const {
     orders,
@@ -119,6 +122,8 @@ export default function CustomerOrdersPage() {
     const limit = tabScope === "all" ? 20 : 100;
     void refreshOrders(1, tabScope, limit);
   }, [activeTab, refreshOrders, tabScope]);
+
+
 
   const handleReorder = async (orderId: string) => {
     try {
@@ -162,6 +167,8 @@ export default function CustomerOrdersPage() {
       setIsPaying(null);
     }
   };
+
+
 
   const handleExpire = React.useCallback(async (orderId: string) => {
     try {
@@ -226,11 +233,13 @@ export default function CustomerOrdersPage() {
     return orders.filter((order) => ["DELIVERED", "CANCELLED"].includes(order.status));
   }, [activeTab, orders]);
 
+
+
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 gap-3">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: gradientFrom }} />
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Retrieving your feast...</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <Loader2 className="w-10 h-10 animate-spin" style={{ color: gradientFrom }} />
+        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Retrieving your feast...</p>
       </div>
     );
   }
@@ -297,8 +306,6 @@ export default function CustomerOrdersPage() {
         </div>
       ) : (
         <div className="space-y-4 sm:space-y-6">
-
-          {/* Conditional List Rendering */}
           <div className="space-y-6">
             {displayedOrders.length === 0 ? (
               <div className="py-20 text-center bg-gray-50/50 rounded-3xl border border-gray-100">

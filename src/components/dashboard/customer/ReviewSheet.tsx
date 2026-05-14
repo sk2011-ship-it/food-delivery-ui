@@ -7,11 +7,12 @@ import { cn } from "@/lib/utils";
 import ReviewCard from "./ReviewCard";
 import Link from "next/link";
 import { formatReviewCount } from "@/lib/utils/reviewUtils";
+import type { Review } from "@/types/api.types";
 
 interface ReviewSheetProps {
   isOpen: boolean;
   onClose: () => void;
-  reviews: any[];
+  reviews: Review[];
   restaurantName: string;
 }
 

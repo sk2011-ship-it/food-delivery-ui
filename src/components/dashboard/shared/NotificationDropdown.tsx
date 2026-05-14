@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { 
   Bell, ShoppingBag, CreditCard, 
-  Truck, Info, Clock, AlertCircle,
+  Truck, Info, AlertCircle,
   X
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { NOTIFICATION_REFRESH_EVENT } from "@/lib/notification-events";
 
 interface Notification {
   id: string;
@@ -28,37 +29,63 @@ const TYPE_ICONS = {
 export default function NotificationDrawer({
   isOpen,
   onClose,
+  onNotificationsSeen,
 }: {
   isOpen: boolean;
   onClose: () => void;
+  onNotificationsSeen: (notifications: Notification[]) => void;
 }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchNotifications = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/notifications");
+      const data = await res.json();
+      const latestNotifications = data.data?.notifications ?? [];
+      setNotifications(latestNotifications);
+      return latestNotifications as Notification[];
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const syncNotifications = useCallback(async () => {
+    const latestNotifications = await fetchNotifications();
+    onNotificationsSeen(latestNotifications);
+  }, [fetchNotifications, onNotificationsSeen]);
+
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications();
+      void syncNotifications();
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
     return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
+  }, [isOpen, syncNotifications]);
 
-  const fetchNotifications = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/notifications");
-      const data = await res.json();
-      if (data.data?.notifications) {
-        setNotifications(data.data.notifications);
+  useEffect(() => {
+    const refresh = () => {
+      if (isOpen) {
+        void syncNotifications();
       }
-    } catch (err) {
-      console.error("Failed to fetch notifications:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    window.addEventListener(NOTIFICATION_REFRESH_EVENT, refresh);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+
+    return () => {
+      window.removeEventListener(NOTIFICATION_REFRESH_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [isOpen, syncNotifications]);
 
   return (
     <>
@@ -114,7 +141,7 @@ export default function NotificationDrawer({
               <div className="space-y-2">
                 <p className="text-lg font-black text-gray-900">All clear!</p>
                 <p className="text-[11px] text-gray-400 font-medium leading-relaxed">
-                  No new messages at the moment. We'll ping you as soon as something happens.
+                No new messages at the moment. We&apos;ll ping you as soon as something happens.
                 </p>
               </div>
               <button

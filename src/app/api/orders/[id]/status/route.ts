@@ -1,10 +1,21 @@
 import { ok, fail, parseBody, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, restaurants, orderSessions, notifications, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { syncSessionStatus } from "@/lib/order-session";
 import { NotificationService } from "@/services/notification.service";
+
+const ORDER_ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  PENDING_CONFIRMATION: ["CONFIRMED", "PAID", "CANCELLED"],
+  CONFIRMED: ["PAID", "CANCELLED"],
+  PAID: ["PREPARING"],
+  PREPARING: ["OUT_FOR_DELIVERY", "CANCELLED"],
+  DISPATCH_REQUESTED: ["OUT_FOR_DELIVERY", "CANCELLED"],
+  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
+  DELIVERED: [],
+  CANCELLED: [],
+};
 
 const StatusSchema = z.object({
   status: z.enum([
@@ -45,12 +56,17 @@ export async function PATCH(
         return ok({ order });
       }
 
+      const allowedTransitions = ORDER_ALLOWED_TRANSITIONS[order.status] ?? [];
+
       // 2. Permission Check: 
       if (status === "PAID") {
-        // Only the customer who placed the order can mark it as PAID
-        // Admins can also mark orders as PAID (for manual confirmation)
-        if (order.userId !== user.id && user.role !== "admin") {
-          return fail("You don't have permission to mark this order as paid.", 403);
+        // Only admins can mark orders as PAID (for manual confirmation)
+        // Customers must pay via Stripe, which updates status via webhook
+        if (user.role !== "admin") {
+          return fail("You don't have permission to mark this order as paid manually.", 403);
+        }
+        if (!allowedTransitions.includes("PAID")) {
+          return fail(`Cannot change order from ${order.status} to PAID.`, 409);
         }
       } else if (status === "CANCELLED") {
         // Both customer and restaurant owner can cancel
@@ -81,6 +97,10 @@ export async function PATCH(
         if (!isCustomerOwner && !isRestoOwner && user.role !== "admin") {
           return fail("Forbidden. You don't have permission to cancel this order.", 403);
         }
+
+        if (!allowedTransitions.includes("CANCELLED")) {
+          return fail(`Cannot cancel an order in status ${order.status}.`, 409);
+        }
       } else {
         // Manager status: CONFIRMED, PREPARING, etc.
         // Requires OWNER or ADMIN role and ownership of the restaurant
@@ -100,14 +120,23 @@ export async function PATCH(
         if (!ownedResto && user.role !== "admin") {
           return fail("Forbidden. You don't own the restaurant associated with this order.", 403);
         }
+
+        // Hard Block: Only owner/admin can set to OUT_FOR_DELIVERY
+        if (status === "OUT_FOR_DELIVERY" && user.role !== "owner" && user.role !== "admin") {
+           return fail("Only restaurant owners can dispatch orders.", 403);
+        }
+
+        if (!allowedTransitions.includes(status)) {
+          return fail(`Cannot change order from ${order.status} to ${status}.`, 409);
+        }
       }
 
       // 3. Update the status
       const updateData: any = {
         status,
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        ...(paymentIntentId && { paymentIntentId })
       };
-      if (paymentIntentId) updateData.paymentIntentId = paymentIntentId;
 
       const [updated] = await db
         .update(orders)
@@ -125,7 +154,7 @@ export async function PATCH(
       }
 
       // 4. Session Status Aggregation (Post-update)
-      if (updated.sessionId && (status === "CONFIRMED" || status === "CANCELLED")) {
+      if (updated.sessionId && ["CONFIRMED", "CANCELLED", "PAID"].includes(status)) {
         await syncSessionStatus(updated.sessionId);
       }
 

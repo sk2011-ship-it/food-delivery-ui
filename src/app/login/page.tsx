@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, Suspense, useEffect } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSite } from "@/context/SiteContext";
 import AuthCard from "@/components/auth/AuthCard";
@@ -12,16 +12,13 @@ import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
-import { createClient } from "@/lib/supabase/client";
-
-const supabase = createClient();
 
 export default function LoginPage() {
   return (
     <Suspense fallback={
       <AuthCard title="Loading..." subtitle="Checking authentication status...">
-        <div className="flex justify-center py-12">
-          <div className="w-10 h-10 border-4 border-gray-100 border-t-gray-900 rounded-full animate-spin" />
+        <div className="flex items-center justify-center min-h-[200px]">
+          <div className="w-12 h-12 border-4 border-gray-100 border-t-gray-900 rounded-full animate-spin" />
         </div>
       </AuthCard>
     }>
@@ -36,20 +33,21 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
 
-  const { isReady, session } = useAuthStore();
-
-  useEffect(() => {
-    if (isReady && session) {
-      router.replace(redirectTo);
-    }
-  }, [isReady, session, router, redirectTo]);
-
+  const { session, isReady } = useAuthStore();
   const [form, setForm] = useState({ email: "", password: "", remember: false });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+
+  useEffect(() => {
+    // If the user lands here already logged in, send them to the dashboard.
+    // We check !loading to prevent this from firing while a manual login is in progress.
+    if (isReady && session && !loading) {
+      router.replace(redirectTo);
+    }
+  }, [isReady, session, redirectTo, router, loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,34 +56,28 @@ function LoginContent() {
       toast.error("Email is required.");
       return;
     }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
     if (!form.password) {
       toast.error("Password is required.");
       return;
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password,
-    });
+    const result = await authApi.login(form.email, form.password);
 
-    if (error) {
+    if (!result.success || !result.data) {
       setLoading(false);
-      toast.error(error.message || "Login failed.");
+      toast.error(result.error || "Login failed.");
       return;
     }
 
-    const result = await authApi.getMe();
-    if (!result.success) {
-      await supabase.auth.signOut();
-      setLoading(false);
-      toast.error(result.error ?? "Login failed.");
-      return;
-    }
-
-
-    router.replace(redirectTo);
-    setLoading(false);
+    // Fast-track the session into the store to skip redundant profile fetches.
+    // Then force a full page load to the dashboard to clear any lingering stale state.
+    await useAuthStore.getState().sync(result.data);
+    window.location.href = redirectTo;
   };
 
   return (

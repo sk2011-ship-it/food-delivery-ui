@@ -108,12 +108,40 @@ export default async function proxy(request: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("redirect", pathname);
     const response = NextResponse.redirect(url);
-    // Copy Supabase cookies to the redirect response
     supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
     return response;
   }
 
-  // Case 2: Already logged in → redirect away from /login to /dashboard
+  // Case 2: Role-based Authorization Check
+  // We already know they are logged in if they reach here and it's a protected route.
+  if (isProtected && isLoggedIn) {
+    // We need the role to verify access. getCurrentUser uses the x-user-id header 
+    // for a fast cache lookup if possible.
+    const { getCurrentUser } = await import("@/lib/auth");
+    const user = await getCurrentUser(request);
+    
+    if (!user) {
+        // This should rarely happen if isLoggedIn is true, but handle it.
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        return NextResponse.redirect(url);
+    }
+
+    // Role-path verification
+    if (isAdminRoute && user.role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    if (isOwnerRoute && user.role !== "owner" && user.role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    if (isDriverRoute && user.role !== "driver" && user.role !== "admin") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    // If it's a customer trying to access /dashboard directly (which is often /dashboard/customer)
+    // they are allowed, but we ensure they aren't in another role's territory.
+  }
+
+  // Case 3: Already logged in → redirect away from /login to /dashboard
   if (isAuthPage && isLoggedIn) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
@@ -128,11 +156,19 @@ export default async function proxy(request: NextRequest) {
     request: { headers: requestHeaders },
   });
 
+  // Prevent caching for protected routes to fix back-button access after logout
+  if (isProtected) {
+    finalResponse.headers.set("Cache-Control", "no-store, max-age=0, must-revalidate");
+    finalResponse.headers.set("Pragma", "no-cache");
+    finalResponse.headers.set("Expires", "0");
+  }
+
   // Copy Supabase cookies to the final response
   supabaseResponse.cookies.getAll().forEach((cookie) => finalResponse.cookies.set(cookie));
 
   return finalResponse;
 }
+
 
 export const config = {
   matcher: [

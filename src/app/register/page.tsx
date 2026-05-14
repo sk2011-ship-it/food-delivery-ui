@@ -15,10 +15,11 @@ import {
   Eye, EyeOff, Mail, Lock, User,
   ArrowRight, AlertCircle, CheckCircle2,
 } from "lucide-react";
-import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
+import PhoneInput from "react-phone-number-input";
 import PhoneCountrySelect from "@/components/ui/PhoneCountrySelect";
 import type { E164Number } from "libphonenumber-js";
 import "react-phone-number-input/style.css";
+import { normalizePhone, phoneDigits } from "@/lib/phone";
 
 interface FormState {
   name: string;
@@ -53,13 +54,6 @@ export default function RegisterPage() {
   const { site } = useSite();
   const router = useRouter();
   const { isReady, session } = useAuthStore();
-
-  useEffect(() => {
-    if (isReady && session) {
-      router.replace("/dashboard");
-    }
-  }, [isReady, session, router]);
-
   const [form, setForm] = useState<FormState>({
     name: "", email: "", password: "", confirmPassword: "", terms: false,
   });
@@ -71,6 +65,13 @@ export default function RegisterPage() {
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
 
+  useEffect(() => {
+    // Redirect if already logged in, but not if we are in the middle of a registration
+    if (isReady && session && !loading) {
+      router.replace("/dashboard");
+    }
+  }, [isReady, session, router, loading]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
     setErrors((p) => ({ ...p, [e.target.name]: undefined }));
@@ -81,8 +82,14 @@ export default function RegisterPage() {
     if (!form.name.trim()) e.name = "Full name is required.";
     if (!form.email.trim()) e.email = "Email address is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Enter a valid email.";
-    if (!phone) e.phone = "Phone number is required.";
-    else if (!isValidPhoneNumber(phone)) e.phone = "Enter a valid phone number for the selected country.";
+    if (!phone) {
+      e.phone = "Phone number is required.";
+    } else {
+      const digits = phoneDigits(phone);
+      if (digits.length < 10 || digits.length > 15) {
+        e.phone = "Phone number must be between 10 and 15 digits.";
+      }
+    }
     if (!form.password) e.password = "Password is required.";
     else if (form.password.length < 8) e.password = "Password must be at least 8 characters.";
     if (!form.confirmPassword) e.confirmPassword = "Please confirm your password.";
@@ -108,7 +115,7 @@ export default function RegisterPage() {
     const result = await authApi.register({
       name: form.name,
       email: form.email,
-      phone: phone as string,
+      phone: normalizePhone(phone),
       password: form.password,
     });
     setLoading(false);
@@ -305,11 +312,11 @@ export default function RegisterPage() {
             />
             <Label htmlFor="terms" className="text-sm text-gray-600 cursor-pointer font-normal leading-relaxed">
               I agree to the{" "}
-              <Link href="#" className="font-semibold hover:underline" style={{ color: site.theme.primary }}>
+              <Link href="/terms" className="font-semibold hover:underline" style={{ color: site.theme.primary }}>
                 Terms of Service
               </Link>{" "}
               and{" "}
-              <Link href="#" className="font-semibold hover:underline" style={{ color: site.theme.primary }}>
+              <Link href="/privacy" className="font-semibold hover:underline" style={{ color: site.theme.primary }}>
                 Privacy Policy
               </Link>
             </Label>

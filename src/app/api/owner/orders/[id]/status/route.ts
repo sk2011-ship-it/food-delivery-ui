@@ -1,10 +1,14 @@
-import { ok, fail, withOwnerAuth } from "@/lib/proxy";
+import { ok, fail, withOwnerAuth, parseBody } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, restaurants, users, notifications, deliveryJobs, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
+import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NotificationService } from "@/services/notification.service";
 import { syncSessionStatus } from "@/lib/order-session";
-import { createShipdayOrder } from "@/lib/shipday";
+import { z } from "zod";
+
+const OwnerStatusSchema = z.object({
+  status: z.enum(["CONFIRMED", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"])
+});
 
 // Human-readable labels for customer-facing notifications
 const STATUS_LABELS: Record<string, { subject: string; body: (id: string, restaurant: string) => string }> = {
@@ -18,11 +22,16 @@ const STATUS_LABELS: Record<string, { subject: string; body: (id: string, restau
   CANCELLED: { subject: "Order Cancelled", body: (id, r) => `Your order #${id} from ${r} has been cancelled.` },
 };
 
-function normalizeDeliveryStatus(status: string): string {
-  if (status === "DELIVERED") return "DELIVERED";
-  if (status === "OUT_FOR_DELIVERY") return "OUT_FOR_DELIVERY";
-  return "DISPATCH_REQUESTED";
-}
+const OWNER_ALLOWED_TRANSITIONS: Record<string, string[]> = {
+  PENDING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
+  CONFIRMED: ["CANCELLED"],
+  PAID: ["PREPARING", "CANCELLED"],
+  PREPARING: ["OUT_FOR_DELIVERY", "CANCELLED"],
+  DISPATCH_REQUESTED: ["OUT_FOR_DELIVERY", "CANCELLED"],
+  OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
+  DELIVERED: [],
+  CANCELLED: [],
+};
 
 /**
  * PATCH /api/owner/orders/[id]/status
@@ -36,19 +45,11 @@ export async function PATCH(
     console.log(`[PATCH /api/owner/orders/status] Start. User: ${user.email}`);
     try {
       const { id } = await params;
-      const json = await req.json();
-      const { status } = json;
+      const body = await parseBody(req, OwnerStatusSchema);
+      if ("error" in body) return body.error;
+      const { status } = body.data;
 
       console.log(`[api/owner/orders/status] Received status: "${status}" for order: ${id}`);
-
-      if (!status) {
-        return fail("Status is required.", 400);
-      }
-
-      const ALLOWED = ["CONFIRMED", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
-      if (!ALLOWED.includes(status)) {
-        return fail(`Invalid status: ${status}. Allowed values: ${ALLOWED.join(", ")}`, 400);
-      }
 
       // 1. Ownership Validation: 
       const [ownedOrder] = await db
@@ -72,6 +73,11 @@ export async function PATCH(
       }
 
       const nextStatus = status;
+      const allowedNextStatuses = OWNER_ALLOWED_TRANSITIONS[ownedOrder.status] ?? [];
+
+      if (!allowedNextStatuses.includes(nextStatus)) {
+        return fail(`Cannot change order from ${ownedOrder.status} to ${nextStatus}.`, 409);
+      }
 
       const [updated] = await db
         .update(orders)
@@ -90,7 +96,7 @@ export async function PATCH(
       }
 
       // 3. Fire-and-forget BACKGROUND tasks
-      await (async () => {
+      void (async () => {
         // A. Sync Session Status
         try {
           if (updated.sessionId && (nextStatus === "CONFIRMED" || nextStatus === "CANCELLED")) {
@@ -102,55 +108,12 @@ export async function PATCH(
 
         // B. Handle Shipday for Dispatch
         try {
-          if (status === "DISPATCH_REQUESTED" || status === "OUT_FOR_DELIVERY") {
-            const [existingDeliveryJob] = await db
-              .select({ id: deliveryJobs.id, status: deliveryJobs.status })
-              .from(deliveryJobs)
-              .where(eq(deliveryJobs.orderId, id))
-              .limit(1);
-
-            if (!existingDeliveryJob) {
-              const orderDetails = await db.query.orders.findFirst({
-                where: eq(orders.id, id),
-                with: {
-                  user: { columns: { name: true, phone: true } },
-                  restaurant: { columns: { name: true, location: true, contactPhone: true } },
-                  items: { with: { menuItem: { columns: { name: true } } } },
-                },
-              });
-
-              if (orderDetails?.restaurant && orderDetails.user && orderDetails.deliveryAddress && orderDetails.customerPhone) {
-                const shipdayOrder = await createShipdayOrder({
-                  orderId: orderDetails.id,
-                  customerName: orderDetails.user.name,
-                  customerPhoneNumber: orderDetails.customerPhone || orderDetails.user.phone,
-                  customerAddress: orderDetails.deliveryAddress,
-                  restaurantName: orderDetails.restaurant.name,
-                  restaurantAddress: orderDetails.restaurant.location || orderDetails.restaurant.name,
-                  restaurantPhoneNumber: orderDetails.restaurant.contactPhone,
-                  orderItems: orderDetails.items.map((item) => ({
-                    name: item.menuItem.name,
-                    quantity: item.quantity,
-                    unitPrice: Number.parseFloat(item.price),
-                  })),
-                  totalAmount: orderDetails.totalAmount,
-                  deliveryFee: orderDetails.deliveryFee,
-                });
-
-                await db.insert(deliveryJobs).values({
-                  orderId: orderDetails.id,
-                  provider: "shipday",
-                  status: "DISPATCH_REQUESTED",
-                  providerOrderId: shipdayOrder.providerOrderId,
-                  trackingId: shipdayOrder.trackingId,
-                  trackingUrl: shipdayOrder.trackingUrl,
-                  driverName: shipdayOrder.driverName,
-                  driverPhone: shipdayOrder.driverPhone,
-                  eta: shipdayOrder.eta,
-                  updatedAt: new Date(),
-                });
-              }
-            }
+          if (nextStatus === "OUT_FOR_DELIVERY") {
+            const { ShipdayService } = await import("@/services/shipday.service");
+            await ShipdayService.triggerShipdayOrder(id, "OUT_FOR_DELIVERY");
+          } else if (nextStatus === "DELIVERED" || nextStatus === "CANCELLED") {
+            const { ShipdayService } = await import("@/services/shipday.service");
+            await ShipdayService.updateDeliveryStatus(id, nextStatus);
           }
         } catch (shipdayErr) {
           console.error("[owner/orders/status] Shipday integration failed:", shipdayErr);
@@ -181,9 +144,6 @@ export async function PATCH(
             const body = label.body(id.slice(0, 8), restaurantName);
 
             const customerChannels: (typeof notificationChannelEnum)[number][] = ["FCM", "WHATSAPP"];
-            if (nextStatus === "PAID") {
-              customerChannels.push("EMAIL");
-            }
 
             await NotificationService.dispatchOrderNotifications({
               userId: ownedOrder.userId,

@@ -8,6 +8,7 @@ import {
 import { restaurantApi, menuApi, type AdminRestaurantItem, type AdminMenuItemResponse } from "@/lib/api";
 import { LOCATIONS, locationTheme } from "@/lib/locations";
 import { toast } from "sonner";
+import { isLikelyImageUrl, normalizeImageUrl } from "@/lib/image";
 
 /* ── Predefined categories ── */
 const MENU_CATEGORIES = [
@@ -55,7 +56,7 @@ interface MenuItem {
   name:               string;
   description:        string;
   category:           string;
-  price:              number;
+  price:              number | string;
   status:             MenuItemStatus;
   imageUrl:           string;
 }
@@ -546,7 +547,6 @@ export default function AdminMenu() {
 
   /* ── Fetch active restaurants from DB ── */
   useEffect(() => {
-    setLoadingRests(true);
     restaurantApi.list({ status: "active", limit: 200 }).then((res) => {
       if (res.success && res.data) {
         setRestaurants(
@@ -565,7 +565,6 @@ export default function AdminMenu() {
 
   /* ── Fetch menu items from DB ── */
   useEffect(() => {
-    setLoadingItems(true);
     menuApi.list({ limit: 200 }).then((res) => {
       if (res.success && res.data) {
         setItems(
@@ -622,6 +621,7 @@ export default function AdminMenu() {
     if (!form.name.trim())  return "Dish name is required.";
     if (!form.price)        return "Price is required.";
     if (!form.imageUrl.trim()) return "Dish image URL is required.";
+    if (!isLikelyImageUrl(form.imageUrl)) return "Please provide a valid image URL.";
     return null;
   };
 
@@ -637,7 +637,7 @@ export default function AdminMenu() {
       category:     form.category.trim(),
       price:        parseFloat(form.price),
       status:       form.status,
-      imageUrl:     form.imageUrl.trim(),
+      imageUrl:     normalizeImageUrl(form.imageUrl),
     });
     setSaving(false);
     if (!res.success || !res.data) { toast.error(res.error ?? "Failed to add dish."); return; }
@@ -672,7 +672,7 @@ export default function AdminMenu() {
       category:     form.category.trim(),
       price:        parseFloat(form.price),
       status:       form.status,
-      imageUrl:     form.imageUrl.trim(),
+      imageUrl:     normalizeImageUrl(form.imageUrl),
     });
     setSaving(false);
     if (!res.success || !res.data) { toast.error(res.error ?? "Failed to update dish."); return; }
@@ -930,7 +930,7 @@ export default function AdminMenu() {
                 {/* Price */}
                 <div className="min-w-0">
                   <p className="text-base font-bold tabular-nums" style={{ color: "var(--dash-text-primary)" }}>
-                    £{item.price.toFixed(2)}
+                    £{Number(item.price).toFixed(2)}
                   </p>
                 </div>
 
@@ -1035,7 +1035,7 @@ export default function AdminMenu() {
                             Price
                           </p>
                           <p className="text-lg font-bold tabular-nums" style={{ color: "var(--dash-text-primary)" }}>
-                            £{item.price.toFixed(2)}
+                            £{Number(item.price).toFixed(2)}
                           </p>
                         </div>
                         <div>

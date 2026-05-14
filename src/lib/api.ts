@@ -118,14 +118,29 @@ export const authApi = {
   deleteAccount() {
     return del<{ message: string }>("/api/customer/account");
   },
+  clearFcmToken() {
+    return del<null>("/api/user/fcm-token");
+  },
 };
 
 /* ── Admin: Restaurant Management API ── */
 
-export type RestaurantStatus = "active" | "inactive" | "suspended";
-export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export type DayHours = { open: string; close: string } | null;
-export type OpeningHours = Partial<Record<DayKey, DayHours>>;
+import type { 
+  RestaurantStatus, 
+  DayKey, 
+  DayHours, 
+  OpeningHours, 
+  RestaurantItem as API_RestaurantItem,
+  MenuItem as API_MenuItem,
+  Review as API_Review
+} from "@/types/api.types";
+
+export type { 
+  RestaurantStatus, 
+  DayKey, 
+  DayHours, 
+  OpeningHours, 
+};
 
 export interface AdminRestaurantItem {
   id: string;
@@ -205,11 +220,11 @@ export const restaurantApi = {
   },
 
   delete(id: string) {
-    return del<{ id: string }>(`/api/admin/restaurants/${id}`);
+    return del<{ message: string }>(`/api/admin/restaurants/${id}/delete`);
   },
 
   forceDelete(id: string) {
-    return del<{ message: string }>(`/api/admin/restaurants/${id}/delete`);
+    return del<{ id: string }>(`/api/admin/restaurants/${id}`);
   },
 
   getPublic(id: string) {
@@ -273,7 +288,7 @@ export interface AdminMenuItemResponse {
   name: string;
   description: string | null;
   category: string;
-  price: number;
+  price: number | string;
   status: MenuItemStatus;
   imageUrl: string;
   createdAt: string;
@@ -365,6 +380,7 @@ export interface PublicFeaturedDish {
   name: string;
   restaurantName: string;
   restaurantId: string;
+  openingHours?: OpeningHours | null;
   price: number;
   imageUrl: string;
   category: string;
@@ -505,6 +521,6 @@ export const adminPaymentApi = {
     return get<UnpaidOrdersDetail>(`/api/admin/payments/${restaurantId}`);
   },
   settle(payload: { restaurantId: string; orderIds: string[]; transactionId?: string; notes?: string }) {
-    return post<{ settlement: any }>("/api/admin/payments/settle", payload);
+    return post<{ settlement: Record<string, unknown> }>("/api/admin/payments/settle", payload);
   },
 };

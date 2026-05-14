@@ -21,7 +21,6 @@ const PIPELINE = [
   { id: "CONFIRMED", label: "Payment", icon: Clock, color: "text-blue-400", bg: "bg-blue-400" },
   { id: "PAID", label: "Paid", icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500" },
   { id: "PREPARING", label: "Kitchen", icon: Utensils, color: "text-purple-500", bg: "bg-purple-500" },
-  { id: "DISPATCH_REQUESTED", label: "Dispatching", icon: Truck, color: "text-orange-400", bg: "bg-orange-400" },
   { id: "OUT_FOR_DELIVERY", label: "Dispatched", icon: Truck, color: "text-orange-500", bg: "bg-orange-500" },
 ];
 
@@ -30,7 +29,6 @@ const STATUS_BAR: Record<string, string> = {
   CONFIRMED: "bg-blue-400",
   PAID: "bg-blue-500",
   PREPARING: "bg-purple-500",
-  DISPATCH_REQUESTED: "bg-orange-400",
   OUT_FOR_DELIVERY: "bg-orange-500",
 };
 
@@ -38,8 +36,7 @@ const NEXT_STATUS: Record<string, { label: string; status: string; color: string
   PENDING_CONFIRMATION: { label: "Accept Order", status: "CONFIRMED", color: "bg-emerald-600 shadow-emerald-200" },
   CONFIRMED: { label: "Waiting for payment", status: "CONFIRMED", color: "bg-slate-100 text-slate-400 shadow-none", disabled: true },
   PAID: { label: "Send to Kitchen", status: "PREPARING", color: "bg-blue-600 shadow-blue-200" },
-  PREPARING: { label: "Dispatch Food", status: "DISPATCH_REQUESTED", color: "bg-purple-600 shadow-purple-200" },
-  DISPATCH_REQUESTED: { label: "Awaiting Driver", status: "OUT_FOR_DELIVERY", color: "bg-slate-100 text-slate-400 shadow-none", disabled: true },
+  PREPARING: { label: "Dispatch Order", status: "OUT_FOR_DELIVERY", color: "bg-purple-600 shadow-purple-200" },
 };
 
 import { useOrderTimer } from "@/hooks/useOrderTimer";
@@ -127,25 +124,25 @@ function OrderCard({
           {PIPELINE.map((step, idx) => {
             const done = idx <= stepIndex;
             const Icon = step.icon;
-            
+
             // Special handling for Cancelled status to show it's a timeout
-            const isTimeout = order.status === 'CANCELLED' && 
+            const isTimeout = order.status === 'CANCELLED' &&
               (new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime() >= 290000); // ~5 mins
-            
+
             return (
               <React.Fragment key={step.id}>
                 <div className="flex flex-col items-center gap-1.5 shrink-0">
                   <div className={cn(
                     "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500",
-                    done ? `${step.bg} text-white shadow-lg` : 
-                    (order.status === 'CANCELLED' && idx === 0) ? "bg-red-500 text-white shadow-lg" : "bg-muted/30 text-muted-foreground"
+                    done ? `${step.bg} text-white shadow-lg` :
+                      (order.status === 'CANCELLED' && idx === 0) ? "bg-red-500 text-white shadow-lg" : "bg-muted/30 text-muted-foreground"
                   )}>
                     {order.status === 'CANCELLED' && idx === 0 ? <X className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                   </div>
                   <span className={cn(
                     "text-[8px] font-black uppercase tracking-widest",
-                    done ? "text-gray-900" : 
-                    (order.status === 'CANCELLED' && idx === 0) ? "text-red-600" : "text-muted-foreground/40"
+                    done ? "text-gray-900" :
+                      (order.status === 'CANCELLED' && idx === 0) ? "text-red-600" : "text-muted-foreground/40"
                   )}>
                     {order.status === 'CANCELLED' && idx === 0 ? (isTimeout ? "Timed Out" : "Cancelled") : step.label}
                   </span>
@@ -180,16 +177,24 @@ function OrderCard({
 
         {/* Actions */}
         <div className="flex gap-2">
-          {order.deliveryJob?.trackingUrl && (order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") && (
-            <a
-              href={order.deliveryJob.trackingUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest border border-border/50 bg-white hover:bg-slate-50 transition-all flex items-center justify-center gap-2 text-slate-600"
-            >
-              Tracking
-              <ExternalLink className="w-4 h-4" />
-            </a>
+          {order.status === "OUT_FOR_DELIVERY" && (
+            <div className="flex-1 flex flex-row gap-2">
+              <div className="flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-orange-50 text-orange-700 border border-orange-100 flex items-center justify-center gap-2">
+                <Truck className="w-4 h-4 animate-bounce" />
+                Out for Delivery
+              </div>
+              {order.deliveryJob?.trackingUrl && (
+                <a
+                  href={order.deliveryJob.trackingUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-white text-gray-900 border border-gray-900 flex items-center justify-center gap-2 hover:bg-gray-50 transition-all shadow-sm"
+                >
+                  Live Tracking
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              )}
+            </div>
           )}
 
           {isDelivered && (
@@ -262,7 +267,7 @@ export default function LiveOrdersView() {
 
   return (
     <div className="w-full space-y-4 pb-8 selection:bg-primary/20">
-      
+
       {/* New Order Sticky Alert */}
       <AnimatePresence>
         {newOrderAlert && (
@@ -282,7 +287,7 @@ export default function LiveOrdersView() {
                   <p className="text-[10px] font-bold opacity-80 uppercase">Please check and confirm now.</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setNewOrderAlert(false)}
                 className="p-1.5 hover:bg-white/10 rounded-lg transition-all"
               >

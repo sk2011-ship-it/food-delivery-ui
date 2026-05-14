@@ -5,10 +5,12 @@ import { useSite } from "@/context/SiteContext";
 import { Star, Clock, Truck, Store } from "lucide-react";
 import RestaurantCard from "@/components/dashboard/customer/RestaurantCard";
 import { useRestaurants } from "@/hooks/useRestaurants";
+import { useSearchStore } from "@/store/useSearchStore";
 
 export default function RestaurantsGrid() {
   const { site } = useSite();
-  const { normal: restaurants } = useRestaurants();
+  const { query } = useSearchStore();
+  const { normal: restaurants } = useRestaurants(query);
 
   return (
     <section id="all-restaurants" className="py-20 bg-dash-bg shadow-inset">

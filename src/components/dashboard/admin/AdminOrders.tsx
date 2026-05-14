@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import {
   Search, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronsUpDown, ChevronUp, ShoppingBag, DollarSign, Clock, Eye
+  ChevronsUpDown, ChevronUp, ShoppingBag, PoundSterling, Clock, Eye
 } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 import StatCard from "@/components/dashboard/shared/StatCard";
@@ -18,7 +18,7 @@ type SortOrder = "asc" | "desc";
 export const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   PENDING_CONFIRMATION: { label: "Pending",          color: "#6b7280", bg: "#f3f4f6" },
   CONFIRMED:            { label: "Confirmed",        color: "#3b82f6", bg: "#eff6ff" },
-  PAID:                 { label: "Paid",             color: "#3b82f6", bg: "#eff6ff" },
+  PAID:                 { label: "Paid",             color: "#8b5cf6", bg: "#f5f3ff" },
   PREPARING:            { label: "Preparing",        color: "#f59e0b", bg: "#fffbeb" },
   DISPATCH_REQUESTED:   { label: "Dispatch Requested", color: "#fb923c", bg: "#fff7ed" },
   OUT_FOR_DELIVERY:     { label: "Out for Delivery", color: "#8b5cf6", bg: "#f5f3ff" },
@@ -29,7 +29,6 @@ export const STATUS_META: Record<string, { label: string; color: string; bg: str
 
 const ALL_STATUSES = [
   { value: "all",                  label: "All Orders" },
-  { value: "PENDING_CONFIRMATION", label: "Pending" },
   { value: "CONFIRMED",            label: "Confirmed" },
   { value: "PAID",                 label: "Paid" },
   { value: "PREPARING",            label: "Preparing" },
@@ -42,8 +41,23 @@ const ALL_STATUSES = [
 
 const PAGE_SIZE = 8;
 
+function SortIcon({
+  field,
+  activeField,
+  order,
+}: {
+  field: SortField;
+  activeField: SortField;
+  order: SortOrder;
+}) {
+  if (activeField !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400" />;
+  return order === "asc"
+    ? <ChevronUp className="w-3.5 h-3.5 text-gray-700" />
+    : <ChevronDown className="w-3.5 h-3.5 text-gray-700" />;
+}
+
 export default function AdminOrders() {
-  const { orders, stats, loading } = useAdminOrders();
+  const { orders, stats } = useAdminOrders();
   const [search,    setSearch]    = useState("");
   const [status,    setStatus]    = useState("all");
   const [sort,      setSort]      = useState<SortField>("createdAt");
@@ -94,13 +108,6 @@ export default function AdminOrders() {
     setPage(1);
   };
 
-  function SortIcon({ field }: { field: SortField }) {
-    if (sort !== field) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400" />;
-    return order === "asc"
-      ? <ChevronUp   className="w-3.5 h-3.5 text-gray-700" />
-      : <ChevronDown className="w-3.5 h-3.5 text-gray-700" />;
-  }
-
   return (
     <div className="space-y-6">
       <PageHeader title="Orders" subtitle="Monitor and manage all platform orders" />
@@ -109,8 +116,8 @@ export default function AdminOrders() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="Total Revenue"
-          value={`£${parseFloat(stats.totalRevenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-          icon={DollarSign}
+          value={`£${Number.parseFloat(stats.totalRevenue || "0").toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+          icon={PoundSterling}
           color="green"
         />
         <StatCard
@@ -184,20 +191,20 @@ export default function AdminOrders() {
               <tr className="border-b border-gray-100 bg-gray-50/30">
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">
                   <button className="flex items-center gap-1" onClick={() => toggleSort("id")}>
-                    Order <SortIcon field="id" />
+                    Order <SortIcon field="id" activeField={sort} order={order} />
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">Customer</th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400 hidden md:table-cell">Restaurant</th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400 hidden lg:table-cell">
                   <button className="flex items-center gap-1" onClick={() => toggleSort("createdAt")}>
-                    Added <SortIcon field="createdAt" />
+                    Added <SortIcon field="createdAt" activeField={sort} order={order} />
                   </button>
                 </th>
                 <th className="px-6 py-4 text-left font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">Status</th>
                 <th className="px-6 py-4 text-right font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">
                   <button className="flex items-center gap-1 ml-auto" onClick={() => toggleSort("totalAmount")}>
-                    Total <SortIcon field="totalAmount" />
+                    Total <SortIcon field="totalAmount" activeField={sort} order={order} />
                   </button>
                 </th>
                 <th className="px-6 py-4 text-center font-black uppercase text-[10px] tracking-[0.2em] text-gray-400">Detail</th>

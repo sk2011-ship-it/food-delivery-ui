@@ -1,4 +1,4 @@
-import { type OpeningHours, type DayKey } from "@/lib/api";
+import { type OpeningHours, type DayKey } from "@/types/api.types";
 
 /**
  * Checks if a restaurant is currently open based on its opening hours.

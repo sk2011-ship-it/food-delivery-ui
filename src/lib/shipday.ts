@@ -100,13 +100,31 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
 
   const data = (json && typeof json === "object" ? json : {}) as Record<string, unknown>;
 
-  return {
+  const result = {
     raw: data,
-    providerOrderId: pickFirstString(data.orderId, data.id, data.orderID, data.orderNumber),
+    providerOrderId: pickFirstString(
+      data.orderId,
+      data.id,
+      data.orderID,
+      data.orderNumber,
+      (data.order as any)?.orderId,
+      (data.order as any)?.id,
+      (data.order as any)?.orderNumber,
+      data.orderId !== undefined ? String(data.orderId) : null,
+    ),
     trackingId: pickFirstString(data.trackingId, data.trackingID, data.tracking_id),
     trackingUrl: pickFirstString(data.trackingUrl, data.trackingURL, data.tracking_url),
     driverName: pickFirstString(data.driverName, data.driver_name),
     driverPhone: pickFirstString(data.driverPhone, data.driver_phone),
     eta: pickFirstString(data.eta, data.estimatedDeliveryTime, data.estimatedArrival),
   };
+
+  if (!result.providerOrderId) {
+    console.warn(
+      "[createShipdayOrder] WARNING: providerOrderId is null. " +
+      "Shipday response keys: " + Object.keys(data).join(", ") +
+      " Full response: " + JSON.stringify(data)
+    );
+  }
+  return result;
 }

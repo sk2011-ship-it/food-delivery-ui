@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ChefHat, Store, Tag, ShoppingCart, Info, Sparkles } from "lucide-react";
+import { ArrowLeft, ChefHat, Store, Tag, Info, Sparkles } from "lucide-react";
 import DishActions from "@/components/dashboard/customer/DishActions";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { restaurants, menuItems, featuredItems } from "@/lib/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull } from "drizzle-orm";
 import { SITES, DEFAULT_SITE } from "@/config/sites";
+import { normalizeLocationName } from "@/lib/locations";
 
 async function getDishDetails(id: string) {
   try {
@@ -23,10 +23,18 @@ async function getDishDetails(id: string) {
         price: menuItems.price,
         status: menuItems.status,
         imageUrl: menuItems.imageUrl,
-        isFeatured: sql<boolean>`CASE WHEN ${featuredItems.id} IS NOT NULL THEN true ELSE false END`.as("is_featured"),
+        isFeatured: sql<boolean>`CASE WHEN ${featuredItems.id} IS NOT NULL THEN true ELSE false END`,
       })
       .from(menuItems)
-      .innerJoin(restaurants, eq(menuItems.restaurantId, restaurants.id))
+      .innerJoin(
+        restaurants,
+        and(
+          eq(menuItems.restaurantId, restaurants.id),
+          eq(restaurants.status, "active"),
+          eq(restaurants.isActive, true),
+          isNull(restaurants.deletionStatus)
+        )
+      )
       .leftJoin(featuredItems, and(eq(featuredItems.entityId, menuItems.id), eq(featuredItems.type, 'dish'), eq(featuredItems.status, 'active')))
       .where(eq(menuItems.id, id));
 
@@ -55,7 +63,9 @@ export default async function DishDetailPage({
   if (!dish) notFound();
 
   // Determine site theme based on location or default
-  const siteKey = Object.keys(SITES).find(k => SITES[k as keyof typeof SITES].location === dish.restaurantLocation) || DEFAULT_SITE;
+  const siteKey = Object.keys(SITES).find(
+    (k) => normalizeLocationName(SITES[k as keyof typeof SITES].location) === normalizeLocationName(dish.restaurantLocation)
+  ) || DEFAULT_SITE;
   const site = SITES[siteKey as keyof typeof SITES];
   const { gradientFrom, accent } = site.theme;
 
@@ -76,12 +86,10 @@ export default async function DishDetailPage({
         {/* Left: Image Section */}
         <div className="relative aspect-square rounded-[2.5rem] overflow-hidden shadow-2xl bg-gray-100 border border-gray-100">
           {dish.imageUrl ? (
-            <Image
+            <img
               src={dish.imageUrl}
               alt={dish.name}
-              fill
-              className="object-cover"
-              priority
+              className="absolute inset-0 h-full w-full object-cover"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -146,8 +154,8 @@ export default async function DishDetailPage({
             </div>
 
             <div className="prose prose-sm prose-gray max-w-none pt-2 pb-4 border-b border-gray-100">
-              <p className="text-gray-500 leading-relaxed text-base italic">
-                "{dish.description || "A delicious signature dish prepared with the finest ingredients."}"
+            <p className="text-gray-500 leading-relaxed text-base italic">
+                &ldquo;{dish.description || "A delicious signature dish prepared with the finest ingredients."}&rdquo;
               </p>
             </div>
 

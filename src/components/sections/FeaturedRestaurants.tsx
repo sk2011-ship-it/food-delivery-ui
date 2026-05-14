@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useSite } from "@/context/SiteContext";
-import { Sparkles, ChevronRight, ChevronLeft, ArrowRight } from "lucide-react";
+import { Sparkles, ChevronRight, ChevronLeft } from "lucide-react";
 import { featuredApi, type PublicFeaturedRestaurant } from "@/lib/api";
 import RestaurantCard from "@/components/dashboard/customer/RestaurantCard";
 
@@ -25,13 +25,12 @@ export default function FeaturedRestaurants() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScroll = useRef(false);
+  const scrollEndTimer = useRef<number | null>(null);
 
-  // Total items = featured + 1 "See All" bridge card
-  const totalItems = featured.length + 1;
+  const totalItems = featured.length;
   const maxIndex = Math.max(0, totalItems - visibleCount);
 
   useEffect(() => {
-    setLoading(true);
     featuredApi.listRestaurants(site.location).then((res) => {
       if (res.success && res.data) setFeatured(res.data.items);
       setLoading(false);
@@ -48,7 +47,8 @@ export default function FeaturedRestaurants() {
 
   // Reset index when data or visibleCount changes
   useEffect(() => {
-    setCurrentIndex(0);
+    const timer = window.setTimeout(() => setCurrentIndex(0), 0);
+    return () => window.clearTimeout(timer);
   }, [site.location]);
 
   // Scroll the target card into view programmatically
@@ -66,31 +66,42 @@ export default function FeaturedRestaurants() {
     }, 450);
   }, []);
 
-  useEffect(() => {
-    scrollToIndex(currentIndex);
-  }, [currentIndex, scrollToIndex]);
+  const goToIndex = useCallback((index: number) => {
+    setCurrentIndex(index);
+    scrollToIndex(index);
+  }, [scrollToIndex]);
 
-  // Update index from user swipe/drag
   const handleScroll = () => {
     if (isProgrammaticScroll.current || !scrollRef.current) return;
-    const container = scrollRef.current;
-    const firstCard = cardRefs.current[0];
-    if (!firstCard) return;
-    const gap = parseInt(window.getComputedStyle(container).columnGap) || 16;
-    const step = firstCard.offsetWidth + gap;
-    const rawIndex = Math.round(container.scrollLeft / step);
-    const clamped = Math.min(rawIndex, maxIndex);
-    setCurrentIndex(clamped);
+    if (scrollEndTimer.current) window.clearTimeout(scrollEndTimer.current);
+    scrollEndTimer.current = window.setTimeout(() => {
+      if (!scrollRef.current) return;
+      const container = scrollRef.current;
+      const firstCard = cardRefs.current[0];
+      if (!firstCard) return;
+      const gap = parseInt(window.getComputedStyle(container).columnGap) || 16;
+      const step = firstCard.offsetWidth + gap;
+      const rawIndex = Math.round(container.scrollLeft / step);
+      const clamped = Math.min(rawIndex, maxIndex);
+      setCurrentIndex(clamped);
+      scrollToIndex(clamped);
+    }, 120);
   };
+
+  useEffect(() => {
+    return () => {
+      if (scrollEndTimer.current) window.clearTimeout(scrollEndTimer.current);
+    };
+  }, []);
 
   const prev = () => {
     if (isProgrammaticScroll.current) return;
-    setCurrentIndex((p) => Math.max(0, p - 1));
+    goToIndex(Math.max(0, currentIndex - 1));
   };
 
   const next = () => {
     if (isProgrammaticScroll.current) return;
-    setCurrentIndex((p) => Math.min(maxIndex, p + 1));
+    goToIndex(Math.min(maxIndex, currentIndex + 1));
   };
 
   if (!loading && featured.length === 0) return null;
@@ -123,8 +134,14 @@ export default function FeaturedRestaurants() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-3"
-          style={{ scrollSnapType: "x mandatory", msOverflowStyle: "none", scrollbarWidth: "none" }}
+          className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-3 touch-pan-x"
+          style={{
+            scrollSnapType: "x mandatory",
+            scrollBehavior: "smooth",
+            WebkitOverflowScrolling: "touch",
+            msOverflowStyle: "none",
+            scrollbarWidth: "none",
+          }}
         >
           {loading ? (
             [1, 2, 3, 4].map((n) => (
@@ -148,31 +165,6 @@ export default function FeaturedRestaurants() {
                   <RestaurantCard restaurant={restaurant} theme={site.theme} priority={i < 2} featured />
                 </div>
               ))}
-
-              {/* See All Bridge Card */}
-              <div
-                ref={(el) => { cardRefs.current[featured.length] = el; }}
-                className="w-[58vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
-                style={{ scrollSnapAlign: "start" }}
-              >
-                <Link
-                  href="/dashboard/customer/all-restaurants"
-                  className="group/bridge flex flex-col items-center justify-center h-full min-h-[260px] rounded-3xl border-2 border-dashed border-gray-200 hover:border-orange-300 bg-white hover:bg-orange-50/30 transition-all duration-300 p-8 text-center gap-4"
-                >
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-md group-hover/bridge:scale-110 group-hover/bridge:rotate-6 transition-transform duration-300"
-                    style={{ background: `linear-gradient(135deg, ${site.theme.gradientFrom}, ${site.theme.accent})` }}
-                  >
-                    <ArrowRight className="w-7 h-7 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-heading font-black text-lg text-gray-900">View All</p>
-                    <p className="text-xs text-gray-400 font-semibold mt-1 uppercase tracking-widest">
-                      All Restaurants in {site.location}
-                    </p>
-                  </div>
-                </Link>
-              </div>
             </>
           )}
         </div>
@@ -207,7 +199,7 @@ export default function FeaturedRestaurants() {
             {Array.from({ length: maxIndex + 1 }).map((_, i) => (
               <button
                 key={i}
-                onClick={() => setCurrentIndex(i)}
+                onClick={() => goToIndex(i)}
                 aria-label={`Go to slide ${i + 1}`}
                 className="rounded-full transition-all duration-300"
                 style={{
@@ -221,16 +213,6 @@ export default function FeaturedRestaurants() {
         )}
       </div>
 
-      {/* Mobile See All link */}
-      <div className="sm:hidden flex justify-center mt-5">
-        <Link
-          href="/dashboard/customer/all-restaurants"
-          className="flex items-center gap-1.5 text-sm font-bold px-5 py-2.5 rounded-full bg-white shadow-sm border border-gray-100"
-          style={{ color: site.theme.accent }}
-        >
-          See all restaurants <ChevronRight className="w-4 h-4" />
-        </Link>
-      </div>
     </section>
   );
 }

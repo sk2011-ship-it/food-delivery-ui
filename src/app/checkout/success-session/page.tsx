@@ -41,7 +41,7 @@ function SuccessSessionContent() {
         
         if (!res.ok) {
           const data = await res.json();
-          setError(data.message || "Failed to verify payment");
+          setError(data.error || data.message || "Failed to verify payment");
         }
       } catch (err) {
         setError("Network error during verification");

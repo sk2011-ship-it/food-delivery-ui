@@ -5,7 +5,6 @@ import { useSite } from "@/context/SiteContext";
 import { MapPin, Phone, Mail, ExternalLink } from "lucide-react";
 import { FaFacebook, FaInstagram } from "react-icons/fa";
 import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 /**
  * Footer.tsx - Premium site footer with refined typography, 
@@ -17,18 +16,18 @@ export default function Footer() {
   const { contact } = site;
 
   const quickLinks = [
-    { label: "Home", href: "/" },
+    { label: "Home", href: "/#home" },
     { label: "Restaurants", href: "/#restaurants" },
     { label: "How It Works", href: "/#how-it-works" },
-    { label: "Offers", href: "/#offers" },
+    // { label: "Offers", href: "/#offers" },
     { label: "Contact", href: "/contact" },
   ];
 
   const legalLinks = [
-    "Privacy Policy",
-    "Terms of Service",
-    "Cookie Policy",
-    "Refund Policy",
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Terms & Conditions", href: "/terms" },
+    { label: "Cookie Policy", href: "#" },
+    { label: "Refund Policy", href: "#" },
   ];
 
   return (
@@ -130,9 +129,9 @@ export default function Footer() {
             </h4>
             <ul className="space-y-3">
               {legalLinks.map((l) => (
-                <li key={l}>
-                  <Link href="#" className="text-sm font-bold tracking-tight hover:text-white transition-colors duration-300">
-                    {l}
+                <li key={l.label}>
+                  <Link href={l.href} className="text-sm font-bold tracking-tight hover:text-white transition-colors duration-300">
+                    {l.label}
                   </Link>
                 </li>
               ))}

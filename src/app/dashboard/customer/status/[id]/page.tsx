@@ -11,17 +11,18 @@ import {
   Truck,
   ChevronLeft,
   ShoppingBag,
-  Store,
   CreditCard,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2, Timer } from "lucide-react";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
 import { useAuthStore } from "@/store/useAuthStore";
 
-const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; description: string; step: number }> = {
+const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string; description: string; step: number }> = {
   PENDING_CONFIRMATION: {
     label: "Awaiting Confirmation",
     icon: Clock,
@@ -82,9 +83,8 @@ const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; d
 
 export default function OrderStatusPage() {
   const { id } = useParams();
-  const { orders, loading, refreshOrders, updateOrderStatus } = useOrders();
+  const { orders, loading, updateOrderStatus } = useOrders();
   const { site } = useSite();
-  const { gradientFrom, accent } = site.theme;
   const [isPaying, setIsPaying] = React.useState(false);
 
   const order = orders.find(o => o.id === id);
@@ -107,7 +107,11 @@ export default function OrderStatusPage() {
     handleExpire
   );
 
-  const IS_TERMINAL = order?.status === "DELIVERED" || order?.status === "CANCELLED";
+  const liveTrackingUrl = order?.deliveryJob?.trackingUrl;
+  const showLiveTracking = Boolean(
+    liveTrackingUrl &&
+    ["DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order?.status || "")
+  );
 
   const handlePayment = async () => {
     if (!order) return;
@@ -155,7 +159,7 @@ export default function OrderStatusPage() {
         <AlertCircle className="w-16 h-16 text-gray-200" />
         <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Order Not Found</h1>
         <p className="text-sm font-medium text-gray-400 max-w-xs leading-relaxed">
-          We couldn't find the order you're looking for. It might be archived or incorrect.
+          We couldn&apos;t find the order you&apos;re looking for. It might be archived or incorrect.
         </p>
         <Link href="/dashboard/customer/orders" className="text-xs font-black uppercase tracking-widest text-blue-500 hover:scale-105 transition-all">
           View All Orders
@@ -198,6 +202,22 @@ export default function OrderStatusPage() {
           <p className="text-sm font-sans font-medium text-gray-500 leading-relaxed max-w-lg">
             {config?.description}
           </p>
+          {showLiveTracking && (
+            <div className="mt-5">
+              <a
+                href={liveTrackingUrl!}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-sans font-black uppercase tracking-widest text-white bg-gray-900 hover:bg-black transition-all active:scale-[0.98] shadow-lg"
+              >
+                Live Tracking
+                <ExternalLink className="w-4 h-4" />
+              </a>
+              <p className="text-[10px] font-medium text-gray-400 mt-2 max-w-md">
+                Follow the rider from the restaurant to your home in real time.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Vertical Timeline Tracker */}
@@ -275,7 +295,7 @@ export default function OrderStatusPage() {
           </div>
 
           <div className="space-y-6 mb-10">
-            {order.items?.map((item: any, idx: number) => (
+            {order.items?.map((item, idx) => (
               <div key={idx} className="flex justify-between items-start">
                 <div className="flex gap-4">
                   <span className="flex-shrink-0 w-6 h-6 bg-gray-50 rounded flex items-center justify-center text-[10px] font-sans font-bold text-gray-400">
@@ -311,10 +331,13 @@ export default function OrderStatusPage() {
 
         {/* Footer Actions */}
         <div className="mt-12 flex flex-col items-center gap-6">
-          <button className="flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-colors group">
+          <Link 
+            href="/contact"
+            className="flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-colors group"
+          >
             <ShoppingBag className="w-4 h-4 group-hover:scale-110 transition-transform" />
             <span className="text-[10px] font-sans font-bold uppercase tracking-widest">Need help with this order?</span>
-          </button>
+          </Link>
 
           <p className="text-[9px] font-sans font-semibold text-gray-300 uppercase tracking-[0.3em] text-center">
             Powered by {site.name} Delivery

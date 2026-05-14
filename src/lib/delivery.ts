@@ -8,9 +8,14 @@ export async function getOSRMDistance(
   start: { lat: number; lng: number },
   end: { lat: number; lng: number }
 ): Promise<number | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   try {
+    // NOTE: Using the public OSRM demo server. 
+    // This should be replaced with a self-hosted or paid routing API (e.g., Google Maps, Mapbox) for production.
     const url = `https://router.project-osrm.org/route/v1/driving/${start.lng},${start.lat};${end.lng},${end.lat}?overview=false`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     const data = await response.json();
 
     if (data.code === "Ok" && data.routes && data.routes.length > 0) {
@@ -19,9 +24,15 @@ export async function getOSRMDistance(
       return parseFloat(miles.toFixed(2));
     }
     return null;
-  } catch (error) {
-    console.error("OSRM Error:", error);
+  } catch (error: any) {
+    if (error.name === "AbortError") {
+      console.error("OSRM Error: Request timed out after 5 seconds");
+    } else {
+      console.error("OSRM Error:", error);
+    }
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

@@ -1,12 +1,30 @@
 import { ok, fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, restaurants, users, notifications, orderItems, menuItems } from "@/lib/db/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { orders, restaurants, orderItems, menuItems } from "@/lib/db/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { NotificationService } from "@/services/notification.service";
 
 export const dynamic = "force-dynamic"; // Trigger re-compile
+
+async function ensureKitchenStartsFromPaid(orderId: string) {
+  await db
+    .update(orders)
+    .set({
+      status: "PAID",
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(orders.id, orderId),
+      inArray(orders.status, [
+        "PENDING_CONFIRMATION",
+        "CONFIRMED",
+        "DISPATCH_REQUESTED",
+        "OUT_FOR_DELIVERY",
+      ])
+    ));
+}
 
 /**
  * POST /api/orders/[id]/stripe/verify
@@ -51,7 +69,10 @@ export async function POST(
         status: "PAID",
         updatedAt: new Date()
       })
-      .where(and(eq(orders.id, id), ne(orders.status, "PAID")))
+      .where(and(
+        eq(orders.id, id),
+        inArray(orders.status, ["PENDING_CONFIRMATION", "CONFIRMED"])
+      ))
       .returning();
 
     if (updatedOrder) {
@@ -113,12 +134,35 @@ export async function POST(
         console.error("[Stripe Verify] Failed to notify customer:", notifyErr);
       }
 
-      console.log(`[Stripe Verify] Order ${id} marked as PAID via frontend verify.`);
+      // Create the Shipday order immediately after payment, but keep the app order
+      // in kitchen-controlled states until the owner dispatches it manually.
+      try {
+        const { ShipdayService } = await import("@/services/shipday.service");
+        await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
+        await ensureKitchenStartsFromPaid(id);
+        console.log(`[Stripe Verify] Shipday scheduled delivery created for order ${id}.`);
+      } catch (shipdayErr) {
+        console.error("[Stripe Verify] Failed to create Shipday scheduled delivery:", shipdayErr);
+      }
+
+      console.log(`[Stripe Verify] Verification complete for order ${id}.`);
+    } else {
+      console.log(`[Stripe Verify] Order ${id} was already marked as PAID.`);
+
+      try {
+        const { ShipdayService } = await import("@/services/shipday.service");
+        await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
+        await ensureKitchenStartsFromPaid(id);
+        console.log(`[Stripe Verify] Shipday scheduled delivery ensured for already-paid order ${id}.`);
+      } catch (shipdayErr) {
+        console.error("[Stripe Verify] Failed to ensure Shipday scheduled delivery:", shipdayErr);
+      }
     }
 
     return ok({ status: "PAID" });
-  } catch (err: any) {
-    console.error("[api/orders/[id]/stripe/verify POST] ERROR:", err.message || err);
-    return fail(`Verification Error: ${err.message || "Unknown error"}`, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[api/orders/[id]/stripe/verify POST] ERROR:", message);
+    return fail(`Verification Error: ${message}`, 500);
   }
 }

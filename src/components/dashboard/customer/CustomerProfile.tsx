@@ -4,7 +4,9 @@ import { useState } from "react";
 import { Mail, Phone, User, ShieldCheck, Calendar } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { useSite } from "@/context/SiteContext";
+import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
+import { normalizePhone, phoneDigits } from "@/lib/phone";
 
 export default function CustomerProfile({ user }: { user: SessionUser }) {
   const { site } = useSite();
@@ -15,14 +17,15 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
   const [saving, setSaving] = useState(false);
 
   const sanitizePhone = (value: string) => {
-    // Allow digits, spaces, and common international symbols.
-    return value.replace(/[^0-9+\-()\s]/g, "");
+    return normalizePhone(value);
   };
 
   const isValidPhone = (value: string) => {
-    const normalized = value.replace(/\D/g, "");
-    return normalized.length >= 7;
+    const digits = phoneDigits(value);
+    return digits.length >= 10 && digits.length <= 15;
   };
+
+  const { session, setProfile } = useAuthStore();
 
   const handleSave = async () => {
     const trimmedPhone = phone.trim();
@@ -36,11 +39,41 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
     }
 
     setSaving(true);
-    // Placeholder — wire to API later
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    toast.success("Profile updated!");
+    try {
+      const normalizedPhone = sanitizePhone(phone);
+      const res = await fetch("/api/customer/account", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ name, phone: normalizedPhone }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update profile");
+      }
+
+      // Update global auth store state to keep the frontend in sync
+      if (user.id) {
+        setProfile({
+          ...user,
+          name,
+          phone: normalizedPhone,
+        });
+      }
+
+      toast.success("Profile updated successfully!");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
   };
+
 
   const initials = user.name
     .split(" ")
@@ -169,7 +202,7 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
           <div>
             <p className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>Member since</p>
             <p className="text-sm font-semibold" style={{ color: "var(--dash-text-primary)" }}>
-              April 2026
+              {new Date(user.createdAt).toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
             </p>
           </div>
         </div>

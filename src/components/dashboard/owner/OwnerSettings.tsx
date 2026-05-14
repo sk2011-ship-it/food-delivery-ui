@@ -141,8 +141,21 @@ export default function OwnerSettings() {
   }
 
   return (
-    <div className="max-w-4xl space-y-6 sm:space-y-8">
-      <PageHeader title="Settings" subtitle="Manage your restaurant profile and menu" />
+    <div className="w-full space-y-6 sm:space-y-8">
+      <PageHeader 
+        title="Settings" 
+        subtitle="Manage your restaurant profile and menu" 
+        action={activeTab === "profile" && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-gray-800 transition-all hover:shadow-lg active:scale-95 disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Save Changes
+          </button>
+        )}
+      />
 
       {/* Restaurant Selector */}
       {restaurants.length > 1 && (
@@ -289,17 +302,6 @@ export default function OwnerSettings() {
               <Section icon={Clock} title="Operating Hours">
                 <HoursEditor hours={form.hours} onChange={hours => setForm(f => ({ ...f, hours }))} />
               </Section>
-
-              <div className="pt-2">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-2xl bg-gray-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-gray-800 transition-all hover:shadow-lg active:scale-95 disabled:opacity-50"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save All Changes
-                </button>
-              </div>
             </div>
           </div>
 
@@ -380,7 +382,7 @@ export default function OwnerSettings() {
   );
 }
 
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
+function Section({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 px-5 py-3.5 border-b border-gray-50 bg-gray-50/30">

@@ -34,6 +34,15 @@ export interface RestaurantItem {
   name: string;
   location: string | null;
   logoUrl: string | null;
+  image?: string | null; // Compatibility field
+  cuisine?: string | null;
+  rating?: string | number | null;
+  reviews?: number | null;
+  deliveryTime?: string | null;
+  deliveryFee?: string | null;
+  latitude?: string | number | null;
+  longitude?: string | number | null;
+  isMobileChef?: boolean;
   ownerId: string;
   ownerName?: string | null;
   ownerEmail?: string | null;
@@ -54,7 +63,7 @@ export interface MenuItem {
   name: string;
   description: string | null;
   category: string;
-  price: number;
+  price: number | string;
   status: MenuItemStatus;
   imageUrl: string;
   createdAt: string;
@@ -72,6 +81,7 @@ export interface FeaturedItem {
   restaurantId?: string;
   price?: number;
   category?: string;
+  openingHours?: OpeningHours | null;
   sortOrder: number;
 }
 
@@ -99,7 +109,14 @@ export interface Order {
   updatedAt: string;
   paymentIntentId?: string | null;
   restaurant?: { name: string };
-  review?: any | null;
+  deliveryJob?: {
+    status: string | null;
+    trackingUrl: string | null;
+    driverName: string | null;
+    driverPhone: string | null;
+    eta: string | null;
+  };
+  review?: Review | null;
   items?: {
     id: string;
     quantity: number;
@@ -110,6 +127,18 @@ export interface Order {
 
 export type FeaturedType = "restaurant" | "dish";
 export type FeaturedStatus = "active" | "inactive";
+
+export interface Review {
+  id: string;
+  userId: string | null;
+  restaurantId: string;
+  orderId: string;
+  rating: number;
+  comment: string | null;
+  status: "active" | "inactive" | "ban";
+  createdAt: string;
+  userName?: string;
+}
 
 export interface FeaturedPayload {
   type: FeaturedType;

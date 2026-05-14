@@ -4,11 +4,17 @@ import { parseBody, ok, fail } from "@/lib/proxy";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { sql } from "drizzle-orm";
+import { checkIpRateLimit } from "@/lib/rate-limit";
+import { normalizePhone } from "@/lib/phone";
 
 const RegisterSchema = z.object({
   name:     z.string().min(2, "Name must be at least 2 characters.").max(150),
   email:    z.string().email("Enter a valid email address."),
-  phone:    z.string().min(7, "Enter a valid phone number.").max(30),
+  phone:    z.preprocess(
+    (value) => normalizePhone(value),
+    z.string().regex(/^\+?\d{10,15}$/, "Phone number must be between 10 and 15 digits, with an optional leading +."),
+  ),
   password: z.string().min(8, "Password must be at least 8 characters.").max(72),
 });
 
@@ -17,7 +23,29 @@ export async function POST(req: Request) {
   if ("error" in parsed) return parsed.error;
   const { name, email, phone, password } = parsed.data;
 
-  // 1. Create auth user (normal signup with publishable key)
+  const blocked = await checkIpRateLimit("REGISTER", req, { email });
+  if (!blocked.allowed) {
+    return fail("Unable to create account right now. Please try again.", 429);
+  }
+
+  // 1. Pre-check: Does a user with this email or phone already exist in our DB?
+  // This prevents creating an orphan Supabase Auth user if the DB insert would fail later.
+  const [existingUser] = await db
+    .select({ id: users.id, email: users.email, phone: users.phone })
+    .from(users)
+    .where(
+        sql`lower(${users.email}) = lower(${email}) OR ${users.phone} = ${phone}`
+    )
+    .limit(1);
+
+  if (existingUser) {
+    if (existingUser.email.toLowerCase() === email.toLowerCase()) {
+      return fail("An account with this email already exists. Please sign in instead.", 409);
+    }
+    return fail("An account with this phone number already exists.", 409);
+  }
+
+  // 2. Create auth user (normal signup with publishable key)
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_PUBLISHABLE_KEY!

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import { X, ShoppingBag, Plus, Minus, Trash2, ChevronRight, AlertTriangle } from "lucide-react";
+import { X, ShoppingBag, Plus, Minus, ChevronRight } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
 import { useCart } from "@/context/CartContext";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -17,18 +16,18 @@ interface Props {
 
 export default function NavCartDrawer({ isOpen, onClose }: Props) {
   const { site } = useSite();
-  const { gradientFrom, gradientTo, accent } = site.theme;
-  const { cartItems, totalItems, totalPrice, updateQuantity, removeItem } = useCart();
-  const { profile, isReady: authReady } = useAuthStore();
+  const { gradientFrom, accent } = site.theme;
+  const { currentCartItems, totalItems, totalPrice, updateQuantity } = useCart();
+  const { session } = useAuthStore();
   const router = useRouter();
-  const isLoggedIn = authReady && !!profile;
+  const isLoggedIn = !!session;
 
   const drawerRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
   // Close on outside click
   useEffect(() => {
@@ -55,10 +54,6 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
     document.body.style.overflow = isOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
-
-  const hasOutOfLocation = cartItems.some(
-    i => i.restaurantLocation && i.restaurantLocation !== site.location
-  );
 
   if (!mounted) return null;
 
@@ -104,7 +99,7 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-          {cartItems.length === 0 ? (
+          {currentCartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-4 text-center pb-16">
               <div
                 className="w-20 h-20 rounded-[1.5rem] flex items-center justify-center"
@@ -131,32 +126,21 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
             </div>
           ) : (
             <>
-              {/* Out-of-location warning */}
-              {hasOutOfLocation && (
-                <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-amber-50 border border-amber-200">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-xs font-bold text-amber-700 leading-relaxed">
-                    Some items are from a different location and can't be ordered here.
-                  </p>
-                </div>
-              )}
-
               {/* Cart items */}
-              {cartItems.map((item) => {
-                const unavailable = !!(item.restaurantLocation && item.restaurantLocation !== site.location);
+              {currentCartItems.map((item) => {
                 return (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-3 p-3 rounded-2xl border transition-all ${unavailable ? "opacity-50 border-amber-200 bg-amber-50/40" : "border-gray-100 bg-white hover:shadow-sm"}`}
+                    className="flex items-center gap-3 p-3 rounded-2xl border transition-all border-gray-100 bg-white hover:shadow-sm"
                   >
                     {/* Image */}
                     <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-gray-50 flex-shrink-0">
                       {item.imageUrl ? (
-                        <Image
+                        <img
                           src={item.imageUrl}
                           alt={item.name}
-                          fill
-                          className={`object-cover ${unavailable ? "grayscale" : ""}`}
+                          className="absolute inset-0 h-full w-full object-cover"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
@@ -175,33 +159,24 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
                     </div>
 
                     {/* Controls */}
-                    {unavailable ? (
+                    <div className="flex items-center gap-1.5 bg-gray-50 p-0.5 rounded-full border border-gray-100">
                       <button
-                        onClick={() => removeItem(item.menuItemId)}
-                        className="w-7 h-7 rounded-full flex items-center justify-center bg-red-50 border border-red-100 text-red-400 hover:text-red-600 transition-all"
+                        onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
+                        className="w-6 h-6 rounded-full flex items-center justify-center bg-white border border-gray-100 text-gray-500 hover:text-gray-900 shadow-sm transition-all"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Minus className="w-2.5 h-2.5" />
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-1.5 bg-gray-50 p-0.5 rounded-full border border-gray-100">
-                        <button
-                          onClick={() => updateQuantity(item.menuItemId, item.quantity - 1)}
-                          className="w-6 h-6 rounded-full flex items-center justify-center bg-white border border-gray-100 text-gray-500 hover:text-gray-900 shadow-sm transition-all"
-                        >
-                          <Minus className="w-2.5 h-2.5" />
-                        </button>
-                        <span className="text-xs font-black text-gray-900 w-4 text-center">
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-sm transition-all hover:scale-105 active:scale-95"
-                          style={{ background: accent }}
-                        >
-                          <Plus className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
-                    )}
+                      <span className="text-xs font-black text-gray-900 w-4 text-center">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => updateQuantity(item.menuItemId, item.quantity + 1)}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-white shadow-sm transition-all hover:scale-105 active:scale-95"
+                        style={{ background: accent }}
+                      >
+                        <Plus className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -210,7 +185,7 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
         </div>
 
         {/* Footer — only when cart has items */}
-        {cartItems.length > 0 && (
+        {currentCartItems.length > 0 && (
           <div className="border-t border-gray-100 px-5 py-5 space-y-4 bg-white">
             {/* Totals */}
             <div className="flex items-center justify-between">
@@ -238,11 +213,6 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
                 Sign in to Checkout
                 <ChevronRight className="w-4 h-4" />
               </Link>
-            ) : hasOutOfLocation ? (
-              <div className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 font-black text-sm uppercase tracking-widest bg-gray-100 text-gray-400 cursor-not-allowed">
-                <AlertTriangle className="w-4 h-4" />
-                Remove out-of-location items
-              </div>
             ) : (
               <Link
                 href="/dashboard/customer/checkout"
@@ -256,6 +226,7 @@ export default function NavCartDrawer({ isOpen, onClose }: Props) {
             )}
           </div>
         )}
+
       </div>
     </>,
     document.body

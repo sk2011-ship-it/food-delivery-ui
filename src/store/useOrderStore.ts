@@ -73,8 +73,18 @@ export const useOrderStore = create<OrderState>()((set, get) => ({
 
   updateSingleOrder: async (updatedOrder) => {
     console.log(`[useOrderStore] Received ping for order ${updatedOrder.id}. Fetching latest state from server...`);
+    const state = get();
+    const exists = state.orders.some((o) => o.id === updatedOrder.id);
+
+    // If we don't already have the order in local state, a list refresh is
+    // more reliable than probing the single-order endpoint and logging noise.
+    if (!exists) {
+      await get().refreshOrders(state.pagination.page, state.currentScope, state.currentLimit);
+      return;
+    }
+
     let response = await customerService.getOrderById(updatedOrder.id);
-    
+
     if (!response.success) {
       console.warn(`[useOrderStore] Order ${updatedOrder.id} not found on first attempt. Retrying in 2s...`);
       await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -83,25 +93,24 @@ export const useOrderStore = create<OrderState>()((set, get) => ({
 
     if (response.success && response.data) {
       const serverOrder = response.data;
-      const state = get();
-      const exists = state.orders.find((o) => o.id === serverOrder.id);
+      const currentState = get();
 
       if (serverOrder.sessionId) {
         console.log(`[useOrderStore] Order ${serverOrder.id} belongs to session ${serverOrder.sessionId}. Refreshing current order list to resync sibling state.`);
-        await get().refreshOrders(state.pagination.page, state.currentScope, state.currentLimit);
+        await get().refreshOrders(currentState.pagination.page, currentState.currentScope, currentState.currentLimit);
         return;
       }
 
-      if (exists) {
+      if (currentState.orders.some((o) => o.id === serverOrder.id)) {
         set({
-          orders: state.orders.map((o) =>
+          orders: currentState.orders.map((o) =>
             o.id === serverOrder.id ? serverOrder : o
           ),
         });
         console.log(`[useOrderStore] Successfully synced existing order ${serverOrder.id} to status ${serverOrder.status}`);
       } else {
         set({
-          orders: [serverOrder, ...state.orders].filter((o, idx, self) => 
+          orders: [serverOrder, ...currentState.orders].filter((o, idx, self) => 
             self.findIndex(other => other.id === o.id) === idx
           )
         });
