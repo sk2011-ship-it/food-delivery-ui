@@ -103,7 +103,7 @@ export default function OrderStatusPage() {
 
   const { formattedTime, isExpired } = useOrderTimer(
     order?.createdAt || new Date().toISOString(),
-    5,
+    10,
     handleExpire
   );
 

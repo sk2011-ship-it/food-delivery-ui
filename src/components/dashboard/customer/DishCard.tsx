@@ -58,7 +58,7 @@ export default function DishCard({
       }}
     >
       {/* Image Section */}
-      <div className={`relative ${featured ? "h-48 sm:h-56 lg:h-64" : "h-44 sm:h-48"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
+      <div className={`relative ${featured ? "h-28 sm:h-48 lg:h-56" : "h-28 sm:h-44"} w-full bg-gray-50 flex items-center justify-center shrink-0 overflow-hidden`}>
         {imageUrl ? (
           <Image
             src={imageUrl}

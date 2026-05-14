@@ -130,7 +130,7 @@ export default function FeaturedDishes() {
             [1, 2, 3].map((n) => (
               <div
                 key={n}
-                className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
+                className="w-[58vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonDishCard />
@@ -141,7 +141,7 @@ export default function FeaturedDishes() {
               <div
                 key={dish.id}
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="w-full sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
+                className="w-[58vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <DishCard

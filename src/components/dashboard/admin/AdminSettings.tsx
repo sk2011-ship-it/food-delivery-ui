@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Save, Bell, Shield, Globe, CreditCard } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 import { toast } from "sonner";
+import SignalSetup from "./SignalSetup";
 
 export default function AdminSettings() {
   const [general, setGeneral] = useState({
@@ -156,6 +157,8 @@ export default function AdminSettings() {
             </div>
           </div>
         </Section>
+
+        <SignalSetup />
 
         <button
           onClick={handleSave}

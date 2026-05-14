@@ -60,7 +60,7 @@ function OrderCard({
 
   const { formattedTime, isExpired } = useOrderTimer(
     order.createdAt,
-    5,
+    10,
     () => {
       if (isPending) {
         console.log(`[Owner] Order ${order.id} timed out. Auto-cancelling...`);

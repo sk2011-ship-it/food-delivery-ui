@@ -3,14 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 /**
- * useOrderTimer - A hook to manage a 5-minute countdown for orders.
+ * useOrderTimer - A hook to manage a countdown for orders.
  * @param createdAt - The creation timestamp of the order.
- * @param timeoutMinutes - Duration of the timer (default 5).
+ * @param timeoutMinutes - Duration of the timer (default 10).
  * @param onExpire - Callback function when time runs out.
  */
 export function useOrderTimer(
   createdAt: string,
-  timeoutMinutes: number = 5,
+  timeoutMinutes: number = 10,
   onExpire?: () => void
   ) {
   const getInitialTimeLeft = () => {
