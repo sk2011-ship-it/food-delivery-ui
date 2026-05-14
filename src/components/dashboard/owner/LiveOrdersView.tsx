@@ -127,7 +127,7 @@ function OrderCard({
 
             // Special handling for Cancelled status to show it's a timeout
             const isTimeout = order.status === 'CANCELLED' &&
-              (new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime() >= 290000); // ~5 mins
+              (new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime() >= 600000); // ~10 mins
 
             return (
               <React.Fragment key={step.id}>

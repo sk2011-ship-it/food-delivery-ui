@@ -44,7 +44,7 @@ export default function OrderCard({
 
   const { formattedTime, isExpired } = useOrderTimer(
     order.createdAt,
-    5,
+    10,
     () => { if (isPending) onExpire(order.id); }
   );
 

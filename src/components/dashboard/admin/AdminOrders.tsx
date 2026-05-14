@@ -74,7 +74,7 @@ export default function AdminOrders() {
           || (o.user?.name || "anonymous user").toLowerCase().includes(q)
           || o.restaurant.name.toLowerCase().includes(q);
         const isTimeout = o.status === 'CANCELLED' && 
-          (new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime() >= 290000);
+          (new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime() >= 600000);
 
         let matchStatus = status === "all";
         if (status === "TIMED_OUT") {
@@ -224,7 +224,7 @@ export default function AdminOrders() {
                 </tr>
               ) : sliced.map((o) => {
                 const isTimeout = o.status === 'CANCELLED' && 
-                  (new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime() >= 290000);
+                  (new Date(o.updatedAt).getTime() - new Date(o.createdAt).getTime() >= 600000);
                 const meta = isTimeout ? STATUS_META.TIMED_OUT : (STATUS_META[o.status] || { label: o.status, color: "#000", bg: "#f3f4f6" });
 
                 return (
