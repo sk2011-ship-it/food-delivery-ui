@@ -74,10 +74,9 @@ function LoginContent() {
       return;
     }
 
-    // Fast-track the session into the store to skip redundant profile fetches.
-    // Then force a full page load to the dashboard to clear any lingering stale state.
+    // Sync the profile into the store, then navigate client-side.
     await useAuthStore.getState().sync(result.data);
-    window.location.href = redirectTo;
+    router.push(redirectTo);
   };
 
   return (

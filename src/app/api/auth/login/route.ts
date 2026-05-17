@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { checkIpRateLimit, getRequestIp } from "@/lib/rate-limit";
+import { checkIpRateLimit, recordFailedAttempt, getRequestIp } from "@/lib/rate-limit";
 import { ipRateLimits } from "@/lib/db/schema";
 
 const LoginSchema = z.object({
@@ -18,79 +18,55 @@ export async function POST(req: Request) {
   const { email, password } = parsed.data;
   const normalizedEmail = email.trim().toLowerCase();
 
-  const blocked = await checkIpRateLimit("LOGIN_FAILED", req, { email });
-  if (!blocked.allowed) {
+  // Fast DB-based rate limit check (single indexed read, no external HTTP call)
+  const rateCheck = await checkIpRateLimit("LOGIN_FAILED", req, { email });
+  if (!rateCheck.allowed) {
     return fail("Too many login attempts. Please try again in an hour.", 429);
   }
 
-  // 1. Verify credentials — sets session cookie
   const supabase = await createClient();
+
+  // If the browser already has a valid session for this same account,
+  // skip re-authentication and just return the DB profile.
+  // getSession() reads from the request cookie — no network call to Supabase.
   const { data: { session: existingSession } } = await supabase.auth.getSession();
-
-  // If this browser is already signed in as the same account, avoid creating
-  // a second Supabase session. That keeps repeated login clicks idempotent.
-  const { data: existingUserData } = existingSession?.access_token
-    ? await supabase.auth.getUser(existingSession.access_token)
-    : { data: { user: null } };
-  const existingUser = existingUserData.user;
-
-  if (existingUser?.email?.trim().toLowerCase() === normalizedEmail) {
+  if (existingSession?.user?.email?.trim().toLowerCase() === normalizedEmail) {
     const [dbUser] = await db
       .select()
       .from(users)
-      .where(eq(users.id, existingUser.id))
+      .where(eq(users.id, existingSession.user.id))
       .limit(1);
 
-    if (!dbUser) {
-      await supabase.auth.signOut();
-      return fail("Account not found. Please contact support.", 404);
+    if (dbUser && dbUser.status !== "banned") {
+      return ok({ id: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, phone: dbUser.phone });
     }
 
-    if (dbUser.status === "banned") {
-      await supabase.auth.signOut();
-      return fail("Your account has been suspended. Please contact support.", 403);
-    }
-
-    return ok({
-      id: dbUser.id,
-      email: dbUser.email,
-      role: dbUser.role,
-      name: dbUser.name,
-      phone: dbUser.phone,
-    });
-  }
-
-  // If a different session is already present in this browser, revoke it
-  // first so we do not leave stale auth cookies behind.
-  if (existingSession) {
+    // Session exists but DB user is missing or banned — sign out and proceed to fresh login
+    await supabase.auth.signOut();
+  } else if (existingSession) {
+    // Different account is logged in — clear it first
     await supabase.auth.signOut();
   }
 
-  const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  // Authenticate with Supabase
+  const { data: authData, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
   if (signInError || !authData.user) {
     console.error("[login] signIn error:", signInError?.message);
+    // Record the failed attempt (non-blocking — don't await, don't slow down response)
+    void recordFailedAttempt("LOGIN_FAILED", req, { email });
     return fail("Invalid email or password.", 401);
   }
 
+  // Successful login: clear rate-limit record + fetch DB profile in parallel
   const ip = getRequestIp(req);
-  const rateKey = `${ip}:${email.trim().toLowerCase()}`;
-  await db.delete(ipRateLimits).where(
-    and(
-      eq(ipRateLimits.ipAddress, rateKey),
-      eq(ipRateLimits.action, "LOGIN_FAILED")
-    )
-  );
-
-  // 2. Fetch role + status from DB — single source of truth
-  const [dbUser] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, authData.user.id))
-    .limit(1);
+  const rateKey = `${ip}:${normalizedEmail}`;
+  const [, [dbUser]] = await Promise.all([
+    db.delete(ipRateLimits).where(
+      and(eq(ipRateLimits.ipAddress, rateKey), eq(ipRateLimits.action, "LOGIN_FAILED"))
+    ),
+    db.select().from(users).where(eq(users.id, authData.user.id)).limit(1),
+  ]);
 
   if (!dbUser) {
     await supabase.auth.signOut();
