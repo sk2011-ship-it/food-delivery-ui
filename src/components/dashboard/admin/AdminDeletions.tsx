@@ -237,12 +237,20 @@ export default function AdminDeletions() {
                         </div>
                       </div>
 
-                      {/* Circular Badge - Matching user screenshot */}
-                      <div className="w-16 h-16 rounded-full border-2 border-amber-200 bg-amber-50 flex flex-col items-center justify-center text-center shrink-0 p-1 shadow-sm">
-                        <p className="text-[8px] font-black leading-none text-amber-600 uppercase">Deletion</p>
-                        <p className="text-[12px] font-black text-amber-700 leading-tight my-0.5">IN {daysLeft}</p>
-                        <p className="text-[8px] font-black leading-none text-amber-600 uppercase">Days</p>
-                      </div>
+                      {/* Circular Badge */}
+                      {r.deletionStatus === "DELETED" || daysLeft <= 0 ? (
+                        <div className="w-16 h-16 rounded-full border-2 border-red-200 bg-red-50 flex flex-col items-center justify-center text-center shrink-0 p-1 shadow-sm">
+                          <p className="text-[8px] font-black leading-none text-red-600 uppercase">Perm.</p>
+                          <p className="text-[11px] font-black text-red-700 leading-tight my-0.5">DELETED</p>
+                          <p className="text-[8px] font-black leading-none text-red-600 uppercase">Gone</p>
+                        </div>
+                      ) : (
+                        <div className="w-16 h-16 rounded-full border-2 border-amber-200 bg-amber-50 flex flex-col items-center justify-center text-center shrink-0 p-1 shadow-sm">
+                          <p className="text-[8px] font-black leading-none text-amber-600 uppercase">Deletion</p>
+                          <p className="text-[12px] font-black text-amber-700 leading-tight my-0.5">IN {daysLeft}</p>
+                          <p className="text-[8px] font-black leading-none text-amber-600 uppercase">Days</p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action */}
@@ -272,10 +280,16 @@ export default function AdminDeletions() {
                       />
                     </div>
                     <div className="flex items-center justify-between">
-                       <span className="text-xs font-bold text-amber-600">Expires {scheduledAt}</span>
-                       <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase">
-                         {daysLeft} Days Left
-                       </span>
+                       {r.deletionStatus === "DELETED" || daysLeft <= 0 ? (
+                         <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black uppercase">Permanently Deleted</span>
+                       ) : (
+                         <>
+                           <span className="text-xs font-bold text-amber-600">Expires {scheduledAt}</span>
+                           <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black uppercase">
+                             {daysLeft} Days Left
+                           </span>
+                         </>
+                       )}
                     </div>
                   </div>
                 </div>

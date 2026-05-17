@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import {
   Search, Plus, MoreVertical, Pencil, Trash2, X,
-  ChevronDown, ChefHat, CheckCircle2,
+  ChevronDown, ChefHat, CheckCircle2, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { restaurantApi, menuApi, type AdminRestaurantItem, type AdminMenuItemResponse } from "@/lib/api";
 import { LOCATIONS, locationTheme } from "@/lib/locations";
@@ -526,6 +526,8 @@ function ActionMenu({ open, onToggle, onEdit, onDelete }: {
 /* ══════════════════════════════════════════════
    Main Component
 ══════════════════════════════════════════════ */
+const PAGE_SIZE = 20;
+
 export default function AdminMenu() {
   const [restaurants,   setRestaurants]   = useState<Restaurant[]>([]);
   const [loadingRests,  setLoadingRests]  = useState(true);
@@ -536,6 +538,7 @@ export default function AdminMenu() {
   const [locationFilter,   setLocationFilter]   = useState("all");
   const [restaurantFilter, setRestaurantFilter] = useState("all");
   const [statusFilter,     setStatusFilter]     = useState("all");
+  const [page,             setPage]             = useState(1);
   const [menuId,           setMenuId]           = useState<string | null>(null);
   const [addOpen,          setAddOpen]          = useState(false);
   const [editTarget,       setEditTarget]       = useState<MenuItem | null>(null);
@@ -544,6 +547,9 @@ export default function AdminMenu() {
   const [saving,           setSaving]           = useState(false);
 
   const patchForm = (patch: Partial<MenuItemForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  /* ── Reset to page 1 whenever filters change ── */
+  useEffect(() => { setPage(1); }, [search, locationFilter, restaurantFilter, statusFilter]);
 
   /* ── Fetch active restaurants from DB ── */
   useEffect(() => {
@@ -614,6 +620,9 @@ export default function AdminMenu() {
     }
     return true;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   /* ── Validate form ── */
   const validateForm = (): string | null => {
@@ -864,7 +873,7 @@ export default function AdminMenu() {
             </div>
 
             {/* Rows */}
-            {filtered.map((item, i) => (
+            {paginated.map((item, i) => (
               <div
                 key={item.id}
                 className="grid items-center px-6 py-4 transition-colors hover:bg-black/[0.015]"
@@ -873,8 +882,8 @@ export default function AdminMenu() {
                   columnGap: "1.25rem",
                   background: "var(--dash-card)",
                   borderTop: i === 0 ? "none" : "1px solid var(--dash-card-border)",
-                  borderBottomLeftRadius: i === filtered.length - 1 ? "1rem" : "0",
-                  borderBottomRightRadius: i === filtered.length - 1 ? "1rem" : "0",
+                  borderBottomLeftRadius: i === paginated.length - 1 ? "1rem" : "0",
+                  borderBottomRightRadius: i === paginated.length - 1 ? "1rem" : "0",
                 }}
               >
                 {/* Image */}
@@ -964,7 +973,7 @@ export default function AdminMenu() {
 
           {/* ── Mobile cards (< md) ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:hidden">
-            {filtered.map((item) => {
+            {paginated.map((item) => {
               const theme = locationTheme(item.restaurantLocation);
               return (
                 <div
@@ -1057,10 +1066,37 @@ export default function AdminMenu() {
       )}
 
       {/* Result count */}
-      {!loadingRests && !loadingItems && items.length > 0 && (
+      {!loadingRests && !loadingItems && filtered.length > 0 && (
         <p className="text-xs text-center pb-1" style={{ color: "var(--dash-text-secondary)" }}>
-          Showing {filtered.length} of {items.length} dishes
+          Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} dishes
         </p>
+      )}
+
+      {/* Pagination */}
+      {!loadingRests && !loadingItems && totalPages > 1 && (
+        <div className="flex items-center justify-between px-2">
+          <p className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
+              style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
+              style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Add modal ── */}

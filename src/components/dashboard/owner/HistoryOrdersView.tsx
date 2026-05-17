@@ -48,7 +48,7 @@ export default function HistoryOrdersView() {
 
   const filteredAndSortedOrders = useMemo(() => {
     let result = [...historyOrders]; // Server already filtered correctly based on current statusFilter
-    
+
     return result.sort((a, b) => {
       if (sortBy === "LATEST") return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       if (sortBy === "OLDEST") return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
@@ -56,6 +56,28 @@ export default function HistoryOrdersView() {
       return 0;
     });
   }, [historyOrders, sortBy]);
+
+  const handleDownload = () => {
+    const rows = [
+      ["Order ID", "Date", "Status", "Restaurant", "Items", "Total (£)"],
+      ...filteredAndSortedOrders.map((o) => [
+        o.id,
+        new Date(o.updatedAt).toLocaleDateString(),
+        o.status,
+        o.restaurant?.name ?? "",
+        (o.items ?? []).map((i: { name: string; quantity: number }) => `${i.name} x${i.quantity}`).join("; "),
+        parseFloat(o.totalAmount).toFixed(2),
+      ]),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `order-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Global stats are now provided by the server and exposed via historyStats from context
   // This ensures yield and counts are accurate across all pages
@@ -79,7 +101,11 @@ export default function HistoryOrdersView() {
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
                 <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700">£{historyStats.totalRevenue.toLocaleString()} Total</span>
              </div>
-             <button className="p-2.5 bg-white border border-border/40 rounded-2xl shadow-soft hover:shadow-elevated transition-all active:scale-95">
+             <button
+               onClick={handleDownload}
+               title="Download CSV"
+               className="p-2.5 bg-white border border-border/40 rounded-2xl shadow-soft hover:shadow-elevated transition-all active:scale-95"
+             >
                 <Download className="w-4 h-4 text-muted-foreground" />
              </button>
           </div>

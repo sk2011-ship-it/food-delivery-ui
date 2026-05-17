@@ -80,6 +80,9 @@ export default function RegisterPage() {
   const validate = (): Errors => {
     const e: Errors = {};
     if (!form.name.trim()) e.name = "Full name is required.";
+    else if (form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
+    else if (form.name.trim().length > 150) e.name = "Name must be under 150 characters.";
+    else if (!/^[a-zA-Z\s'\-\.]+$/.test(form.name.trim())) e.name = "Name can only contain letters, spaces, hyphens, and apostrophes.";
     if (!form.email.trim()) e.email = "Email address is required.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = "Enter a valid email.";
     if (!phone) {

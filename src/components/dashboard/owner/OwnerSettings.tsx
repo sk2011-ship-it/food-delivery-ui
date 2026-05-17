@@ -291,7 +291,17 @@ export default function OwnerSettings() {
                 <Field label="Phone Number">
                   <div className="flex items-center gap-3 h-11 px-3 rounded-xl border border-gray-200 bg-gray-50/50">
                     <Phone className="w-4 h-4 text-gray-400" />
-                    <input value={form.contactPhone} onChange={e => setForm(f => ({ ...f, contactPhone: e.target.value }))} className="flex-1 bg-transparent text-sm outline-none" />
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={form.contactPhone}
+                      onChange={e => {
+                        const val = e.target.value.replace(/[^\d+\-\s()]/g, "");
+                        setForm(f => ({ ...f, contactPhone: val }));
+                      }}
+                      placeholder="+44 7700 900000"
+                      className="flex-1 bg-transparent text-sm outline-none"
+                    />
                   </div>
                 </Field>
               </Section>

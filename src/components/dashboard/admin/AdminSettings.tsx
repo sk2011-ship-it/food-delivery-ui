@@ -1,36 +1,107 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Save, Bell, Shield, Globe, CreditCard } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 import { toast } from "sonner";
 import SignalSetup from "./SignalSetup";
 
+interface GeneralSettings {
+  siteName: string;
+  supportEmail: string;
+  supportPhone: string;
+  currency: string;
+  timezone: string;
+  deliveryRadius: string;
+}
+
+interface NotificationSettings {
+  emailNewOrder: boolean;
+  emailNewUser: boolean;
+  emailNewDriver: boolean;
+  smsNewOrder: boolean;
+}
+
 export default function AdminSettings() {
-  const [general, setGeneral] = useState({
-    siteName:       "Newcastle Eats",
-    supportEmail:   "support@newcastleeats.co.uk",
-    supportPhone:   "+44 28 4372 0000",
+  const [general, setGeneral] = useState<GeneralSettings>({
+    siteName:       "",
+    supportEmail:   "",
+    supportPhone:   "",
     currency:       "GBP",
     timezone:       "Europe/London",
     deliveryRadius: "10",
   });
 
-  const [notifications, setNotifications] = useState({
-    emailNewOrder:    true,
-    emailNewUser:     true,
-    emailNewDriver:   false,
-    smsNewOrder:      false,
+  const [notifications, setNotifications] = useState<NotificationSettings>({
+    emailNewOrder:  true,
+    emailNewUser:   true,
+    emailNewDriver: false,
+    smsNewOrder:    false,
   });
 
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  /* ── Fetch settings on mount ── */
+  useEffect(() => {
+    async function fetchSettings() {
+      try {
+        const res = await fetch("/api/admin/settings");
+        if (!res.ok) throw new Error("Failed to fetch settings.");
+        const json = await res.json();
+        const settings = json.data;
+        setGeneral({
+          siteName:       settings.siteName,
+          supportEmail:   settings.supportEmail,
+          supportPhone:   settings.supportPhone,
+          currency:       settings.currency,
+          timezone:       settings.timezone,
+          deliveryRadius: settings.deliveryRadius,
+        });
+        setNotifications(settings.notifications);
+      } catch (err) {
+        console.error("[AdminSettings] Fetch error:", err);
+        toast.error("Failed to load settings.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchSettings();
+  }, []);
+
+  /* ── Save settings ── */
   const handleSave = async () => {
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setSaving(false);
-    toast.success("Settings saved.");
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...general, notifications }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        throw new Error(json.error ?? "Failed to save settings.");
+      }
+      toast.success("Settings saved.");
+    } catch (err: any) {
+      console.error("[AdminSettings] Save error:", err);
+      toast.error(err.message ?? "Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="Settings" subtitle="Platform configuration and preferences" />
+        <div className="flex items-center justify-center py-20">
+          <span className="w-6 h-6 border-2 border-gray-300 border-t-gray-900 rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -26,7 +26,7 @@ export default function Footer() {
   const legalLinks = [
     { label: "Privacy Policy", href: "/privacy" },
     { label: "Terms & Conditions", href: "/terms" },
-    { label: "Cookie Policy", href: "#" },
+    { label: "Cookie Policy", href: "/cookie-policy" },
     { label: "Refund Policy", href: "#" },
   ];
 
@@ -64,7 +64,7 @@ export default function Footer() {
 
             <div className="flex gap-4">
               {[
-                { icon: FaFacebook, href: `https://www.facebook.com/search/top?q=${encodeURIComponent(contact.facebook.handle)}`, color: "#1877F2" },
+                { icon: FaFacebook, href: `https://www.facebook.com/${contact.facebook.handle}`, color: "#1877F2" },
                 { icon: FaInstagram, href: `https://www.instagram.com/${contact.instagram.handle}`, color: "#E1306C" }
               ].map((social, i) => (
                 <motion.a
@@ -187,7 +187,7 @@ export default function Footer() {
                   style={{ color: site.theme.primary }}
                 />
                 <a
-                  href={`https://www.facebook.com/search/top?q=${encodeURIComponent(contact.facebook.handle)}`}
+                  href={`https://www.facebook.com/${contact.facebook.handle}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs font-bold hover:text-white transition-colors duration-300"

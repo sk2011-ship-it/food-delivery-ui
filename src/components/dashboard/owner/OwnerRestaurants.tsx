@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import {
   Search, ChevronDown, ChevronLeft, ChevronRight,
-  ChevronsUpDown, ChevronUp, Store, Loader2
+  ChevronsUpDown, ChevronUp, Store, Loader2, Pencil, Trash2
 } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
+import { toast } from "sonner";
 
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -42,6 +43,31 @@ export default function OwnerRestaurants() {
   const [sort,   setSort]   = useState<SortField>("name");
   const [order,  setOrder]  = useState<SortOrder>("asc");
   const [page,   setPage]   = useState(1);
+
+  const [editTarget,   setEditTarget]   = useState<Restaurant | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Restaurant | null>(null);
+
+  const handleEdit = (r: Restaurant) => {
+    // Navigate to owner settings - the owner can edit their restaurant there
+    window.location.href = "/dashboard/owner/settings";
+  };
+
+  const handleDelete = async (r: Restaurant) => {
+    if (!confirm(`Request deletion of "${r.name}"? You have 14 days to restore it.`)) return;
+    const session = useAuthStore.getState().session;
+    if (!session) return;
+    const res = await fetch(`/api/owner/restaurants/${r.id}/delete`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${session.access_token}` },
+    });
+    const json = await res.json();
+    if (res.ok) {
+      toast.success("Deletion requested. You have 14 days to restore.");
+      setRestaurants((prev) => prev.filter((x) => x.id !== r.id));
+    } else {
+      toast.error(json.error || "Failed to request deletion.");
+    }
+  };
 
   useEffect(() => {
     async function fetchRestaurants() {
@@ -153,7 +179,7 @@ export default function OwnerRestaurants() {
                     Restaurant <SortIcon field="name" />
                   </button>
                 </th>
-                <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden md:table-cell">Owner</th>
+                <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden md:table-cell">Contact</th>
                 <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden lg:table-cell">Site</th>
                 <th className="px-5 py-3 text-left font-semibold text-gray-500">Status</th>
                 <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden lg:table-cell">
@@ -161,12 +187,13 @@ export default function OwnerRestaurants() {
                     Added <SortIcon field="createdAt" />
                   </button>
                 </th>
+                <th className="px-5 py-3 text-right font-semibold text-gray-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-24 text-center">
+                  <td colSpan={6} className="px-5 py-24 text-center">
                     <div className="flex flex-col items-center gap-2 text-gray-400">
                       <Loader2 className="w-6 h-6 animate-spin" />
                       <p>Loading restaurants...</p>
@@ -175,11 +202,11 @@ export default function OwnerRestaurants() {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-24 text-center text-red-500">{error}</td>
+                  <td colSpan={6} className="px-5 py-24 text-center text-red-500">{error}</td>
                 </tr>
               ) : sliced.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-24 text-center text-gray-400 text-sm">No restaurants found.</td>
+                  <td colSpan={6} className="px-5 py-24 text-center text-gray-400 text-sm">No restaurants found.</td>
                 </tr>
               ) : sliced.map((r) => {
                 const meta = STATUS_META[r.status] || STATUS_META.inactive;
@@ -196,7 +223,7 @@ export default function OwnerRestaurants() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-600 hidden md:table-cell">{r.ownerName || "N/A"}</td>
+                    <td className="px-5 py-3.5 text-gray-600 hidden md:table-cell">{r.contactPhone || "N/A"}</td>
                     <td className="px-5 py-3.5 text-gray-600 hidden lg:table-cell">{r.site || "N/A"}</td>
                     <td className="px-5 py-3.5">
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -205,6 +232,24 @@ export default function OwnerRestaurants() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{r.createdAt}</td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleEdit(r)}
+                          className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+                          title="Edit restaurant"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-gray-500" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(r)}
+                          className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                          title="Request deletion"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}

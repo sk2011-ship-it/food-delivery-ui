@@ -83,7 +83,7 @@ export async function GET(req: Request) {
       if (scope === "history") {
         const [archiveStats] = await db
           .select({
-            totalRevenue: sum(orders.totalAmount),
+            totalRevenue: sql<string>`SUM(CASE WHEN ${orders.status} = 'DELIVERED' THEN ${orders.totalAmount}::numeric ELSE 0 END)`,
             deliveredCount: sql<number>`COUNT(CASE WHEN ${orders.status} = 'DELIVERED' THEN 1 END)`,
             cancelledCount: sql<number>`COUNT(CASE WHEN ${orders.status} = 'CANCELLED' THEN 1 END)`,
           })
