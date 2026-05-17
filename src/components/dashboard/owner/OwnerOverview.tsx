@@ -102,7 +102,7 @@ export default function OwnerOverview({ user }: { user: SessionUser }) {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: "New Orders",   value: pendingCount,    icon: AlertCircle, color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-100", trend: "Needs attention" },
           { label: "In Kitchen",   value: activeCount,     icon: Utensils,    color: "text-blue-600",  bg: "bg-blue-50",  border: "border-blue-100", trend: "Active now" },

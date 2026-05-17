@@ -33,7 +33,7 @@ export default function DriverOverview({ user }: { user: SessionUser }) {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-8">
         <StatCard label="Deliveries Today" value="7"      icon={CheckCircle2} color="green"  trend={{ value: "2 more than yesterday", positive: true }} />
         <StatCard label="Active Orders"    value="2"      icon={MapPin}       color="blue"   />
         <StatCard label="Avg. Time"        value="22 min" icon={Clock}        color="amber"  />

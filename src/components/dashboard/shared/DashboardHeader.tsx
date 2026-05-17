@@ -95,9 +95,9 @@ export default function DashboardHeader({
         >
           <Menu className="w-5 h-5" style={{ color: "var(--dash-text-secondary)" }} />
         </button>
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--dash-text-primary)" }}>
-            Hi, {user.name.split(" ")[0]}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate max-w-[160px]" style={{ color: "var(--dash-text-primary)" }}>
+            Hi, {user.name}
           </p>
           <span className={`text-xs font-medium px-2 py-0.5 rounded-full capitalize ${roleBadge[user.role]}`}>
             {user.role}

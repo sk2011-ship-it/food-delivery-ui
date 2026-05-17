@@ -19,7 +19,7 @@ export default function AdminOverview() {
         subtitle="Site management and daily operations"
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-8">
         <StatCard 
           label="Total Revenue"   
           value={`£${parseFloat(stats.totalRevenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}  
