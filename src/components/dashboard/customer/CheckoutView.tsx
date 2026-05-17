@@ -29,6 +29,7 @@ export default function CheckoutView() {
   const setUserCoords = useConfigStore((s) => s.setUserCoords);
   const profile = useAuthStore((s) => s.profile);
 
+  const [platformOpen, setPlatformOpen] = React.useState(true);
   const [isPlacing, setIsPlacing] = React.useState(false);
   const [isCalculating, setIsCalculating] = React.useState(false);
 
@@ -48,6 +49,14 @@ export default function CheckoutView() {
       hasPrefilled.current = true;
     }
   }, [profile?.phone, phoneEdited]);
+
+  // Check platform status once on mount — no polling
+  React.useEffect(() => {
+    fetch("/api/platform-status")
+      .then((r) => r.json())
+      .then((d) => { if (typeof d.data?.open === "boolean") setPlatformOpen(d.data.open); })
+      .catch(() => {}); // fail open silently
+  }, []);
 
   React.useEffect(() => {
     if (site.deliveryPricing?.type === "distance_slabs" && !userCoords) {
@@ -239,6 +248,43 @@ export default function CheckoutView() {
         <Link href="/dashboard/customer" className="text-sm font-bold underline" style={{ color: accent }}>
           Browse restaurants
         </Link>
+      </div>
+    );
+  }
+
+  if (!platformOpen) {
+    return (
+      <div className="max-w-5xl mx-auto px-4 py-6">
+        <div className="flex items-center gap-3 mb-6">
+          <Link
+            href="/dashboard/customer/cart"
+            className="w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all"
+          >
+            <ChevronLeft className="w-4 h-4 text-gray-500" />
+          </Link>
+          <div>
+            <h1 className="text-lg font-black text-gray-900 tracking-tight">Checkout</h1>
+            <p className="text-[11px] text-gray-400">Review and place your order</p>
+          </div>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-8 flex flex-col items-center text-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-100 flex items-center justify-center">
+            <AlertTriangle className="w-7 h-7 text-amber-500" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-gray-900">We're under maintenance</h2>
+            <p className="text-sm text-gray-500 mt-1 max-w-sm leading-relaxed">
+              We're currently making some improvements to give you a smoother experience. Orders are temporarily paused — please check back shortly.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/customer"
+            className="mt-2 px-5 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors"
+          >
+            Back to Home
+          </Link>
+        </div>
       </div>
     );
   }

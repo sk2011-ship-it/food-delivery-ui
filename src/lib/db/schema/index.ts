@@ -11,4 +11,5 @@ export * from "./notifications";
 export * from "./reviews";
 export * from "./settlements";
 export * from "./ipRateLimits";
+export * from "./platformSettings";
 export * from "./relations"; // Centralized relations to break circular dependencies

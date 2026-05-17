@@ -1,4 +1,16 @@
 import { ok, fail, withAuth } from "@/lib/proxy";
+import { db as _db } from "@/lib/db";
+import { platformSettings as _ps } from "@/lib/db/schema";
+import { eq as _eq } from "drizzle-orm";
+
+async function isPlatformOpen(): Promise<boolean> {
+  try {
+    const [row] = await _db.select({ isOpen: _ps.isOpen }).from(_ps).where(_eq(_ps.id, 1)).limit(1);
+    return row?.isOpen ?? true;
+  } catch {
+    return true; // fail open
+  }
+}
 import { db } from "@/lib/db";
 import { orders, orderItems, cartItems, menuItems, restaurants, orderSessions, deliveryJobs } from "@/lib/db/schema";
 import { eq, inArray, desc, sql, and } from "drizzle-orm";
@@ -31,6 +43,9 @@ function normalizeLocation(value: unknown): string {
  */
 export async function POST(req: Request) {
   return withAuth(req, async (user) => {
+    if (!await isPlatformOpen()) {
+      return fail("We're currently offline for maintenance. Please try again shortly.", 503);
+    }
     try {
       const requestWithWaitUntil = req as Request & {
         waitUntil?: (promise: Promise<unknown>) => void;
