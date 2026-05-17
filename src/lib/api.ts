@@ -499,6 +499,7 @@ export interface SettlementSummary {
   platformSummary: {
     totalPendingPayouts: number;
     totalPlatformRevenue: number;
+    totalSettled: number;
   };
 }
 
@@ -514,8 +515,9 @@ export interface UnpaidOrdersDetail {
 }
 
 export const adminPaymentApi = {
-  getSummary() {
-    return get<SettlementSummary>("/api/admin/payments");
+  getSummary(period?: string) {
+    const query = period && period !== "all" ? `?period=${period}` : "";
+    return get<SettlementSummary>(`/api/admin/payments${query}`);
   },
   getUnpaidOrders(restaurantId: string) {
     return get<UnpaidOrdersDetail>(`/api/admin/payments/${restaurantId}`);
