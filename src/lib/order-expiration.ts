@@ -76,7 +76,7 @@ export async function cancelExpiredPendingOrders(now = new Date()): Promise<Expi
             type: "ORDER",
             subject: "Order Cancelled",
             body: customerBody,
-            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "customer" },
+            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "customer", cancellationReason: "Restaurant did not respond in time" },
             channels: ["FCM", "WHATSAPP"],
           });
         }
@@ -93,7 +93,7 @@ export async function cancelExpiredPendingOrders(now = new Date()): Promise<Expi
             type: "ORDER",
             subject: "Order Timed Out",
             body: ownerBody,
-            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "owner" },
+            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "owner", cancellationReason: "Order not confirmed in time" },
             channels: ["FCM", "WHATSAPP"],
           });
         }
@@ -168,7 +168,7 @@ export async function cancelExpiredConfirmedOrders(now = new Date()): Promise<Ex
             type: "ORDER",
             subject: "Order Cancelled — Payment Timeout",
             body: customerBody,
-            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "customer" },
+            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "customer", cancellationReason: "Payment was not completed in time" },
             channels: ["FCM", "WHATSAPP"],
           });
         }
@@ -185,7 +185,7 @@ export async function cancelExpiredConfirmedOrders(now = new Date()): Promise<Ex
             type: "ORDER",
             subject: "Order Cancelled — Payment Timeout",
             body: ownerBody,
-            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "owner" },
+            metadata: { orderId: updated.id, orderStatus: "CANCELLED", targetRole: "owner", cancellationReason: "Customer did not pay within 5 minutes" },
             channels: ["FCM", "WHATSAPP"],
           });
         }

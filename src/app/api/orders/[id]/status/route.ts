@@ -1,6 +1,6 @@
 import { ok, fail, parseBody, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
+import { orders, restaurants, orderItems, menuItems } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { syncSessionStatus } from "@/lib/order-session";
@@ -217,7 +217,12 @@ export async function PATCH(
               type: "ORDER",
               subject,
               body: ownerBody,
-              metadata: { orderId: id, orderStatus: status },
+              metadata: {
+                orderId: id,
+                orderStatus: status,
+                targetRole: "owner",
+                ...(status === "CANCELLED" && { cancellationReason: "Cancelled by customer" }),
+              },
               channels: ["FCM", "WHATSAPP"]
             });
           }
@@ -226,18 +231,18 @@ export async function PATCH(
 
           // Dispatch Customer Notifications
           if (order.userId) {
-            const customerChannels: (typeof notificationChannelEnum)[number][] = ["FCM", "WHATSAPP"];
-            if (status === "PAID") {
-              customerChannels.push("EMAIL");
-            }
-
             await NotificationService.dispatchOrderNotifications({
               userId: order.userId,
               type: "ORDER",
               subject,
               body: customerBody,
-              metadata: { orderId: id, orderStatus: status },
-              channels: customerChannels
+              metadata: {
+                orderId: id,
+                orderStatus: status,
+                targetRole: "customer",
+                ...(status === "CANCELLED" && { cancellationReason: "Cancelled by you" }),
+              },
+              channels: ["FCM", "WHATSAPP"],
             });
           }
         }

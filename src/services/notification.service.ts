@@ -10,109 +10,94 @@ import {
   type notificationTypeEnum,
   type notificationChannelEnum,
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import sgMail from "@sendgrid/mail";
+import { eq, and } from "drizzle-orm";
 import twilio from "twilio";
-import {
-  buildPaymentConfirmedEmailTemplate,
-} from "../templates/email";
-import { formatCurrency, resolveEmailBrand } from "../templates/email/utils";
+import { TEMPLATE_SIDS } from "@/config/whatsapp-templates";
 
 type NotificationMetadata = Record<string, unknown>;
 
-// Gracefully handle if Twilio env vars are not configured
 let twilioClient: ReturnType<typeof twilio> | null = null;
 try {
-  const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
-  const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
-  if (twilioAccountSid && twilioAuthToken) {
-    twilioClient = twilio(twilioAccountSid, twilioAuthToken);
-  }
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  if (sid && token) twilioClient = twilio(sid, token);
 } catch {
-  console.warn("[NotificationService] Twilio package not found. WhatsApp notifications will not be sent.");
+  console.warn("[NotificationService] Twilio not available.");
 }
 
 const twilioWhatsAppNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://kilkeeleats.com";
 
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-}
+// ─── DB helper: fetch full order context needed for WhatsApp variables ────────
 
-type OrderEmailData = {
-  orderId: string;
-  status: string;
-  restaurantName: string;
-  restaurantLocation: string | null;
-  totalAmount: string;
-  deliveryFee: string;
-  currency: string;
-  deliveryAddress: string | null;
-  createdAt: Date | null;
-  items: Array<{ name: string; quantity: number; price: string }>;
-};
-
-async function getOrderEmailData(orderId: string): Promise<OrderEmailData | null> {
-  const [order] = await db
+async function fetchOrderContext(orderId: string) {
+  const [orderRow] = await db
     .select({
-      id: orders.id,
-      status: orders.status,
-      totalAmount: orders.totalAmount,
-      deliveryFee: orders.deliveryFee,
-      currency: orders.currency,
+      id:              orders.id,
+      totalAmount:     orders.totalAmount,
+      deliveryFee:     orders.deliveryFee,
+      serviceCharge:   orders.serviceCharge,
       deliveryAddress: orders.deliveryAddress,
-      createdAt: orders.createdAt,
-      restaurantName: restaurants.name,
-      restaurantLocation: restaurants.location,
+      deliveryArea:    orders.deliveryArea,
+      restaurantId:    orders.restaurantId,
     })
     .from(orders)
-    .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
     .where(eq(orders.id, orderId))
     .limit(1);
 
-  if (!order) return null;
+  if (!orderRow) return null;
 
-  const items = await db
-    .select({
-      name: menuItems.name,
-      quantity: orderItems.quantity,
-      price: orderItems.price,
-    })
-    .from(orderItems)
-    .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
-    .where(eq(orderItems.orderId, orderId));
+  const [restaurantRow, itemRows] = await Promise.all([
+    db
+      .select({ name: restaurants.name, location: restaurants.location })
+      .from(restaurants)
+      .where(eq(restaurants.id, orderRow.restaurantId))
+      .limit(1)
+      .then((r) => r[0] ?? null),
+
+    db
+      .select({ name: menuItems.name, quantity: orderItems.quantity, price: orderItems.price })
+      .from(orderItems)
+      .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+      .where(eq(orderItems.orderId, orderId)),
+  ]);
+
+  const total        = parseFloat(orderRow.totalAmount  ?? "0");
+  const delivery     = parseFloat(orderRow.deliveryFee  ?? "0");
+  const service      = parseFloat(orderRow.serviceCharge ?? "0");
+  const subtotal     = (total - delivery - service).toFixed(2);
+
+  const itemsFormatted = itemRows
+    .map((i) => `${i.name} x${i.quantity} — £${parseFloat(i.price).toFixed(2)}`)
+    .join("\n");
+
+  const deliveryLabel = [orderRow.deliveryAddress, orderRow.deliveryArea]
+    .filter(Boolean)
+    .join(", ");
 
   return {
-    orderId: order.id,
-    status: order.status,
-    restaurantName: order.restaurantName,
-    restaurantLocation: order.restaurantLocation,
-    totalAmount: order.totalAmount,
-    deliveryFee: order.deliveryFee,
-    currency: order.currency,
-    deliveryAddress: order.deliveryAddress,
-    createdAt: order.createdAt,
-    items,
+    orderId8:        orderId.slice(0, 8).toUpperCase(),
+    orderIdFull:     orderId,
+    totalAmount:     total.toFixed(2),
+    deliveryFee:     delivery.toFixed(2),
+    serviceCharge:   service.toFixed(2),
+    subtotal,
+    deliveryAddress: deliveryLabel || "—",
+    restaurantName:  restaurantRow?.name  ?? "the restaurant",
+    location:        restaurantRow?.location ?? "",
+    itemsFormatted:  itemsFormatted || "—",
   };
 }
 
-/**
- * notification.service.ts - Handles sending FCM notifications and tracking their status.
- */
+// ─── FCM ──────────────────────────────────────────────────────────────────────
 
 export class NotificationService {
-  /**
-   * Processes a pending notification and sends it via FCM.
-   */
   static async sendFCM(notificationId: string) {
     try {
-      // 1. Fetch notification and recipient details in a single JOIN
       const [result] = await db
         .select({
           notification: notifications,
-          user: {
-            fcmToken: users.fcmToken,
-            email: users.email
-          }
+          user: { fcmToken: users.fcmToken, email: users.email },
         })
         .from(notifications)
         .innerJoin(users, eq(notifications.recipientId, users.id))
@@ -120,98 +105,57 @@ export class NotificationService {
         .limit(1);
 
       if (!result) {
-        console.error(`[NotificationService] Notification or User for ${notificationId} not found.`);
+        console.error(`[FCM] Notification ${notificationId} not found.`);
         return;
       }
 
       const { notification, user } = result;
 
-      if (notification.channel !== "FCM") {
-        console.log(`[NotificationService] Notification ${notificationId} is not for FCM channel.`);
-        return;
-      }
-
       if (!user?.fcmToken) {
-        console.warn(`[NotificationService] No FCM token found for user ${notification.recipientId}.`);
-        await db
-          .update(notifications)
-          .set({ status: "FAILED" })
-          .where(eq(notifications.id, notificationId));
+        await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
         return;
       }
-
       if (!messaging) {
-        console.error("[NotificationService] Firebase Messaging is not initialized.");
+        console.error("[FCM] Firebase Messaging not initialised.");
         return;
       }
 
-      // 3. Send via FCM
-      console.log(`[NotificationService] Sending FCM to token: ${user.fcmToken.slice(0, 10)}...`);
-      
-      let rawMetadata = notification.metadata || {};
-      if (typeof rawMetadata === "string") {
-        try {
-          rawMetadata = JSON.parse(rawMetadata);
-        } catch (e) {
-          rawMetadata = {};
-        }
-      }
-      
-      // FCM requires ALL data values to be strings — stringify everything
-      const stringifiedMetadata: Record<string, string> = {};
-      for (const [key, val] of Object.entries(rawMetadata)) {
-        if (val !== null && val !== undefined) {
-          stringifiedMetadata[key] = String(val);
-        }
+      let raw = notification.metadata || {};
+      if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+      const meta = raw as Record<string, string>;
+
+      const stringified: Record<string, string> = {};
+      for (const [k, v] of Object.entries(meta)) {
+        if (v !== null && v !== undefined) stringified[k] = String(v);
       }
 
-      // Use the actual order status from metadata so clients update correctly.
-      // e.g. payment notification → PAID, new order notification → PENDING_CONFIRMATION
-      const orderStatus = stringifiedMetadata.orderStatus || "PENDING_CONFIRMATION";
-      console.log(`[NotificationService] Preparing FCM for ${user.email}. Status: ${orderStatus}, Type: ${notification.type}, Metadata:`, stringifiedMetadata);
-
-      const message = {
+      await messaging.send({
         token: user.fcmToken,
         data: {
-          title: notification.subject,
-          body: notification.body,
-          type: notification.type,  // "ORDER"
-          status: orderStatus,       // actual status from metadata
-          ...stringifiedMetadata,    // orderId, orderStatus, etc. — all strings
+          title:  notification.subject,
+          body:   notification.body,
+          type:   notification.type,
+          status: stringified.orderStatus ?? "PENDING_CONFIRMATION",
+          ...stringified,
         },
-      };
+      });
 
-      await messaging.send(message);
-
-      // 4. Update status to SENT
-      await db
-        .update(notifications)
-        .set({ status: "SENT" })
-        .where(eq(notifications.id, notificationId));
-
-      console.log(`[NotificationService] FCM sent successfully for notification ${notificationId}`);
-    } catch (error) {
-      console.error(`[NotificationService] Error sending FCM for ${notificationId}:`, error);
-      
-      // Update status to FAILED
-      await db
-        .update(notifications)
-        .set({ status: "FAILED" })
-        .where(eq(notifications.id, notificationId));
+      await db.update(notifications).set({ status: "SENT" }).where(eq(notifications.id, notificationId));
+      console.log(`[FCM] Sent ${notificationId}`);
+    } catch (err) {
+      console.error(`[FCM] Error ${notificationId}:`, err);
+      await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
     }
   }
 
-  /**
-   * Processes a pending notification and sends it via WhatsApp.
-   */
+  // ─── WhatsApp ───────────────────────────────────────────────────────────────
+
   static async sendWhatsApp(notificationId: string) {
     try {
       const [result] = await db
         .select({
           notification: notifications,
-          user: {
-            phone: users.phone
-          }
+          user: { phone: users.phone, name: users.name },
         })
         .from(notifications)
         .innerJoin(users, eq(notifications.recipientId, users.id))
@@ -219,233 +163,231 @@ export class NotificationService {
         .limit(1);
 
       if (!result) {
-        console.error(`[NotificationService] Notification or User for ${notificationId} not found.`);
+        console.error(`[WhatsApp] Notification ${notificationId} not found.`);
         return;
       }
 
       const { notification, user } = result;
-
-      if (notification.channel !== "WHATSAPP") {
-        console.log(`[NotificationService] Notification ${notificationId} is not for WHATSAPP channel.`);
-        return;
-      }
 
       if (!user?.phone) {
-        console.warn(`[NotificationService] No phone number found for user ${notification.recipientId}. WhatsApp skipped.`);
-        await db
-          .update(notifications)
-          .set({ status: "FAILED" })
-          .where(eq(notifications.id, notificationId));
+        console.warn(`[WhatsApp] No phone for ${notification.recipientId}.`);
+        await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
         return;
       }
-
-      // Normalize phone: remove non-digits, ensure + prefix.
-      const cleaned = user.phone.replace(/\D/g, "");
-      const toPhone = user.phone.startsWith("+") ? `+${cleaned}` : `+${cleaned}`;
-
       if (!twilioClient || !twilioWhatsAppNumber) {
-        console.error("[NotificationService] Twilio is not configured properly (missing client or number env vars).");
-        await db
-          .update(notifications)
-          .set({ status: "FAILED" })
-          .where(eq(notifications.id, notificationId));
+        console.error("[WhatsApp] Twilio not configured.");
+        await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
         return;
       }
 
-      const messageBody = `*${notification.subject}*\n\n${notification.body}`;
-      console.log(`[NotificationService] Sending WhatsApp to ${toPhone}. Body:\n${messageBody}`);
+      const toPhone = `+${user.phone.replace(/\D/g, "")}`;
+
+      const raw  = (notification.metadata ?? {}) as Record<string, string>;
+      const role   = raw.targetRole        ?? "";
+      const status = raw.orderStatus       ?? "";
+      const orderId = raw.orderId          ?? "";
+      const reason  = raw.cancellationReason ?? "";
+
+      // Fetch full order context if we have an orderId
+      const ctx = orderId ? await fetchOrderContext(orderId) : null;
+
+      const customerName = user.name ?? "there";
+
+      // ── Determine template + variables ──────────────────────────────────────
+
+      let contentSid: string;
+      let contentVariables: Record<string, string>;
+
+      if (role === "owner" && status === "PENDING_CONFIRMATION") {
+        // Template 1: Owner — new order with Accept/Decline buttons
+        contentSid = TEMPLATE_SIDS.kilkeel_owner_new_order;
+        contentVariables = {
+          "1": ctx?.orderId8        ?? orderId.slice(0, 8).toUpperCase(),
+          "2": customerName,
+          "3": ctx?.deliveryAddress ?? "—",
+          "4": ctx?.itemsFormatted  ?? "—",
+          "5": ctx?.subtotal        ?? "0.00",
+          "6": ctx?.deliveryFee     ?? "0.00",
+          "7": ctx?.serviceCharge   ?? "0.00",
+          "8": ctx?.totalAmount     ?? "0.00",
+          "9": ctx?.location        ?? "Your Local Eats",
+        };
+
+      } else if (role === "customer" && status === "PENDING_CONFIRMATION") {
+        // Template 2: Customer — order placed confirmation
+        contentSid = TEMPLATE_SIDS.kilkeel_customer_order_received;
+        contentVariables = {
+          "1": customerName,
+          "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+          "3": ctx?.restaurantName ?? "the restaurant",
+          "4": ctx?.location       ?? "Your Local Eats",
+        };
+
+      } else if (role === "customer" && status === "CONFIRMED") {
+        // Template 3: Customer — pay now (5-min window)
+        contentSid = TEMPLATE_SIDS.kilkeel_customer_pay_now;
+        contentVariables = {
+          "1": customerName,
+          "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+          "3": ctx?.restaurantName ?? "the restaurant",
+          "4": ctx?.location       ?? "Your Local Eats",
+          "5": ctx?.totalAmount    ?? "0.00",
+          "6": orderId,             // full UUID for the Pay Now URL
+        };
+
+      } else if (role === "owner" && status === "PAID") {
+        // Template 5: Owner — payment received, wait 2 min then start kitchen
+        contentSid = TEMPLATE_SIDS.kilkeel_owner_payment_received;
+        contentVariables = {
+          "1": ctx?.orderId8        ?? orderId.slice(0, 8).toUpperCase(),
+          "2": customerName,
+          "3": ctx?.deliveryAddress ?? "—",
+          "4": ctx?.itemsFormatted  ?? "—",
+          "5": ctx?.totalAmount     ?? "0.00",
+        };
+
+      } else if (role === "customer" && status === "PAID") {
+        // Template 6: Customer — payment confirmed, 2-min grace window
+        contentSid = TEMPLATE_SIDS.kilkeel_customer_payment_confirmed;
+        contentVariables = {
+          "1": customerName,
+          "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+          "3": ctx?.restaurantName ?? "the restaurant",
+          "4": ctx?.totalAmount    ?? "0.00",
+        };
+
+      } else if (role === "customer" && status === "PREPARING") {
+        // Template 7: Customer — food being prepared
+        contentSid = TEMPLATE_SIDS.kilkeel_customer_preparing;
+        contentVariables = {
+          "1": customerName,
+          "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+          "3": ctx?.restaurantName ?? "the restaurant",
+          "4": ctx?.location       ?? "Your Local Eats",
+        };
+
+      } else if (role === "customer" && status === "OUT_FOR_DELIVERY") {
+        // Template 8: Customer — out for delivery
+        contentSid = TEMPLATE_SIDS.kilkeel_customer_out_for_delivery;
+        contentVariables = {
+          "1": customerName,
+          "2": ctx?.orderId8        ?? orderId.slice(0, 8).toUpperCase(),
+          "3": ctx?.restaurantName  ?? "the restaurant",
+          "4": ctx?.location        ?? "Your Local Eats",
+          "5": ctx?.deliveryAddress ?? "—",
+        };
+
+      } else if (role === "customer" && status === "DELIVERED") {
+        // Template 9: Customer — delivered
+        contentSid = TEMPLATE_SIDS.kilkeel_customer_delivered;
+        contentVariables = {
+          "1": customerName,
+          "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+          "3": ctx?.restaurantName ?? "the restaurant",
+        };
+
+      } else if (role === "customer" && status === "CANCELLED") {
+        // Templates 4 or 10: declined by restaurant vs other cancellation
+        const isDeclined = reason.toLowerCase().includes("declin") || reason.toLowerCase().includes("reject");
+        if (isDeclined) {
+          contentSid = TEMPLATE_SIDS.kilkeel_customer_order_declined;
+          contentVariables = {
+            "1": customerName,
+            "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+            "3": ctx?.restaurantName ?? "the restaurant",
+            "4": ctx?.location       ?? "Your Local Eats",
+          };
+        } else {
+          contentSid = TEMPLATE_SIDS.kilkeel_customer_cancelled;
+          contentVariables = {
+            "1": customerName,
+            "2": ctx?.orderId8       ?? orderId.slice(0, 8).toUpperCase(),
+            "3": ctx?.restaurantName ?? "the restaurant",
+            "4": ctx?.location       ?? "Your Local Eats",
+            "5": reason || "Order was cancelled",
+          };
+        }
+
+      } else if (role === "owner" && status === "CANCELLED") {
+        // Template 11: Owner — order cancelled
+        contentSid = TEMPLATE_SIDS.kilkeel_owner_cancelled;
+        contentVariables = {
+          "1": ctx?.orderId8 ?? orderId.slice(0, 8).toUpperCase(),
+          "2": reason        || "Order was cancelled",
+        };
+
+      } else {
+        // No matching template for this combination — skip silently
+        console.warn(`[WhatsApp] No template for role=${role} status=${status}. Skipping.`);
+        await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
+        return;
+      }
+
+      console.log(`[WhatsApp] → ${toPhone} | template: ${contentSid} | role: ${role} | status: ${status}`);
 
       await twilioClient.messages.create({
-        from: `whatsapp:${twilioWhatsAppNumber}`,
-        to: `whatsapp:${toPhone}`,
-        body: messageBody,
-      });
+        from:             `whatsapp:${twilioWhatsAppNumber}`,
+        to:               `whatsapp:${toPhone}`,
+        contentSid,
+        contentVariables: JSON.stringify(contentVariables),
+      } as any);
 
-      await db
-        .update(notifications)
-        .set({ status: "SENT" })
-        .where(eq(notifications.id, notificationId));
-
-      console.log(`[NotificationService] WhatsApp sent successfully for notification ${notificationId}`);
-    } catch (error) {
-      console.error(`[NotificationService] Error sending WhatsApp for ${notificationId}:`, error);
-      
-      await db
-        .update(notifications)
-        .set({ status: "FAILED" })
-        .where(eq(notifications.id, notificationId));
+      await db.update(notifications).set({ status: "SENT" }).where(eq(notifications.id, notificationId));
+      console.log(`[WhatsApp] Sent ${notificationId}`);
+    } catch (err) {
+      console.error(`[WhatsApp] Error ${notificationId}:`, err);
+      await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
     }
   }
 
-  /**
-   * Processes a pending notification and sends it via SendGrid Email.
-   */
-  static async sendEmail(notificationId: string) {
-    try {
-      const [result] = await db
-        .select({
-          notification: notifications,
-          user: {
-            email: users.email
-          }
-        })
-        .from(notifications)
-        .innerJoin(users, eq(notifications.recipientId, users.id))
-        .where(eq(notifications.id, notificationId))
-        .limit(1);
+  // ─── Central dispatcher ─────────────────────────────────────────────────────
 
-      if (!result) {
-        console.error(`[NotificationService] Notification or User for ${notificationId} not found.`);
-        return;
-      }
-
-      const { notification, user } = result;
-
-      if (notification.channel !== "EMAIL") {
-        console.log(`[NotificationService] Notification ${notificationId} is not for EMAIL channel.`);
-        return;
-      }
-
-      if (!user?.email) {
-        console.warn(`[NotificationService] No email found for user ${notification.recipientId}. EMAIL skipped.`);
-        await db
-          .update(notifications)
-          .set({ status: "FAILED" })
-          .where(eq(notifications.id, notificationId));
-        return;
-      }
-
-      const fromEmail = process.env.SENDGRID_FROM_EMAIL;
-      if (!fromEmail) {
-        console.error("[NotificationService] SENDGRID_FROM_EMAIL is not configured.");
-        await db
-          .update(notifications)
-          .set({ status: "FAILED" })
-          .where(eq(notifications.id, notificationId));
-        return;
-      }
-
-      console.log(`[NotificationService] Sending Email to ${user.email}. Subject: ${notification.subject}`);
-
-      const metadata = (notification.metadata as NotificationMetadata | null) ?? null;
-      const orderId = typeof metadata?.orderId === "string" ? metadata.orderId : null;
-      const orderEmailData = notification.type === "ORDER" && orderId
-        ? await getOrderEmailData(orderId)
-        : null;
-
-      const templateId = process.env.SENDGRID_PAYMENT_TEMPLATE_ID;
-      let msg: any;
-
-      if (templateId && orderEmailData && orderEmailData.status === "PAID") {
-        const brand = resolveEmailBrand(orderEmailData.restaurantLocation);
-        // 1. Sanitize the template ID (prevent env-var concatenation bugs)
-        const cleanTemplateId = templateId.split(/[\s\n\r=]/)[0].trim();
-        msg = {
-          to: user.email,
-          from: fromEmail,
-          templateId: cleanTemplateId,
-          dynamicTemplateData: {
-            brandName: brand.siteName,
-            brandPrimary: brand.primary,
-            brandAccent: brand.accent,
-            brandNotice: brand.notice,
-            supportEmail: brand.supportEmail,
-            orderId: orderEmailData.orderId.slice(0, 8).toUpperCase(),
-            restaurantName: orderEmailData.restaurantName,
-            items: orderEmailData.items.map((i) => ({
-              name: i.name,
-              quantity: i.quantity,
-              price: formatCurrency(i.price, orderEmailData.currency),
-            })),
-            totalAmount: formatCurrency(orderEmailData.totalAmount, orderEmailData.currency),
-            deliveryFee: formatCurrency(orderEmailData.deliveryFee, orderEmailData.currency),
-          },
-        };
-      } else {
-        const html = orderEmailData
-          ? orderEmailData.status === "PAID"
-            ? buildPaymentConfirmedEmailTemplate(notification.subject, notification.body, orderEmailData)
-            : notification.body.replace(/\n/g, "<br/>")
-          : notification.body.replace(/\n/g, "<br/>");
-
-        msg = {
-          to: user.email,
-          from: fromEmail,
-          subject: notification.subject,
-          text: notification.body,
-          html,
-        };
-      }
-
-      const [response] = await sgMail.send(msg);
-      console.log(`[NotificationService] SendGrid response: ${response.statusCode}`);
-
-      await db
-        .update(notifications)
-        .set({ status: "SENT" })
-        .where(eq(notifications.id, notificationId));
-
-      console.log(`[NotificationService] Email sent successfully for notification ${notificationId}`);
-    } catch (error: any) {
-      console.error(`[NotificationService] Error sending Email for ${notificationId}:`, error);
-      if (error.response?.body) {
-        console.error("[NotificationService] SendGrid Error Details:", JSON.stringify(error.response.body, null, 2));
-      }
-      
-      await db
-        .update(notifications)
-        .set({ status: "FAILED" })
-        .where(eq(notifications.id, notificationId));
-    }
-  }
-
-  /**
-   * Central helper to dispatch notifications across multiple channels.
-   * Ensures consistency and reduces boilerplate in API routes.
-   */
   static async dispatchOrderNotifications(params: {
-    userId: string;
-    type: (typeof notificationTypeEnum)[number];
-    subject: string;
-    body: string;
+    userId:    string;
+    type:      (typeof notificationTypeEnum)[number];
+    subject:   string;
+    body:      string;
     metadata?: NotificationMetadata;
     channels?: (typeof notificationChannelEnum)[number][];
   }) {
     const { userId, type, subject, body, metadata, channels = ["FCM", "WHATSAPP"] } = params;
 
-    console.log(`[NotificationService] Dispatching ${channels.length} notifications to user ${userId} (Type: ${type})`);
+    const allowed = channels.filter((c) => c === "FCM" || c === "WHATSAPP");
+    if (!allowed.length) return [];
+
+    console.log(`[NotificationService] Dispatching [${allowed.join(", ")}] to user ${userId}`);
 
     try {
-      const insertedNotifications = await db.insert(notifications).values(
-        channels.map((channel) => ({
-          recipientId: userId,
-          type,
-          subject,
-          body,
-          channel,
-          status: "PENDING" as const,
-          metadata,
-        }))
-      ).returning({ id: notifications.id });
+      const inserted = await db
+        .insert(notifications)
+        .values(
+          allowed.map((channel) => ({
+            recipientId: userId,
+            type,
+            subject,
+            body,
+            channel,
+            status: "PENDING" as const,
+            metadata,
+          }))
+        )
+        .returning({ id: notifications.id });
 
-      insertedNotifications.forEach((notif) => {
-        // Critical Bug 3: Trigger notifications in the background to avoid blocking the main request
-        this.trigger(notif.id).catch(err => 
-          console.error(`[NotificationService] Failed to trigger notification ${notif.id}:`, err)
+      inserted.forEach((notif) => {
+        this.trigger(notif.id).catch((err) =>
+          console.error(`[NotificationService] Failed to trigger ${notif.id}:`, err)
         );
       });
 
-      return insertedNotifications.map((notif) => notif.id);
+      return inserted.map((n) => n.id);
     } catch (err) {
       console.error("[NotificationService] Failed to insert notifications:", err);
       return [];
     }
   }
 
-  /**
-   * Helper to trigger a new notification send.
-   * Can be called after inserting a notification row.
-   */
+  // ─── Router ─────────────────────────────────────────────────────────────────
+
   static async trigger(notificationId: string) {
     try {
       const [notif] = await db
@@ -455,19 +397,12 @@ export class NotificationService {
         .limit(1);
 
       if (!notif) {
-        console.warn(`[NotificationService] Trigger failed: Notification ${notificationId} not found.`);
+        console.warn(`[NotificationService] ${notificationId} not found.`);
         return;
       }
 
-      console.log(`[NotificationService] Triggering channel ${notif.channel} for notification ${notificationId}`);
-
-      if (notif.channel === "FCM") {
-        await this.sendFCM(notificationId);
-      } else if (notif.channel === "WHATSAPP") {
-        await this.sendWhatsApp(notificationId);
-      } else if (notif.channel === "EMAIL") {
-        await this.sendEmail(notificationId);
-      }
+      if (notif.channel === "FCM")      await this.sendFCM(notificationId);
+      else if (notif.channel === "WHATSAPP") await this.sendWhatsApp(notificationId);
     } catch (err) {
       console.error("[NotificationService] Trigger failed:", err);
     }

@@ -144,7 +144,7 @@ export async function POST(req: Request) {
                 subject: "Payment Confirmed",
                 body: "Your payment was successful. The restaurants will start preparing your meals shortly.",
                 metadata: { sessionId: orderSessionId, orderStatus: "PAID", targetRole: "customer" },
-                channels: ["FCM", "WHATSAPP", "EMAIL"],
+                channels: ["FCM", "WHATSAPP"],
               });
             }
           } catch (bgErr) {
@@ -244,7 +244,7 @@ export async function POST(req: Request) {
                   subject: "Payment Confirmed",
                   body: `Your payment was successful. The restaurant will start preparing your meal shortly.`,
                   metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "customer" },
-                  channels: ["FCM", "WHATSAPP", "EMAIL"]
+                  channels: ["FCM", "WHATSAPP"]
                 });
               }
 

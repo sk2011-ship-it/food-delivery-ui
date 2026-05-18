@@ -169,7 +169,12 @@ export async function PATCH(
               type: "ORDER",
               subject,
               body,
-              metadata: { orderId: id, orderStatus: nextStatus, targetRole: "customer" },
+              metadata: {
+                orderId: id,
+                orderStatus: nextStatus,
+                targetRole: "customer",
+                ...(nextStatus === "CANCELLED" && { cancellationReason: "Declined by the restaurant" }),
+              },
               channels: customerChannels
             });
           }
@@ -203,7 +208,12 @@ export async function PATCH(
             type: "ORDER",
             subject,
             body: detailedBody,
-            metadata: { orderId: id, orderStatus: nextStatus, targetRole: "owner" },
+            metadata: {
+              orderId: id,
+              orderStatus: nextStatus,
+              targetRole: "owner",
+              ...(nextStatus === "CANCELLED" && { cancellationReason: "Cancelled by restaurant" }),
+            },
             channels: ["FCM", "WHATSAPP"]
           });
         } catch (notifyOwnerErr) {

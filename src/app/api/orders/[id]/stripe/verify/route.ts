@@ -133,7 +133,7 @@ export async function POST(
             subject,
             body,
             metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "customer" },
-            channels: ["FCM", "WHATSAPP", "EMAIL"] // PAID is a key stage for Email
+            channels: ["FCM", "WHATSAPP"] // PAID is a key stage for Email
           });
         }
       } catch (notifyErr) {

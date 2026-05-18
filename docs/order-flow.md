@@ -246,15 +246,19 @@ Shipday webhook status mapping:
 
 ## Notification Summary
 
-| Event | Owner notified | Customer notified |
-|-------|---------------|-------------------|
-| Order placed | FCM + WhatsApp | FCM + WhatsApp |
-| Payment confirmed | FCM + WhatsApp | FCM + WhatsApp + Email |
-| Order accepted (CONFIRMED) | — | FCM |
-| Session ready to pay | — | FCM |
-| Status changed | FCM + WhatsApp | FCM + WhatsApp |
-| Order expired (10-min) | FCM + WhatsApp | FCM + WhatsApp |
-| Delivery update | FCM + WhatsApp | FCM + WhatsApp |
+| Step | Event | Owner WhatsApp Template | Customer WhatsApp Template |
+|------|-------|------------------------|---------------------------|
+| 1 | Order placed | `kilkeel_owner_new_order` (Quick Reply: Accept/Decline) | `kilkeel_customer_order_received` |
+| 2a | Owner accepts | — | `kilkeel_customer_pay_now` (CTA: Pay Now button + amount) |
+| 2b | Owner declines | — | `kilkeel_customer_order_declined` |
+| 3 | Payment confirmed | `kilkeel_owner_payment_received` (Quick Reply: Start Kitchen) | `kilkeel_customer_payment_confirmed` |
+| 4 | Kitchen started (PREPARING) | — | `kilkeel_customer_preparing` |
+| 5 | Out for delivery | — | `kilkeel_customer_out_for_delivery` |
+| 6 | Delivered | — | `kilkeel_customer_delivered` |
+| Any | Cancellation | `kilkeel_owner_cancelled` | `kilkeel_customer_cancelled` |
+
+All channels: **FCM + WhatsApp**  
+Full template JSON specs: see `docs/whatsapp-templates.md`
 
 ---
 
