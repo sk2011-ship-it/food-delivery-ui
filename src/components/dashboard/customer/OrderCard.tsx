@@ -50,9 +50,17 @@ export default function OrderCard({
     () => { if (isPending) onExpire(order.id); }
   );
 
+  // 5-min payment window after owner accepts — auto-cancel when it expires
   const confirmedTimer = useOrderTimer(
-    order.confirmedAt ?? order.createdAt,
-    5
+    order.status === "CONFIRMED" ? (order.confirmedAt ?? null) : null,
+    5,
+    () => { if (order.status === "CONFIRMED") onExpire(order.id); }
+  );
+
+  // 3-min cancel window after payment
+  const paidTimer = useOrderTimer(
+    order.status === "PAID" ? (order.paidAt ?? null) : null,
+    3
   );
 
   const date = new Date(order.createdAt).toLocaleDateString("en-GB", {
@@ -141,7 +149,7 @@ export default function OrderCard({
           <div className="flex items-center gap-2 shrink-0">
             {order.status === "CONFIRMED" && (
               <div className="flex flex-col items-end gap-2">
-                {order.status === "CONFIRMED" && order.confirmedAt && !confirmedTimer.isExpired && (
+                {!confirmedTimer.isExpired && order.confirmedAt && (
                   <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full animate-pulse border border-amber-100 flex items-center gap-1.5">
                     <Timer className="w-3 h-3" />
                     Pay within {confirmedTimer.formattedTime}
@@ -161,9 +169,24 @@ export default function OrderCard({
                     onClick={() => onCancel(order.id)}
                     className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
                   >
-                    Cancel Order
+                    Cancel
                   </button>
                 </div>
+              </div>
+            )}
+
+            {order.status === "PAID" && !paidTimer.isExpired && order.paidAt && (
+              <div className="flex flex-col items-end gap-2">
+                <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse border border-blue-100 flex items-center gap-1.5">
+                  <Timer className="w-3 h-3" />
+                  Cancel within {paidTimer.formattedTime}
+                </span>
+                <button
+                  onClick={() => onCancel(order.id)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
+                >
+                  Cancel Order
+                </button>
               </div>
             )}
 

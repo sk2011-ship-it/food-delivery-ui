@@ -224,15 +224,21 @@ export default function CustomerOrdersPage() {
 
   React.useEffect(() => {
     for (const order of orders) {
-      if (order.status !== "PENDING_CONFIRMATION") continue;
       if (expiringOrdersRef.current.has(order.id)) continue;
 
-      const createdAt = new Date(order.createdAt).getTime();
-      const expiresAt = createdAt + (5 * 60 * 1000);
-
-      if (Date.now() >= expiresAt) {
-        expiringOrdersRef.current.add(order.id);
-        void handleExpire(order.id);
+      if (order.status === "PENDING_CONFIRMATION") {
+        const expiresAt = new Date(order.createdAt).getTime() + 10 * 60 * 1000;
+        if (Date.now() >= expiresAt) {
+          expiringOrdersRef.current.add(order.id);
+          void handleExpire(order.id);
+        }
+      } else if (order.status === "CONFIRMED" && order.confirmedAt) {
+        // Auto-cancel if 5-min payment window has passed
+        const expiresAt = new Date(order.confirmedAt).getTime() + 5 * 60 * 1000;
+        if (Date.now() >= expiresAt) {
+          expiringOrdersRef.current.add(order.id);
+          void handleExpire(order.id);
+        }
       }
     }
   }, [orders, handleExpire]);
