@@ -67,11 +67,13 @@ export async function POST(
     }
 
     // 3. Atomic Update: Only proceed if status is NOT already PAID
+    const verifyPaidAt = new Date();
     const [updatedOrder] = await db
       .update(orders)
       .set({
         status: "PAID",
-        updatedAt: new Date()
+        updatedAt: verifyPaidAt,
+        paidAt: verifyPaidAt,
       })
       .where(and(
         eq(orders.id, id),

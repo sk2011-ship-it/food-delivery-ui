@@ -34,6 +34,8 @@ export const orders = pgTable("orders", {
   isSettled:       text("is_settled").$type<"YES" | "NO">().default("NO").notNull(),
   sessionId:       uuid("session_id").references(() => orderSessions.id, { onDelete: "set null" }),
   restaurantNameSnapshot: text("restaurant_name_snapshot"),
+  confirmedAt:     timestamp("confirmed_at"),
+  paidAt:          timestamp("paid_at"),
   createdAt:       timestamp("created_at").defaultNow().notNull(),
   updatedAt:       timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [

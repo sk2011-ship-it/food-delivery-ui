@@ -89,7 +89,7 @@ export async function POST(req: Request) {
         const paidAt = new Date();
         const updatedOrders = await db
           .update(orders)
-          .set({ status: "PAID", updatedAt: paidAt })
+          .set({ status: "PAID", updatedAt: paidAt, paidAt })
           .where(and(eq(orders.sessionId, orderSessionId), eq(orders.status, "CONFIRMED")))
           .returning();
 
@@ -173,6 +173,7 @@ export async function POST(req: Request) {
           .set({
             status: "PAID",
             updatedAt: singlePaidAt,
+            paidAt: singlePaidAt,
           })
           .where(and(
             eq(orders.id, orderId),

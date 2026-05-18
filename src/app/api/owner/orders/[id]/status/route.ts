@@ -25,8 +25,8 @@ const STATUS_LABELS: Record<string, { subject: string; body: (id: string, restau
 
 const OWNER_ALLOWED_TRANSITIONS: Record<string, string[]> = {
   PENDING_CONFIRMATION: ["CONFIRMED", "CANCELLED"],
-  CONFIRMED: ["CANCELLED"],
-  PAID: ["PREPARING", "CANCELLED"],
+  CONFIRMED: [], // locked — only auto-cancel via cron if customer doesn't pay in 5 min
+  PAID: ["PREPARING"],
   PREPARING: ["OUT_FOR_DELIVERY", "CANCELLED"],
   DISPATCH_REQUESTED: ["OUT_FOR_DELIVERY", "CANCELLED"],
   OUT_FOR_DELIVERY: ["DELIVERED", "CANCELLED"],
@@ -81,11 +81,13 @@ export async function PATCH(
         return fail(`Cannot change order from ${ownedOrder.status} to ${nextStatus}.`, 409);
       }
 
+      const now = new Date();
       const [updated] = await db
         .update(orders)
         .set({
           status: nextStatus,
-          updatedAt: new Date()
+          updatedAt: now,
+          ...(nextStatus === "CONFIRMED" && { confirmedAt: now }),
         })
         .where(and(
           eq(orders.id, id),
@@ -99,12 +101,8 @@ export async function PATCH(
 
       // Track metric milestone — background, never blocks response
       void (async () => {
-        const now = new Date();
         if (nextStatus === "CONFIRMED") {
-          void trackOrderMetric(id, {
-            confirmedAt: now,
-            // waitTimeMs calculated inside trackOrderMetric using stored orderPlacedAt
-          });
+          void trackOrderMetric(id, { confirmedAt: now });
         } else if (nextStatus === "PREPARING") {
           void trackOrderMetric(id, { kitchenStartedAt: now });
         } else if (nextStatus === "OUT_FOR_DELIVERY" || nextStatus === "DISPATCH_REQUESTED") {

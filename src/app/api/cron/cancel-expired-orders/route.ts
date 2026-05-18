@@ -1,5 +1,5 @@
 import { ok, fail } from "@/lib/proxy";
-import { cancelExpiredPendingOrders } from "@/lib/order-expiration";
+import { cancelExpiredPendingOrders, cancelExpiredConfirmedOrders } from "@/lib/order-expiration";
 
 export async function GET(req: Request) {
   const authHeader = req.headers.get("Authorization");
@@ -10,8 +10,17 @@ export async function GET(req: Request) {
   }
 
   try {
-    const cancelled = await cancelExpiredPendingOrders();
-    return ok({ cancelled: cancelled.length, orders: cancelled });
+    // Run both expiry checks in parallel
+    const [pendingCancelled, confirmedCancelled] = await Promise.all([
+      cancelExpiredPendingOrders(),    // 10-min window: owner must accept
+      cancelExpiredConfirmedOrders(),  // 5-min window: customer must pay
+    ]);
+
+    return ok({
+      pendingCancelled: pendingCancelled.length,
+      confirmedCancelled: confirmedCancelled.length,
+      orders: [...pendingCancelled, ...confirmedCancelled],
+    });
   } catch (err) {
     console.error("[cron/cancel-expired-orders]", err);
     return fail("Internal Server Error", 500);

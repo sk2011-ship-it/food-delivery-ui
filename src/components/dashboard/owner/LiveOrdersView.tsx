@@ -2,44 +2,39 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Utensils, Truck, CheckCircle2,
-  Clock, ChevronRight, AlertCircle, Loader2,
-  X, Bell, Zap, ExternalLink
+  Utensils, Truck, CheckCircle2, Clock, ChevronRight,
+  AlertCircle, Loader2, X, RotateCcw, ExternalLink, Bell,
 } from "lucide-react";
 import { useOwnerStore, type OwnerOrder } from "@/store/useOwnerStore";
-import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-
-/**
- * LiveOrdersView.tsx - Premium kitchen management dashboard for owners.
- * Features staggered animations, real-time sync, and glassmorphism UI.
- */
-
-const PIPELINE = [
-  { id: "PENDING_CONFIRMATION", label: "New", icon: AlertCircle, color: "text-amber-500", bg: "bg-amber-500" },
-  { id: "CONFIRMED", label: "Payment", icon: Clock, color: "text-blue-400", bg: "bg-blue-400" },
-  { id: "PAID", label: "Paid", icon: CheckCircle2, color: "text-blue-500", bg: "bg-blue-500" },
-  { id: "PREPARING", label: "Kitchen", icon: Utensils, color: "text-purple-500", bg: "bg-purple-500" },
-  { id: "OUT_FOR_DELIVERY", label: "Dispatched", icon: Truck, color: "text-orange-500", bg: "bg-orange-500" },
-];
-
-const STATUS_BAR: Record<string, string> = {
-  PENDING_CONFIRMATION: "bg-amber-400",
-  CONFIRMED: "bg-blue-400",
-  PAID: "bg-blue-500",
-  PREPARING: "bg-purple-500",
-  OUT_FOR_DELIVERY: "bg-orange-500",
-};
-
-const NEXT_STATUS: Record<string, { label: string; status: string; color: string; disabled?: boolean }> = {
-  PENDING_CONFIRMATION: { label: "Accept Order", status: "CONFIRMED", color: "bg-emerald-600 shadow-emerald-200" },
-  CONFIRMED: { label: "Waiting for payment", status: "CONFIRMED", color: "bg-slate-100 text-slate-400 shadow-none", disabled: true },
-  PAID: { label: "Send to Kitchen", status: "PREPARING", color: "bg-blue-600 shadow-blue-200" },
-  PREPARING: { label: "Dispatch Order", status: "OUT_FOR_DELIVERY", color: "bg-purple-600 shadow-purple-200" },
-};
-
 import { useOrderTimer } from "@/hooks/useOrderTimer";
+
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  PENDING_CONFIRMATION: { label: "New",        className: "bg-amber-100 text-amber-700" },
+  CONFIRMED:            { label: "Awaiting payment", className: "bg-blue-100 text-blue-700" },
+  PAID:                 { label: "Paid",        className: "bg-blue-100 text-blue-700" },
+  PREPARING:            { label: "In kitchen",  className: "bg-purple-100 text-purple-700" },
+  OUT_FOR_DELIVERY:     { label: "On the way",  className: "bg-orange-100 text-orange-700" },
+  DELIVERED:            { label: "Delivered",   className: "bg-green-100 text-green-700" },
+  CANCELLED:            { label: "Cancelled",   className: "bg-red-100 text-red-700" },
+};
+
+const STATUS_STRIPE: Record<string, string> = {
+  PENDING_CONFIRMATION: "bg-amber-400",
+  CONFIRMED:            "bg-blue-300",
+  PAID:                 "bg-blue-500",
+  PREPARING:            "bg-purple-500",
+  OUT_FOR_DELIVERY:     "bg-orange-500",
+  DELIVERED:            "bg-green-500",
+  CANCELLED:            "bg-red-400",
+};
+
+// ── Countdown hook wrapper for PAID 2-min grace window ───────────────────────
+function usePaidGraceTimer(paidAt: string | null, updatedAt: string) {
+  // 2-minute grace from paidAt (fall back to updatedAt if paidAt not set yet)
+  return useOrderTimer(paidAt ?? updatedAt, 2);
+}
 
 // ── Order Card ────────────────────────────────────────────────────────────────
 function OrderCard({
@@ -50,21 +45,27 @@ function OrderCard({
   onUpdate: (id: string, status: string) => Promise<boolean>;
 }) {
   const [busy, setBusy] = useState(false);
-  const isPending = order.status === "PENDING_CONFIRMATION";
+  const isPending   = order.status === "PENDING_CONFIRMATION";
+  const isConfirmed = order.status === "CONFIRMED";
+  const isPaid      = order.status === "PAID";
   const isDelivered = order.status === "DELIVERED";
-  const nextAction = NEXT_STATUS[order.status];
-  const stepIndex = PIPELINE.findIndex((s) => s.id === order.status);
+  const isCancelled = order.status === "CANCELLED";
+  const badge  = STATUS_BADGE[order.status];
+  const stripe = STATUS_STRIPE[order.status] ?? "bg-gray-200";
 
-  const { formattedTime, isExpired } = useOrderTimer(
-    order.createdAt,
-    10,
-    () => {
-      if (isPending) {
-        console.log(`[Owner] Order ${order.id} timed out. Auto-cancelling...`);
-        onUpdate(order.id, "CANCELLED");
-      }
-    }
+  // 10-min timer for PENDING (from createdAt) — auto-cancel if expired
+  const pendingTimer = useOrderTimer(order.createdAt, 10, () => {
+    if (order.status === "PENDING_CONFIRMATION") onUpdate(order.id, "CANCELLED");
+  });
+
+  // 5-min timer for CONFIRMED (from confirmedAt) — display only, server cron cancels
+  const confirmedTimer = useOrderTimer(
+    order.confirmedAt ?? order.createdAt,
+    order.confirmedAt ? 5 : 0 // if no confirmedAt yet, treat as expired
   );
+
+  // 2-min grace timer for PAID (from paidAt) — after expiry, show "Start Kitchen"
+  const paidGraceTimer = usePaidGraceTimer(order.paidAt, order.updatedAt);
 
   const handleUpdate = async (status: string) => {
     setBusy(true);
@@ -73,317 +74,326 @@ function OrderCard({
   };
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      whileHover={{ y: -4 }}
+    <div
       className={cn(
-        "bg-white rounded-3xl border shadow-soft overflow-hidden transition-all duration-300",
-        isPending ? "border-amber-200 ring-4 ring-amber-50" : "border-border/40"
+        "bg-white rounded-2xl border overflow-hidden shadow-sm",
+        isPending ? "border-amber-300" : "border-gray-100"
       )}
     >
-      <div className={cn("h-1 w-full", STATUS_BAR[order.status] ?? "bg-slate-100")} />
+      <div className={cn("h-1 w-full", stripe)} />
 
-      <div className="p-4">
+      <div className="p-4 space-y-3">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-3">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-gray-900 tracking-tight">#{order.id.slice(-6).toUpperCase()}</span>
-              <span className="text-[9px] font-black text-primary px-1.5 py-0.5 bg-primary/5 border border-primary/10 rounded-md uppercase tracking-wider">
-                {order.restaurant?.name}
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm font-bold text-gray-900">
+                #{order.id.slice(-6).toUpperCase()}
               </span>
-              {isPending && !isExpired && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 animate-pulse">
-                  <Clock className="w-2.5 h-2.5 text-amber-600" />
-                  <span className="text-[10px] font-black text-amber-700 tabular-nums">
-                    {formattedTime}
-                  </span>
-                </div>
+              {badge && (
+                <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", badge.className)}>
+                  {badge.label}
+                </span>
+              )}
+
+              {/* PENDING: 10-min countdown */}
+              {isPending && !pendingTimer.isExpired && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                  <Clock className="w-3 h-3" />
+                  {pendingTimer.formattedTime}
+                </span>
+              )}
+
+              {/* CONFIRMED: 5-min payment countdown */}
+              {isConfirmed && order.confirmedAt && !confirmedTimer.isExpired && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                  <Clock className="w-3 h-3" />
+                  {confirmedTimer.formattedTime} to pay
+                </span>
+              )}
+
+              {/* PAID: 2-min grace countdown */}
+              {isPaid && !paidGraceTimer.isExpired && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                  <Clock className="w-3 h-3" />
+                  Kitchen in {paidGraceTimer.formattedTime}
+                </span>
               )}
             </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-bold uppercase tracking-widest">
-                {formatDistanceToNow(new Date(order.createdAt))} ago
-              </span>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-lg font-black text-gray-900 tracking-tighter">£{parseFloat(order.totalAmount).toFixed(2)}</p>
-            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">
-              {order.items.length} Item{order.items.length !== 1 ? 's' : ''}
+            <p className="text-xs text-gray-400">
+              {order.restaurant?.name} · {formatDistanceToNow(new Date(order.createdAt))} ago
             </p>
           </div>
-        </div>
-
-        {/* Stepper */}
-        <div className="flex items-center gap-1 py-3 border-y border-slate-50 mb-3 overflow-x-auto no-scrollbar">
-          {PIPELINE.map((step, idx) => {
-            const done = idx <= stepIndex;
-            const Icon = step.icon;
-
-            // Special handling for Cancelled status to show it's a timeout
-            const isTimeout = order.status === 'CANCELLED' &&
-              (new Date(order.updatedAt).getTime() - new Date(order.createdAt).getTime() >= 600000); // ~10 mins
-
-            return (
-              <React.Fragment key={step.id}>
-                <div className="flex flex-col items-center gap-1.5 shrink-0">
-                  <div className={cn(
-                    "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500",
-                    done ? `${step.bg} text-white shadow-lg` :
-                      (order.status === 'CANCELLED' && idx === 0) ? "bg-red-500 text-white shadow-lg" : "bg-muted/30 text-muted-foreground"
-                  )}>
-                    {order.status === 'CANCELLED' && idx === 0 ? <X className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
-                  </div>
-                  <span className={cn(
-                    "text-[8px] font-black uppercase tracking-widest",
-                    done ? "text-gray-900" :
-                      (order.status === 'CANCELLED' && idx === 0) ? "text-red-600" : "text-muted-foreground/40"
-                  )}>
-                    {order.status === 'CANCELLED' && idx === 0 ? (isTimeout ? "Timed Out" : "Cancelled") : step.label}
-                  </span>
-                </div>
-                {idx < PIPELINE.length - 1 && (
-                  <div className={cn(
-                    "flex-1 h-px mt-[-18px] transition-all duration-700 min-w-[20px]",
-                    idx < stepIndex ? step.bg : "bg-muted/30"
-                  )} />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        {/* Items Grid */}
-        <div className="bg-slate-50/50 rounded-2xl p-3 mb-4 border border-slate-100/50">
-          <div className="space-y-1.5">
-            {order.items.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-lg bg-white border border-slate-200 text-[10px] font-black text-primary shadow-sm">
-                    {item.quantity}
-                  </span>
-                  <span className="text-xs font-bold text-gray-700">{item.menuItem.name}</span>
-                </div>
-                <span className="text-[11px] font-black text-muted-foreground">£{parseFloat(item.price).toFixed(2)}</span>
-              </div>
-            ))}
+          <div className="text-right shrink-0">
+            <p className="text-base font-bold text-gray-900">£{parseFloat(order.totalAmount).toFixed(2)}</p>
+            <p className="text-xs text-gray-400">{order.items.length} item{order.items.length !== 1 ? "s" : ""}</p>
           </div>
+        </div>
+
+        {/* Items */}
+        <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
+          {order.items.map((item, idx) => (
+            <div key={idx} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 flex items-center justify-center bg-white border border-gray-200 rounded text-xs font-bold text-gray-700">
+                  {item.quantity}
+                </span>
+                <span className="text-sm text-gray-700">{item.menuItem.name}</span>
+              </div>
+              <span className="text-xs text-gray-500">£{parseFloat(item.price).toFixed(2)}</span>
+            </div>
+          ))}
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
-          {order.status === "OUT_FOR_DELIVERY" && (
-            <div className="flex-1 flex flex-row gap-2">
-              <div className="flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-orange-50 text-orange-700 border border-orange-100 flex items-center justify-center gap-2">
-                <Truck className="w-4 h-4 animate-bounce" />
-                Out for Delivery
+        <div className="flex gap-2 pt-0.5">
+
+          {/* PENDING: Accept + Cancel */}
+          {isPending && (
+            <>
+              <button
+                disabled={busy}
+                onClick={() => handleUpdate("CONFIRMED")}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-gray-900 text-white hover:bg-gray-700 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Accept Order <ChevronRight className="w-3.5 h-3.5" /></>}
+              </button>
+              <button
+                disabled={busy}
+                onClick={() => handleUpdate("CANCELLED")}
+                className="px-3 py-2.5 rounded-xl text-red-500 border border-red-100 bg-white hover:bg-red-50 transition-colors disabled:opacity-50"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+
+          {/* CONFIRMED: waiting for customer to pay — no owner action */}
+          {isConfirmed && (
+            <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-gray-50 text-gray-400 border border-gray-100 flex items-center justify-center gap-1.5">
+              <Clock className="w-3.5 h-3.5" />
+              Waiting for customer payment
+            </div>
+          )}
+
+          {/* PAID: 2-min grace window then "Start Kitchen" */}
+          {isPaid && (
+            !paidGraceTimer.isExpired ? (
+              <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-purple-50 text-purple-600 border border-purple-100 flex items-center justify-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Kitchen starts in {paidGraceTimer.formattedTime}
               </div>
+            ) : (
+              <button
+                disabled={busy}
+                onClick={() => handleUpdate("PREPARING")}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-purple-600 text-white hover:bg-purple-500 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Start Kitchen <ChevronRight className="w-3.5 h-3.5" /></>}
+              </button>
+            )
+          )}
+
+          {/* PREPARING: Dispatch */}
+          {order.status === "PREPARING" && (
+            <button
+              disabled={busy}
+              onClick={() => handleUpdate("OUT_FOR_DELIVERY")}
+              className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Dispatch Order <ChevronRight className="w-3.5 h-3.5" /></>}
+            </button>
+          )}
+
+          {/* OUT_FOR_DELIVERY */}
+          {order.status === "OUT_FOR_DELIVERY" && (
+            <>
+              <button
+                disabled={busy}
+                onClick={() => handleUpdate("DELIVERED")}
+                className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-green-600 text-white hover:bg-green-500 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Mark Delivered <CheckCircle2 className="w-3.5 h-3.5" /></>}
+              </button>
               {order.deliveryJob?.trackingUrl && (
                 <a
                   href={order.deliveryJob.trackingUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-white text-gray-900 border border-gray-900 flex items-center justify-center gap-2 hover:bg-gray-50 transition-all shadow-sm"
+                  className="px-3 py-2.5 rounded-xl text-xs font-semibold bg-white text-gray-700 border border-gray-200 flex items-center justify-center gap-1.5 hover:bg-gray-50 transition-colors"
                 >
-                  Live Tracking
-                  <ExternalLink className="w-4 h-4" />
+                  <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               )}
-            </div>
+            </>
           )}
 
+          {/* DELIVERED */}
           {isDelivered && (
-            <div className="flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4" />
+            <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-green-50 text-green-700 border border-green-100 flex items-center justify-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5" />
               Delivered
             </div>
           )}
 
-          {nextAction && (
-            <button
-              disabled={busy || nextAction.disabled || isDelivered}
-              onClick={() => handleUpdate(nextAction.status)}
-              className={cn(
-                "flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-                nextAction.color,
-                !nextAction.disabled && "text-white shadow-elevated hover:scale-[1.02] active:scale-95",
-                "disabled:opacity-50"
-              )}
-            >
-              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-                <>
-                  {nextAction.label}
-                  {!nextAction.disabled && <ChevronRight className="w-4 h-4" />}
-                </>
-              )}
-            </button>
-          )}
-
-          {isPending && (
-            <button
-              disabled={busy}
-              onClick={() => handleUpdate("CANCELLED")}
-              className="px-4 py-3 rounded-2xl text-red-500 border border-red-50 bg-white hover:bg-red-50 transition-all active:scale-95 disabled:opacity-50"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          {/* CANCELLED */}
+          {isCancelled && (
+            <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-red-50 text-red-600 border border-red-100 flex items-center justify-center gap-1.5">
+              <X className="w-3.5 h-3.5" />
+              Cancelled
+            </div>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-// ── Main Dashboard View ─────────────────────────────────────────────────────────
+// ── Main View ─────────────────────────────────────────────────────────────────
 export default function LiveOrdersView() {
   const { orders, updateOrderStatus, refreshOrders, isLoading } = useOwnerStore();
   const [newOrderAlert, setNewOrderAlert] = useState(false);
   const prevPendingCount = useRef(0);
+  const cancellingRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     refreshOrders();
   }, [refreshOrders]);
 
+  // Auto-cancel PENDING orders already past 10-minute window on mount
   useEffect(() => {
-    const currentPending = orders.filter(o => o.status === 'PENDING_CONFIRMATION');
-    if (currentPending.length > prevPendingCount.current) {
-      const timer = setTimeout(() => setNewOrderAlert(true), 0);
-      return () => clearTimeout(timer);
-    }
-    prevPendingCount.current = currentPending.length;
+    const now = Date.now();
+    const stale = orders.filter(
+      (o) =>
+        o.status === "PENDING_CONFIRMATION" &&
+        now - new Date(o.createdAt).getTime() > 10 * 60 * 1000 &&
+        !cancellingRef.current.has(o.id)
+    );
+    stale.forEach((o) => {
+      cancellingRef.current.add(o.id);
+      updateOrderStatus(o.id, "CANCELLED");
+    });
+  }, [orders, updateOrderStatus]);
+
+  useEffect(() => {
+    const pendingCount = orders.filter((o) => o.status === "PENDING_CONFIRMATION").length;
+    if (pendingCount > prevPendingCount.current) setNewOrderAlert(true);
+    prevPendingCount.current = pendingCount;
   }, [orders]);
 
   useEffect(() => {
-    if (newOrderAlert) {
-      const timer = setTimeout(() => setNewOrderAlert(false), 3000);
-      return () => clearTimeout(timer);
-    }
+    if (!newOrderAlert) return;
+    const t = setTimeout(() => setNewOrderAlert(false), 4000);
+    return () => clearTimeout(t);
   }, [newOrderAlert]);
 
+  const pending   = orders.filter((o) => o.status === "PENDING_CONFIRMATION");
+  const active    = orders.filter((o) => ["CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"].includes(o.status));
+  const completed = orders.filter((o) => ["DELIVERED", "CANCELLED"].includes(o.status));
+
   return (
-    <div className="w-full space-y-4 pb-8 selection:bg-primary/20">
+    <div className="space-y-5 pb-8">
 
-      {/* New Order Sticky Alert */}
-      <AnimatePresence>
-        {newOrderAlert && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed top-24 left-1/2 -translate-x-1/2 z-[60] w-[90%] max-w-sm"
-          >
-            <div className="bg-gray-900/95 backdrop-blur-xl rounded-2xl border border-white/10 p-4 shadow-2xl flex items-center justify-between gap-4">
-              <div className="flex items-center gap-4 text-white">
-                <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center animate-pulse">
-                  <Bell className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-black uppercase tracking-widest">New Order High Alert!</h4>
-                  <p className="text-[10px] font-bold opacity-80 uppercase">Please check and confirm now.</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setNewOrderAlert(false)}
-                className="p-1.5 hover:bg-white/10 rounded-lg transition-all"
-              >
-                <X className="w-4 h-4 text-white" />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Modern Dashboard Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 bg-white/40 backdrop-blur-sm rounded-3xl p-4 border border-white/20 shadow-sm">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gray-900 flex items-center justify-center">
-              <Zap className="w-4 h-4 text-amber-500 fill-amber-500" />
-            </div>
-            <h1 className="text-xl font-black text-gray-900 tracking-tight uppercase">Kitchen Dashboard</h1>
+      {/* New order toast */}
+      {newOrderAlert && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-80 bg-gray-900 text-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center shrink-0">
+            <Bell className="w-4 h-4 text-white" />
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={cn(
-            "glass-premium flex items-center gap-3 px-3 py-1.5 rounded-2xl border transition-all duration-1000",
-            newOrderAlert ? "border-emerald-500 bg-emerald-50/50" : "border-border/40"
-          )}>
-            <div className="flex items-center gap-2">
-              <div className={cn("w-2 h-2 rounded-full animate-pulse", newOrderAlert ? "bg-emerald-500" : "bg-emerald-500/50")} />
-              <span className={cn("text-[10px] font-black uppercase tracking-widest transition-colors", newOrderAlert ? "text-emerald-700" : "text-slate-500")}>
-                {newOrderAlert ? "Order Detected!" : "Live Sync Active"}
-              </span>
-            </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold">New order received</p>
+            <p className="text-xs text-gray-400">Check and confirm now</p>
           </div>
-          <button
-            onClick={() => refreshOrders()}
-            className="p-2.5 rounded-2xl bg-white border border-border/40 shadow-soft hover:shadow-elevated transition-all active:rotate-180 duration-500"
-          >
-            <RotateCcw className="w-4 h-4 text-gray-600" />
+          <button onClick={() => setNewOrderAlert(false)} className="hover:bg-white/10 rounded-lg p-1 transition-colors">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-bold text-gray-900">Kitchen Dashboard</h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {orders.length === 0 ? "No active orders" : `${orders.length} order${orders.length !== 1 ? "s" : ""} active`}
+          </p>
+        </div>
+        <button
+          onClick={() => refreshOrders()}
+          disabled={isLoading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          <RotateCcw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+          Refresh
+        </button>
       </div>
 
-      {/* Main Grid */}
-      <AnimatePresence mode="wait">
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-32 space-y-4">
-            <div className="w-12 h-12 rounded-full border-4 border-muted/30 border-t-primary animate-spin" />
-            <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground shimmer px-4 py-1 rounded-lg">Syncing Orders...</p>
-          </div>
-        ) : orders.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="py-32 text-center bg-white/40 glass-premium rounded-[3rem] border border-dashed border-border"
-          >
-            <div className="w-20 h-20 bg-muted/20 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-inset">
-              <Clock className="w-10 h-10 text-muted-foreground/30" />
-            </div>
-            <h3 className="text-2xl font-black text-gray-900 tracking-tight">Kitchen is Quiet</h3>
-            <p className="text-sm text-muted-foreground font-medium mt-2">All orders have been dispatched. Enjoy the calm!</p>
-          </motion.div>
-        ) : (
-          <motion.div
-            layout
-            className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3"
-          >
-            {orders.map((order) => (
-              <OrderCard
-                key={order.id}
-                order={order}
-                onUpdate={updateOrderStatus}
-              />
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
+      {isLoading && orders.length === 0 && (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-gray-300" />
+        </div>
+      )}
 
-// Simple internal helper for refresh
-function RotateCcw(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-    </svg>
+      {!isLoading && orders.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+            <Utensils className="w-6 h-6 text-gray-300" />
+          </div>
+          <p className="text-sm font-semibold text-gray-500">Kitchen is quiet</p>
+          <p className="text-xs text-gray-400 mt-1">No active orders right now</p>
+        </div>
+      )}
+
+      {/* Pending — highest priority */}
+      {pending.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 text-amber-500" />
+            <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">
+              Needs Attention ({pending.length})
+            </h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {pending.map((order) => (
+              <OrderCard key={order.id} order={order} onUpdate={updateOrderStatus} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Active */}
+      {active.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <h2 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">
+              In Progress ({active.length})
+            </h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {active.map((order) => (
+              <OrderCard key={order.id} order={order} onUpdate={updateOrderStatus} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Completed */}
+      {completed.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-gray-300" />
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Completed ({completed.length})
+            </h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {completed.map((order) => (
+              <OrderCard key={order.id} order={order} onUpdate={updateOrderStatus} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }

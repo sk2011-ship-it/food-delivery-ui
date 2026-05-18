@@ -89,9 +89,19 @@ export async function PATCH(
 
         // If customer is cancelling, ensure it's THEIR order and it's still in a cancellable state
         if (isCustomerOwner && user.role === "customer") {
-          const cancellableStatuses = ["PENDING_CONFIRMATION", "CONFIRMED", "CANCELLED"];
-          if (!cancellableStatuses.includes(order.status)) {
-            return fail("You cannot cancel an order that is already being prepared or delivered.", 403);
+          if (order.status === "PAID") {
+            // Allow cancel within 2-minute grace window after payment
+            const TWO_MINUTES_MS = 2 * 60 * 1000;
+            const paidAt = order.paidAt ? new Date(order.paidAt).getTime() : null;
+            if (!paidAt || Date.now() - paidAt > TWO_MINUTES_MS) {
+              return fail("Your order is already being prepared and can no longer be cancelled.", 403);
+            }
+            // Within 2 minutes of payment — allow
+          } else {
+            const cancellableStatuses = ["PENDING_CONFIRMATION", "CONFIRMED", "CANCELLED"];
+            if (!cancellableStatuses.includes(order.status)) {
+              return fail("You cannot cancel an order that is already being prepared or delivered.", 403);
+            }
           }
         }
 

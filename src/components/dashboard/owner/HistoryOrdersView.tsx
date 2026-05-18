@@ -65,7 +65,7 @@ export default function HistoryOrdersView() {
         new Date(o.updatedAt).toLocaleDateString(),
         o.status,
         o.restaurant?.name ?? "",
-        (o.items ?? []).map((i: { name: string; quantity: number }) => `${i.name} x${i.quantity}`).join("; "),
+        (o.items ?? []).map((i) => `${i.menuItem.name} x${i.quantity}`).join("; "),
         parseFloat(o.totalAmount).toFixed(2),
       ]),
     ];

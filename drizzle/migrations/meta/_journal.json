@@ -15,6 +15,13 @@
       "when": 1779021417330,
       "tag": "0001_quiet_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779028364051,
+      "tag": "0002_worthless_blazing_skull",
+      "breakpoints": true
     }
   ]
 }

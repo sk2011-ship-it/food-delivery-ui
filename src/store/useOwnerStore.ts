@@ -13,6 +13,8 @@ export interface OwnerOrder {
   restaurantId: string;
   status: string;
   totalAmount: string;
+  confirmedAt: string | null;
+  paidAt: string | null;
   createdAt: string;
   updatedAt: string;
   items: {
