@@ -429,6 +429,8 @@ export async function GET(req: Request) {
           eta: deliveryJobs.eta,
           createdAt: orders.createdAt,
           updatedAt: orders.updatedAt,
+          confirmedAt: orders.confirmedAt,
+          paidAt: orders.paidAt,
         })
         .from(orders)
         .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
@@ -476,6 +478,8 @@ export async function GET(req: Request) {
         paymentIntentId: order.paymentIntentId,
         createdAt: order.createdAt,
         updatedAt: order.updatedAt,
+        confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
+        paidAt: order.paidAt ? order.paidAt.toISOString() : null,
         restaurant: { name: order.restaurantNameSnapshot || order.restaurantName },
         deliveryJob: order.deliveryJobStatus || order.trackingUrl || order.driverName || order.driverPhone || order.eta
           ? {

@@ -10,6 +10,35 @@ import { useOwnerStore } from "@/store/useOwnerStore";
 import { useAdminStore } from "@/store/useAdminStore";
 import { dispatchNotificationRefresh } from "@/lib/notification-events";
 
+// Module-level audio instance — persists across renders so we can stop it from anywhere
+let newOrderAudio: HTMLAudioElement | null = null;
+
+function startNewOrderAlarm() {
+  try {
+    if (newOrderAudio) {
+      // Already playing — just ensure it keeps looping
+      newOrderAudio.currentTime = 0;
+      newOrderAudio.play().catch(() => {});
+      return;
+    }
+    const audio = new Audio("/owner_notification.mp3");
+    audio.loop = true;
+    audio.volume = 1.0;
+    newOrderAudio = audio;
+    audio.play().catch(() => {});
+  } catch {
+    // Audio not supported
+  }
+}
+
+export function stopNewOrderAlarm() {
+  if (newOrderAudio) {
+    newOrderAudio.pause();
+    newOrderAudio.currentTime = 0;
+    newOrderAudio = null;
+  }
+}
+
 export const useFcmToken = (userId: string | undefined) => {
   const [token, setToken] = useState<string | null>(null);
   const [notificationPermissionStatus, setNotificationPermissionStatus] = useState<NotificationPermission>("default");
@@ -116,6 +145,14 @@ export const useFcmToken = (userId: string | undefined) => {
           description: incomingBody || "A live order update was received.",
         };
       })();
+
+      if (isNewOrder && isMerchantAlert) {
+        // New order arrived — loop the alarm until owner acts
+        startNewOrderAlarm();
+      } else if (isMerchantAlert) {
+        // Owner acted on an order (CONFIRMED, CANCELLED, PAID, etc.) — stop alarm
+        stopNewOrderAlarm();
+      }
 
       const status = payload.data?.status || payload.data?.orderStatus;
       if (status === "PENDING_CONFIRMATION") {

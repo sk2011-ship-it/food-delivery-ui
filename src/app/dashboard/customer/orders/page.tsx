@@ -170,6 +170,31 @@ export default function CustomerOrdersPage() {
 
 
 
+  const handleCancel = React.useCallback(async (orderId: string) => {
+    try {
+      const session = useAuthStore.getState().session;
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+        },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || data?.error || "Failed to cancel order.");
+        return;
+      }
+
+      toast.success("Order cancelled successfully.");
+      await refreshOrders();
+    } catch {
+      toast.error("A network error occurred. Please try again.");
+    }
+  }, [refreshOrders]);
+
   const handleExpire = React.useCallback(async (orderId: string) => {
     try {
       const session = useAuthStore.getState().session;
@@ -326,6 +351,7 @@ export default function CustomerOrdersPage() {
                   onRate={(o) => { setSelectedOrderForFeedback(o); setIsFeedbackOpen(true); }}
                   onTrack={(id) => router.push(`/dashboard/customer/status/${id}`)}
                   onExpire={handleExpire}
+                  onCancel={handleCancel}
                 />
               ))
             )}

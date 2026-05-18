@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { ownerService } from "@/services/owner.service";
 import { toast } from "sonner";
+import { stopNewOrderAlarm } from "@/hooks/useFcmToken";
 
 /**
  * useOwnerStore.ts - Real-time dashboard for restaurant owners.
@@ -144,7 +145,12 @@ export const useOwnerStore = create<OwnerState>()((set, get) => ({
 
   updateOrderStatus: async (id, status) => {
     const previousOrders = [...get().orders];
-    
+
+    // Stop the new-order alarm the moment the owner acts
+    if (status === "CONFIRMED" || status === "CANCELLED") {
+      stopNewOrderAlarm();
+    }
+
     // Optimistic update
     set({
       orders: previousOrders.map((o) => (o.id === id ? { ...o, status } : o)),

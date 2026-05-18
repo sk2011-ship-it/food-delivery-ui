@@ -23,6 +23,7 @@ interface OrderCardProps {
   onRate: (order: Order) => void;
   onTrack: (id: string) => void;
   onExpire: (id: string) => void;
+  onCancel: (id: string) => void;
 }
 
 export default function OrderCard({
@@ -36,7 +37,8 @@ export default function OrderCard({
   onReorder,
   onRate,
   onTrack,
-  onExpire
+  onExpire,
+  onCancel
 }: OrderCardProps) {
   const isPending = order.status === "PENDING_CONFIRMATION";
   const isDelivered = order.status === "DELIVERED";
@@ -46,6 +48,11 @@ export default function OrderCard({
     order.createdAt,
     10,
     () => { if (isPending) onExpire(order.id); }
+  );
+
+  const confirmedTimer = useOrderTimer(
+    order.confirmedAt ?? order.createdAt,
+    5
   );
 
   const date = new Date(order.createdAt).toLocaleDateString("en-GB", {
@@ -133,15 +140,31 @@ export default function OrderCard({
           {/* Actions Container */}
           <div className="flex items-center gap-2 shrink-0">
             {order.status === "CONFIRMED" && (
-              <button
-                onClick={() => onPay(order.id)}
-                disabled={isPaying}
-                className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:shadow-lg active:scale-95 disabled:opacity-50"
-                style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${accent})` }}
-              >
-                {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                Pay £{parseFloat(order.totalAmount).toFixed(2)}
-              </button>
+              <div className="flex flex-col items-end gap-2">
+                {order.status === "CONFIRMED" && order.confirmedAt && !confirmedTimer.isExpired && (
+                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full animate-pulse border border-amber-100 flex items-center gap-1.5">
+                    <Timer className="w-3 h-3" />
+                    Pay within {confirmedTimer.formattedTime}
+                  </span>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onPay(order.id)}
+                    disabled={isPaying}
+                    className="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white flex items-center justify-center gap-2 transition-all hover:shadow-lg active:scale-95 disabled:opacity-50"
+                    style={{ background: `linear-gradient(135deg, ${gradientFrom}, ${accent})` }}
+                  >
+                    {isPaying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    Pay £{parseFloat(order.totalAmount).toFixed(2)}
+                  </button>
+                  <button
+                    onClick={() => onCancel(order.id)}
+                    className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
+                  >
+                    Cancel Order
+                  </button>
+                </div>
+              </div>
             )}
 
             {isDelivered && !order.review && (

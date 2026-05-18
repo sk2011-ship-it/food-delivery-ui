@@ -108,6 +108,8 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   paymentIntentId?: string | null;
+  confirmedAt?: string | null;
+  paidAt?: string | null;
   restaurant?: { name: string };
   deliveryJob?: {
     status: string | null;
