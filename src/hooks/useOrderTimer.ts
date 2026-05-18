@@ -21,8 +21,8 @@ export function useOrderTimer(
     return Math.max(0, Math.floor((total - elapsed) / 1000));
   }, [anchorTime, timeoutMinutes]);
 
-  const [timeLeft,  setTimeLeft]  = useState(() => getSecondsLeft());
-  const [isExpired, setIsExpired] = useState(() => getSecondsLeft() <= 0);
+  const [timeLeft,  setTimeLeft]  = useState(() => anchorTime ? getSecondsLeft() : 0);
+  const [isExpired, setIsExpired] = useState(() => anchorTime ? getSecondsLeft() <= 0 : false);
 
   // Keep onExpire fresh without it being a dep (avoids re-creating the interval on every render)
   const onExpireRef = useRef(onExpire);
@@ -32,6 +32,15 @@ export function useOrderTimer(
   const firedRef = useRef(false);
 
   useEffect(() => {
+
+    // No anchor = timer is inactive; stay idle, never fire onExpire
+    if (!anchorTime) {
+      firedRef.current = false;
+      setTimeLeft(0);
+      setIsExpired(false); // idle, not "expired"
+      return;
+    }
+
     // Reset whenever the anchor or duration changes
     firedRef.current = false;
 
@@ -60,7 +69,8 @@ export function useOrderTimer(
     }, 1000);
 
     return () => clearInterval(id);
-  }, [getSecondsLeft]); // ← only re-runs when anchor/timeout change, NOT when isExpired changes
+  // getSecondsLeft already captures anchorTime + timeoutMinutes via useCallback deps
+  }, [getSecondsLeft, anchorTime]);
 
   return {
     timeLeft,

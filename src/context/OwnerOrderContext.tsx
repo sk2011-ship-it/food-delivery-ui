@@ -47,6 +47,21 @@ export function OwnerOrderProvider({ children }: { children: React.ReactNode }) 
     };
   }, [session, isReady, role, refreshOrders]);
 
+  // Refresh instantly when owner switches back to this tab
+  useEffect(() => {
+    if (!session || !(role === "owner" || role === "admin")) return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[OwnerOrderContext] Tab visible — refreshing orders");
+        refreshOrders().catch(() => { });
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [session, role, refreshOrders]);
+
   const updateOrderStatus = async (id: string, status: string) => {
     return await storeUpdateOrderStatus(id, status);
   };

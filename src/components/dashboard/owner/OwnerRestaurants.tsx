@@ -109,10 +109,9 @@ export default function OwnerRestaurants() {
 
   const filtered = restaurants.filter((r) => {
     const q = search.toLowerCase();
-    const matchSearch = !q || 
-      r.name.toLowerCase().includes(q) || 
-      r.contactEmail.toLowerCase().includes(q) || 
-      (r.site?.toLowerCase() || "").includes(q);
+    const matchSearch = !q ||
+      r.name.toLowerCase().includes(q) ||
+      r.contactEmail.toLowerCase().includes(q);
     const matchStatus = status === "all" || r.status === status;
     return matchSearch && matchStatus;
   });
@@ -152,7 +151,7 @@ export default function OwnerRestaurants() {
           <input
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by name, email or site…"
+            placeholder="Search by name or email…"
             className="w-full h-10 pl-9 pr-4 rounded-xl border border-gray-200 text-sm outline-none focus:border-gray-400 bg-white"
           />
         </div>
@@ -180,7 +179,6 @@ export default function OwnerRestaurants() {
                   </button>
                 </th>
                 <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden md:table-cell">Contact</th>
-                <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden lg:table-cell">Site</th>
                 <th className="px-5 py-3 text-left font-semibold text-gray-500">Status</th>
                 <th className="px-5 py-3 text-left font-semibold text-gray-500 hidden lg:table-cell">
                   <button className="flex items-center gap-1" onClick={() => toggleSort("createdAt")}>
@@ -193,7 +191,7 @@ export default function OwnerRestaurants() {
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-24 text-center">
+                  <td colSpan={5} className="px-5 py-24 text-center">
                     <div className="flex flex-col items-center gap-2 text-gray-400">
                       <Loader2 className="w-6 h-6 animate-spin" />
                       <p>Loading restaurants...</p>
@@ -202,11 +200,11 @@ export default function OwnerRestaurants() {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-24 text-center text-red-500">{error}</td>
+                  <td colSpan={5} className="px-5 py-24 text-center text-red-500">{error}</td>
                 </tr>
               ) : sliced.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-24 text-center text-gray-400 text-sm">No restaurants found.</td>
+                  <td colSpan={5} className="px-5 py-24 text-center text-gray-400 text-sm">No restaurants found.</td>
                 </tr>
               ) : sliced.map((r) => {
                 const meta = STATUS_META[r.status] || STATUS_META.inactive;
@@ -224,7 +222,6 @@ export default function OwnerRestaurants() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5 text-gray-600 hidden md:table-cell">{r.contactPhone || "N/A"}</td>
-                    <td className="px-5 py-3.5 text-gray-600 hidden lg:table-cell">{r.site || "N/A"}</td>
                     <td className="px-5 py-3.5">
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-medium"
                         style={{ color: meta.color, background: meta.bg }}>

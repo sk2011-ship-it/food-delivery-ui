@@ -10,13 +10,52 @@ import { useOwnerStore } from "@/store/useOwnerStore";
 import { useAdminStore } from "@/store/useAdminStore";
 import { dispatchNotificationRefresh } from "@/lib/notification-events";
 
+// ─── Deduplication ────────────────────────────────────────────────────────────
+// Prevents the same FCM event from being processed twice (e.g., once via onMessage
+// and once via the service-worker postMessage for the same order/status combo).
+
+const _recentlyProcessed = new Map<string, number>(); // key → timestamp ms
+
+function _isDuplicate(key: string): boolean {
+  const now = Date.now();
+  // Evict entries older than 15 s
+  for (const [k, ts] of _recentlyProcessed.entries()) {
+    if (now - ts > 15_000) _recentlyProcessed.delete(k);
+  }
+  if (_recentlyProcessed.has(key)) return true;
+  _recentlyProcessed.set(key, now);
+  return false;
+}
+
+// ─── Audio alarm ─────────────────────────────────────────────────────────────
+
 // Module-level audio instance — persists across renders so we can stop it from anywhere
 let newOrderAudio: HTMLAudioElement | null = null;
+
+// Browsers block audio until the user has interacted with the page.
+// We pre-create and silently play the audio element on first interaction
+// so it's "unlocked" before any FCM message arrives.
+let audioUnlocked = false;
+
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  // Create and immediately pause a silent play to satisfy browser autoplay policy
+  const silent = new Audio("/owner_notification.mp3");
+  silent.volume = 0;
+  silent.play().then(() => silent.pause()).catch(() => {});
+}
+
+// Attach unlock listener once (module-level, not per-component)
+if (typeof window !== "undefined") {
+  const unlock = () => { unlockAudio(); window.removeEventListener("click", unlock); window.removeEventListener("touchstart", unlock); };
+  window.addEventListener("click", unlock, { once: true, passive: true });
+  window.addEventListener("touchstart", unlock, { once: true, passive: true });
+}
 
 function startNewOrderAlarm() {
   try {
     if (newOrderAudio) {
-      // Already playing — just ensure it keeps looping
       newOrderAudio.currentTime = 0;
       newOrderAudio.play().catch(() => {});
       return;
@@ -25,7 +64,9 @@ function startNewOrderAlarm() {
     audio.loop = true;
     audio.volume = 1.0;
     newOrderAudio = audio;
-    audio.play().catch(() => {});
+    audio.play().catch((err) => {
+      console.warn("[FCM] Audio play blocked — user has not interacted with page yet.", err);
+    });
   } catch {
     // Audio not supported
   }
@@ -69,7 +110,7 @@ export const useFcmToken = (userId: string | undefined) => {
       try {
         if (!("serviceWorker" in navigator)) return;
 
-        await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+        await navigator.serviceWorker.register("/api/firebase-sw", { scope: "/" });
 
         // Wait for an active service worker before calling getToken.
         const registration = await navigator.serviceWorker.ready;
@@ -103,6 +144,16 @@ export const useFcmToken = (userId: string | undefined) => {
 
     const unsubscribe = onMessage(messaging!, (payload: MessagePayload) => {
       console.log("[useFcmToken] Received message:", payload);
+
+      // Deduplicate: if SW already handled this (background→postMessage race), skip
+      const orderId = payload.data?.orderId;
+      const status  = payload.data?.status || payload.data?.orderStatus;
+      const dedupKey = orderId ? `${orderId}:${status}` : `ts:${Date.now()}`;
+      if (orderId && _isDuplicate(dedupKey)) {
+        console.log("[useFcmToken] Duplicate message ignored:", dedupKey);
+        return;
+      }
+
       const isOrder = payload.data?.type === "ORDER";
       const isNewOrder = isOrder && (payload.data?.status === "PENDING_CONFIRMATION" || !payload.data?.status);
       const role = useAuthStore.getState().role;
@@ -154,7 +205,6 @@ export const useFcmToken = (userId: string | undefined) => {
         stopNewOrderAlarm();
       }
 
-      const status = payload.data?.status || payload.data?.orderStatus;
       if (status === "PENDING_CONFIRMATION") {
         toast(toastContent.title, {
           description: toastContent.description,
@@ -179,10 +229,10 @@ export const useFcmToken = (userId: string | undefined) => {
         console.log(`[useFcmToken] Order update detected. ID: ${orderId}, Status: ${status}, TargetRole: ${targetRole}`);
 
         if (orderId && status) {
-          // Customer order store
+          // Customer order store — silent refresh so the list updates without a spinner
           if (targetRole !== "owner" && targetRole !== "admin") {
-            console.log(`[useFcmToken] Updating Customer Order Store for ${orderId}`);
-            useOrderStore.getState().updateSingleOrder({ id: orderId, status });
+            console.log(`[useFcmToken] Silent-refreshing customer orders for ${orderId} → ${status}`);
+            useOrderStore.getState().silentRefreshOrders();
           }
 
           // Owner store — always sync owner/admin dashboards from live order updates.
@@ -213,6 +263,64 @@ export const useFcmToken = (userId: string | undefined) => {
 
     return () => unsubscribe();
   }, [userId, registerToken]);
+
+  // ── SW background-message bridge ──────────────────────────────────────────
+  // When the owner's tab is in the background, Firebase delivers the FCM message
+  // to the service worker (onBackgroundMessage) instead of onMessage.  The SW
+  // postMessages every open tab so we can play the alarm and refresh instantly
+  // without waiting for the user to click the system notification.
+  useEffect(() => {
+    if (typeof window === "undefined" || !navigator.serviceWorker) return;
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type !== "FCM_BACKGROUND_MESSAGE") return;
+
+      const data: Record<string, string> = event.data.data ?? {};
+      const orderId = data.orderId;
+      const status  = data.status || data.orderStatus;
+      const dedupKey = orderId ? `${orderId}:${status}` : `sw:${Date.now()}`;
+
+      // Guard: if onMessage already processed this, skip
+      if (orderId && _isDuplicate(dedupKey)) {
+        console.log("[useFcmToken] SW postMessage duplicate ignored:", dedupKey);
+        return;
+      }
+
+      console.log("[useFcmToken] SW background message received:", data);
+
+      const role        = useAuthStore.getState().role;
+      const targetRole  = data.targetRole;
+      const isNewOrder  = status === "PENDING_CONFIRMATION";
+      const isMerchant  = targetRole ? (targetRole === "owner" || targetRole === "admin") : (role === "owner" || role === "admin");
+
+      // Play alarm for new orders targeting owner/admin
+      if (isNewOrder && isMerchant) {
+        startNewOrderAlarm();
+      }
+
+      // Refresh the correct store
+      if (data.type === "ORDER" || !data.type) {
+        if (isMerchant || role === "owner" || role === "admin") {
+          useOwnerStore.getState().refreshOrders();
+        }
+        if (targetRole !== "owner" && targetRole !== "admin") {
+          useOrderStore.getState().silentRefreshOrders();
+        }
+        if (role === "admin") {
+          if (orderId && status) {
+            useAdminStore.getState().updateSingleOrder({ id: orderId, status });
+          } else {
+            useAdminStore.getState().refreshOrders();
+          }
+        }
+      }
+
+      dispatchNotificationRefresh();
+    };
+
+    navigator.serviceWorker.addEventListener("message", handleSwMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", handleSwMessage);
+  }, []);
 
   return { token, notificationPermissionStatus };
 };

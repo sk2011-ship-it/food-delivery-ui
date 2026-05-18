@@ -20,6 +20,7 @@ interface OrderState {
 
   // Actions
   refreshOrders: (page?: number, scope?: "all" | "active" | "past", limit?: number) => Promise<void>;
+  silentRefreshOrders: () => Promise<void>;
   updateOrderStatus: (id: string, status: string, paymentIntentId?: string) => Promise<void>;
   updateSingleOrder: (order: Partial<Order> & { id: string }) => void;
   reorder: (orderId: string) => Promise<{ success: boolean; orderId?: string }>;
@@ -42,7 +43,7 @@ export const useOrderStore = create<OrderState>()((set, get) => ({
       const currentPage = page ?? get().pagination.page;
       const { success, data } = await customerService.getOrders({ page: currentPage, scope, limit });
       if (success && data) {
-        set({ 
+        set({
           orders: data.orders,
           pagination: data.pagination ?? get().pagination,
           currentScope: scope,
@@ -51,6 +52,22 @@ export const useOrderStore = create<OrderState>()((set, get) => ({
       }
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  // Fetches latest orders silently (no loading spinner) — used by FCM handler
+  silentRefreshOrders: async () => {
+    const { currentScope, currentLimit, pagination } = get();
+    const { success, data } = await customerService.getOrders({
+      page: pagination.page,
+      scope: currentScope,
+      limit: currentLimit,
+    });
+    if (success && data) {
+      set({
+        orders: data.orders,
+        pagination: data.pagination ?? get().pagination,
+      });
     }
   },
 

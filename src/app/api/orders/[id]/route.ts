@@ -33,6 +33,8 @@ export async function GET(
           paymentIntentId: orders.paymentIntentId,
           sessionId: orders.sessionId,
           restaurantNameSnapshot: orders.restaurantNameSnapshot,
+          confirmedAt: orders.confirmedAt,
+          paidAt: orders.paidAt,
           deliveryJobStatus: deliveryJobs.status,
           trackingUrl: deliveryJobs.trackingUrl,
           driverName: deliveryJobs.driverName,
@@ -76,6 +78,8 @@ export async function GET(
 
       const result = {
         ...order,
+        confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
+        paidAt:      order.paidAt      ? order.paidAt.toISOString()      : null,
         restaurant: { name: order.restaurantNameSnapshot || order.restaurantName },
         deliveryJob: order.deliveryJobStatus || order.trackingUrl || order.driverName || order.driverPhone || order.eta
           ? {
