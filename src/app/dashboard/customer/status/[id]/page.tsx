@@ -86,10 +86,11 @@ export default function OrderStatusPage() {
   const { orders, loading, updateOrderStatus } = useOrders();
   const { site } = useSite();
   const [isPaying, setIsPaying] = React.useState(false);
+  const [isCancelling, setIsCancelling] = React.useState(false);
 
   const order = orders.find(o => o.id === id);
 
-  const handleExpire = async () => {
+  const handlePendingExpire = async () => {
     if (!order || order.status !== "PENDING_CONFIRMATION") return;
     try {
       await updateOrderStatus(order.id, "CANCELLED");
@@ -97,14 +98,59 @@ export default function OrderStatusPage() {
         duration: 5000,
       });
     } catch (err) {
-      console.error("[handleExpire]", err);
+      console.error("[handlePendingExpire]", err);
+    }
+  };
+
+  const handlePaymentExpire = async () => {
+    if (!order || order.status !== "CONFIRMED") return;
+    try {
+      await updateOrderStatus(order.id, "CANCELLED");
+      toast.error("Order cancelled — payment was not completed within 5 minutes.", {
+        duration: 5000,
+      });
+    } catch (err) {
+      console.error("[handlePaymentExpire]", err);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!order) return;
+    try {
+      setIsCancelling(true);
+      const session = useAuthStore.getState().session;
+      const res = await fetch(`/api/orders/${order.id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+        },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        toast.error(data?.message || data?.error || "Failed to cancel order.");
+        return;
+      }
+      toast.success("Order cancelled successfully.");
+    } catch (err) {
+      console.error("[handleCancel]", err);
+      toast.error("A network error occurred. Please try again.");
+    } finally {
+      setIsCancelling(false);
     }
   };
 
   const { formattedTime, isExpired } = useOrderTimer(
     order?.createdAt || new Date().toISOString(),
     10,
-    handleExpire
+    handlePendingExpire
+  );
+
+  const confirmedTimer = useOrderTimer(
+    order?.status === "CONFIRMED" ? (order.confirmedAt ?? null) : null,
+    5,
+    handlePaymentExpire
   );
 
   const liveTrackingUrl = order?.deliveryJob?.trackingUrl;
@@ -260,14 +306,30 @@ export default function OrderStatusPage() {
                     <div className="mt-4 animate-in fade-in slide-in-from-top-2">
                       {/* Contextual Action Button integrated into timeline */}
                       {order.status === "CONFIRMED" && (
-                        <button
-                          onClick={handlePayment}
-                          disabled={isPaying}
-                          className="inline-flex items-center gap-2 bg-gray-900 text-white px-6 py-3 rounded-xl text-xs font-sans font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all active:scale-95 disabled:opacity-50"
-                        >
-                          {isPaying ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
-                          {isPaying ? "Processing..." : `Pay £${parseFloat(order.totalAmount).toFixed(2)} Now`}
-                        </button>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {!confirmedTimer.isExpired && order.confirmedAt && (
+                            <div className="inline-flex items-center gap-1.5 text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100">
+                              <Timer className="w-3 h-3" />
+                              <span className="text-[11px] font-sans font-bold tabular-nums">{confirmedTimer.formattedTime}</span>
+                            </div>
+                          )}
+                          <button
+                            onClick={handlePayment}
+                            disabled={isPaying}
+                            className="inline-flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-xl text-xs font-sans font-black uppercase tracking-widest shadow-lg hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isPaying ? <Loader2 className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
+                            {isPaying ? "Processing..." : `Pay £${parseFloat(order.totalAmount).toFixed(2)} Now`}
+                          </button>
+                          <button
+                            onClick={handleCancel}
+                            disabled={isCancelling}
+                            className="inline-flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl text-xs font-sans font-black uppercase tracking-widest hover:bg-red-100 transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isCancelling ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                            Cancel
+                          </button>
+                        </div>
                       )}
 
                       {order.status === "PENDING_CONFIRMATION" && !isExpired && (

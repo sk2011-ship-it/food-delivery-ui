@@ -151,9 +151,14 @@ export const useOwnerStore = create<OwnerState>()((set, get) => ({
       stopNewOrderAlarm();
     }
 
-    // Optimistic update
+    // Optimistic update — preserve confirmedAt so the 5-min timer keeps running
+    const now = new Date().toISOString();
     set({
-      orders: previousOrders.map((o) => (o.id === id ? { ...o, status } : o)),
+      orders: previousOrders.map((o) =>
+        o.id === id
+          ? { ...o, status, ...(status === "CONFIRMED" && !o.confirmedAt ? { confirmedAt: now } : {}) }
+          : o
+      ),
     });
 
     const res = await ownerService.updateOrderStatus(id, status);
@@ -166,7 +171,7 @@ export const useOwnerStore = create<OwnerState>()((set, get) => ({
     const serverOrder = (res.data as { order?: OwnerOrder } | undefined)?.order;
     if (serverOrder) {
       const isHistorical = serverOrder.status === 'DELIVERED' || serverOrder.status === 'CANCELLED';
-      
+
       if (isHistorical) {
         // Remove from live if it was there
         set({

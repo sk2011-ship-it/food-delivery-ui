@@ -195,7 +195,7 @@ export default function CustomerOrdersPage() {
     }
   }, [refreshOrders]);
 
-  const handleExpire = React.useCallback(async (orderId: string) => {
+  const handleExpire = React.useCallback(async (orderId: string, reason?: "pending_timeout" | "payment_timeout") => {
     try {
       const session = useAuthStore.getState().session;
       const res = await fetch(`/api/orders/${orderId}/status`, {
@@ -213,7 +213,11 @@ export default function CustomerOrdersPage() {
         return;
       }
 
-      toast.error("Restaurant didn't respond in time. Order cancelled.");
+      if (reason === "payment_timeout") {
+        toast.error("Order cancelled — payment was not completed within 5 minutes.");
+      } else {
+        toast.error("Restaurant didn't respond in time. Order cancelled.");
+      }
       await refreshOrders();
     } catch {
       toast.error("A network error occurred. Please try again.");
@@ -237,7 +241,7 @@ export default function CustomerOrdersPage() {
         const expiresAt = new Date(order.confirmedAt).getTime() + 5 * 60 * 1000;
         if (Date.now() >= expiresAt) {
           expiringOrdersRef.current.add(order.id);
-          void handleExpire(order.id);
+          void handleExpire(order.id, "payment_timeout");
         }
       }
     }
