@@ -523,6 +523,14 @@ function ActionMenu({ open, onToggle, onEdit, onDelete }: {
   );
 }
 
+/* ── Pagination helper ── */
+function getPageNumbers(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, null, total];
+  if (current >= total - 3) return [1, null, total - 4, total - 3, total - 2, total - 1, total];
+  return [1, null, current - 1, current, current + 1, null, total];
+}
+
 /* ══════════════════════════════════════════════
    Main Component
 ══════════════════════════════════════════════ */
@@ -1074,28 +1082,45 @@ export default function AdminMenu() {
 
       {/* Pagination */}
       {!loadingRests && !loadingItems && totalPages > 1 && (
-        <div className="flex items-center justify-between px-2">
-          <p className="text-xs" style={{ color: "var(--dash-text-secondary)" }}>
-            Page {page} of {totalPages}
-          </p>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
-              style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
-              style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+        <div className="flex items-center justify-center gap-1 flex-wrap">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
+            style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          {getPageNumbers(page, totalPages).map((p, i) =>
+            p === null ? (
+              <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-xs" style={{ color: "var(--dash-text-secondary)" }}>
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className="w-8 h-8 rounded-lg border text-xs font-semibold transition-colors"
+                style={{
+                  borderColor:  p === page ? "var(--dash-accent)" : "var(--dash-card-border)",
+                  background:   p === page ? "var(--dash-accent)" : "transparent",
+                  color:        p === page ? "#fff" : "var(--dash-text-secondary)",
+                }}
+              >
+                {p}
+              </button>
+            )
+          )}
+
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
+            style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
       )}
 

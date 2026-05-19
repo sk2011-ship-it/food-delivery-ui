@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import {
-  Star, Plus, Trash2, X, ChevronDown, 
-  Store, Utensils, Search, 
-  ChevronRight, ArrowLeft, Check,
+  Star, Plus, Trash2, X, ChevronDown,
+  Store, Utensils, Search,
+  ChevronRight, ChevronLeft, ArrowLeft, Check,
   MoreVertical, Pencil
 } from "lucide-react";
 import { 
@@ -18,6 +18,14 @@ import {
 import { LOCATIONS } from "@/lib/locations";
 import { useSite } from "@/context/SiteContext";
 import { toast } from "sonner";
+
+/* ── Pagination helper ── */
+function getPaginationPages(current: number, total: number): (number | null)[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  if (current <= 4) return [1, 2, 3, 4, 5, null, total];
+  if (current >= total - 3) return [1, null, total - 4, total - 3, total - 2, total - 1, total];
+  return [1, null, current - 1, current, current + 1, null, total];
+}
 
 /* ── Types ── */
 interface Filters {
@@ -218,6 +226,8 @@ export default function AdminFeatured() {
     }
   };
 
+  const totalPages = Math.max(1, Math.ceil(total / 20));
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -259,7 +269,7 @@ export default function AdminFeatured() {
       </div>
 
       {/* Table */}
-      <div className="rounded-2xl border overflow-hidden" style={{ background: "var(--dash-card)", borderColor: "var(--dash-card-border)" }}>
+      <div className="rounded-2xl border" style={{ background: "var(--dash-card)", borderColor: "var(--dash-card-border)" }}>
         <div className="hidden sm:grid sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_44px] gap-4 px-5 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "var(--dash-text-secondary)", borderBottom: "1px solid var(--dash-card-border)" }}>
           <div>Name</div>
           <div>Type</div>
@@ -331,6 +341,50 @@ export default function AdminFeatured() {
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-1 flex-wrap">
+          <button
+            onClick={() => setFilters(f => ({ ...f, page: Math.max(1, f.page - 1) }))}
+            disabled={filters.page === 1}
+            className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
+            style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          {getPaginationPages(filters.page, totalPages).map((p, i) =>
+            p === null ? (
+              <span key={`ellipsis-${i}`} className="w-8 h-8 flex items-center justify-center text-xs" style={{ color: "var(--dash-text-secondary)" }}>
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                onClick={() => setFilters(f => ({ ...f, page: p }))}
+                className="w-8 h-8 rounded-lg border text-xs font-semibold transition-colors"
+                style={{
+                  borderColor: p === filters.page ? "var(--dash-accent)" : "var(--dash-card-border)",
+                  background:  p === filters.page ? "var(--dash-accent)" : "transparent",
+                  color:       p === filters.page ? "#fff" : "var(--dash-text-secondary)",
+                }}
+              >
+                {p}
+              </button>
+            )
+          )}
+
+          <button
+            onClick={() => setFilters(f => ({ ...f, page: Math.min(totalPages, f.page + 1) }))}
+            disabled={filters.page === totalPages}
+            className="p-1.5 rounded-lg border text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-black/5 transition-colors"
+            style={{ borderColor: "var(--dash-card-border)", color: "var(--dash-text-secondary)" }}
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Selection Modal */}
       {addOpen && (
