@@ -5,6 +5,7 @@ import { useOrders } from "@/context/OrderContext";
 import { useCart } from "@/context/CartContext";
 import { useSite } from "@/context/SiteContext";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useOrderStore } from "@/store/useOrderStore";
 import {
   ShoppingBag, Clock, CheckCircle2, CreditCard,
   Package, Truck, AlertCircle, Loader2, RefreshCw,
@@ -123,7 +124,19 @@ export default function CustomerOrdersPage() {
     void refreshOrders(1, tabScope, limit);
   }, [activeTab, refreshOrders, tabScope]);
 
-
+  // Poll every 5 s while any order is in an actionable active state.
+  // Ensures Pay Now button appears without a manual refresh (FCM fallback).
+  const silentRefreshOrders = useOrderStore(state => state.silentRefreshOrders);
+  const hasActiveOrders = orders.some(o =>
+    o.status === "PENDING_CONFIRMATION" || o.status === "CONFIRMED"
+  );
+  React.useEffect(() => {
+    if (!hasActiveOrders) return;
+    const interval = setInterval(() => {
+      silentRefreshOrders();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasActiveOrders, silentRefreshOrders]);
 
   const handleReorder = async (orderId: string) => {
     try {

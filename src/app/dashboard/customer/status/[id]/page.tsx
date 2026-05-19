@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { Loader2, Timer } from "lucide-react";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useOrderStore } from "@/store/useOrderStore";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string; description: string; step: number }> = {
   PENDING_CONFIRMATION: {
@@ -95,6 +96,18 @@ export default function OrderStatusPage() {
   const aiTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const order = orders.find(o => o.id === id);
+  const silentRefreshOrders = useOrderStore(state => state.silentRefreshOrders);
+
+  // Poll every 5 s while the order is waiting for owner action or awaiting payment.
+  // This is a fallback for when FCM notifications are blocked or delayed.
+  React.useEffect(() => {
+    if (!order) return;
+    if (order.status !== "PENDING_CONFIRMATION" && order.status !== "CONFIRMED") return;
+    const interval = setInterval(() => {
+      silentRefreshOrders();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [order?.id, order?.status, silentRefreshOrders]);
 
   const handlePendingExpire = async () => {
     if (!order || order.status !== "PENDING_CONFIRMATION") return;
