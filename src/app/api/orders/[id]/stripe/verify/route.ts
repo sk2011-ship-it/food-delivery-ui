@@ -8,24 +8,6 @@ import { NotificationService } from "@/services/notification.service";
 
 export const dynamic = "force-dynamic"; // Trigger re-compile
 
-async function ensureKitchenStartsFromPaid(orderId: string) {
-  await db
-    .update(orders)
-    .set({
-      status: "PAID",
-      updatedAt: new Date(),
-    })
-    .where(and(
-      eq(orders.id, orderId),
-      inArray(orders.status, [
-        "PENDING_CONFIRMATION",
-        "CONFIRMED",
-        "DISPATCH_REQUESTED",
-        "OUT_FOR_DELIVERY",
-      ])
-    ));
-}
-
 /**
  * POST /api/orders/[id]/stripe/verify
  * Verifies a Stripe Checkout Session status and updates the order if paid.
@@ -140,28 +122,26 @@ export async function POST(
         console.error("[Stripe Verify] Failed to notify customer:", notifyErr);
       }
 
-      // Create the Shipday order immediately after payment, but keep the app order
-      // in kitchen-controlled states until the owner dispatches it manually.
+      // Trigger Shipday — fallback for cases where the webhook was missed
       try {
         const { ShipdayService } = await import("@/services/shipday.service");
         await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
-        await ensureKitchenStartsFromPaid(id);
-        console.log(`[Stripe Verify] Shipday scheduled delivery created for order ${id}.`);
+        console.log(`[Stripe Verify] Shipday order created for ${id}.`);
       } catch (shipdayErr) {
-        console.error("[Stripe Verify] Failed to create Shipday scheduled delivery:", shipdayErr);
+        console.error("[Stripe Verify] Failed to create Shipday order:", shipdayErr);
       }
 
       console.log(`[Stripe Verify] Verification complete for order ${id}.`);
     } else {
       console.log(`[Stripe Verify] Order ${id} was already marked as PAID.`);
 
+      // Idempotent Shipday trigger — ShipdayService handles duplicate gracefully
       try {
         const { ShipdayService } = await import("@/services/shipday.service");
         await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
-        await ensureKitchenStartsFromPaid(id);
-        console.log(`[Stripe Verify] Shipday scheduled delivery ensured for already-paid order ${id}.`);
+        console.log(`[Stripe Verify] Shipday order ensured for already-paid order ${id}.`);
       } catch (shipdayErr) {
-        console.error("[Stripe Verify] Failed to ensure Shipday scheduled delivery:", shipdayErr);
+        console.error("[Stripe Verify] Failed to ensure Shipday order:", shipdayErr);
       }
     }
 

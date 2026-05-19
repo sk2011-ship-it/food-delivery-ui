@@ -36,6 +36,10 @@ export async function POST(
         return fail("Order not found.", 404);
       }
 
+      if (order.status !== "CONFIRMED") {
+        return fail(`Order cannot be paid in its current status: ${order.status}`, 400);
+      }
+
       const host = (await headers()).get("host");
       const protocol = process.env.NODE_ENV === "development" ? "http" : "https";
       const baseUrl = `${protocol}://${host}`;

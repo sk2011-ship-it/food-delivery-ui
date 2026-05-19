@@ -93,10 +93,7 @@ Respond with ONLY valid JSON (no markdown, no explanation outside the JSON):
 
 export async function getAlternativeSuggestion(orderId: string): Promise<AiSuggestion | null> {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.warn("[ai-suggestion] OPENAI_API_KEY not set — skipping AI suggestion.");
-    return null;
-  }
+  // No key — we still run the analytics pipeline and fall back to top-ranked candidate
 
   // ── Step 1: Load current order ─────────────────────────────────────────────
   const [currentOrder] = await db
@@ -167,8 +164,9 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
     }
   }
 
-  // ── Step 5: Load matching dishes for each candidate ────────────────────────
-  const allDishes = await db
+  // ── Step 5: Load dishes for each candidate ────────────────────────────────
+  // First try same-category dishes; if none found, fall back to any available dish.
+  let allDishes = await db
     .select({
       id: menuItems.id,
       restaurantId: menuItems.restaurantId,
@@ -186,6 +184,26 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
       )
     );
 
+  // Fallback: no category match → any available dish from those restaurants
+  if (allDishes.length === 0) {
+    allDishes = await db
+      .select({
+        id: menuItems.id,
+        restaurantId: menuItems.restaurantId,
+        name: menuItems.name,
+        price: menuItems.price,
+        category: menuItems.category,
+        imageUrl: menuItems.imageUrl,
+      })
+      .from(menuItems)
+      .where(
+        and(
+          inArray(menuItems.restaurantId, candidateIds),
+          eq(menuItems.status, "available")
+        )
+      );
+  }
+
   // Group dishes by restaurant
   const dishesByRestaurant = new Map<string, typeof allDishes>();
   for (const dish of allDishes) {
@@ -194,7 +212,7 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
     dishesByRestaurant.set(dish.restaurantId, existing);
   }
 
-  // Build candidates list — only restaurants that have at least one matching dish
+  // Build candidates list — only restaurants that have at least one dish
   const candidates: CandidateForAI[] = candidateRestaurants
     .filter((r) => (dishesByRestaurant.get(r.id)?.length ?? 0) > 0)
     .map((r) => {
@@ -222,42 +240,53 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
 
   if (candidates.length === 0) return null;
 
-  // ── Step 6: Ask GPT-4o mini to pick the best one ──────────────────────────
+  // ── Step 6: Ask GPT-4o mini to pick the best one (or use analytics fallback) ─
   let chosenRestaurantId: string;
   let chosenDishId: string;
   let aiReason: string;
 
-  try {
-    const openai = new OpenAI({ apiKey });
-    const prompt = buildPrompt(
-      itemNames,
-      Number(currentOrder.totalAmount),
-      currentOrder.deliveryArea ?? "",
-      candidates
-    );
+  if (apiKey) {
+    try {
+      const openai = new OpenAI({ apiKey });
+      const prompt = buildPrompt(
+        itemNames,
+        Number(currentOrder.totalAmount),
+        currentOrder.deliveryArea ?? "",
+        candidates
+      );
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,       // Low temp = consistent, factual picks
-      max_tokens: 120,
-      response_format: { type: "json_object" },
-    });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: 120,
+        response_format: { type: "json_object" },
+      });
 
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw) as { restaurantId?: string; dishId?: string; reason?: string };
+      const raw = completion.choices[0]?.message?.content ?? "{}";
+      const parsed = JSON.parse(raw) as { restaurantId?: string; dishId?: string; reason?: string };
 
-    chosenRestaurantId = parsed.restaurantId ?? candidates[0].restaurantId;
-    chosenDishId = parsed.dishId ?? candidates[0].dishes[0].id;
-    aiReason = parsed.reason ?? "This restaurant is highly rated and typically accepts orders quickly.";
+      chosenRestaurantId = parsed.restaurantId ?? candidates[0].restaurantId;
+      chosenDishId = parsed.dishId ?? candidates[0].dishes[0].id;
+      aiReason = parsed.reason ?? "This restaurant is highly rated and typically accepts orders quickly.";
 
-    console.log("[ai-suggestion] GPT-4o mini picked:", { chosenRestaurantId, chosenDishId, aiReason });
-  } catch (err) {
-    // Fallback to top analytics pick if GPT call fails
-    console.error("[ai-suggestion] GPT-4o mini call failed — falling back to top candidate:", err);
+      console.log("[ai-suggestion] GPT-4o mini picked:", { chosenRestaurantId, chosenDishId, aiReason });
+    } catch (err) {
+      // Fallback to top analytics pick if GPT call fails
+      console.error("[ai-suggestion] GPT-4o mini call failed — falling back to top candidate:", err);
+      chosenRestaurantId = candidates[0].restaurantId;
+      chosenDishId = candidates[0].dishes[0].id;
+      aiReason = "This restaurant typically accepts orders quickly and has similar dishes.";
+    }
+  } else {
+    // No OpenAI key — use the top analytics-ranked candidate directly
+    console.warn("[ai-suggestion] OPENAI_API_KEY not set — using analytics fallback.");
     chosenRestaurantId = candidates[0].restaurantId;
     chosenDishId = candidates[0].dishes[0].id;
-    aiReason = "This restaurant typically accepts orders quickly and has similar dishes.";
+    const topCandidate = candidates[0];
+    aiReason = topCandidate.hasHistoricalData
+      ? `${topCandidate.restaurantName} typically accepts orders in ~${topCandidate.avgAcceptanceMinutes} min — much faster than your current wait.`
+      : `${topCandidate.restaurantName} is available now and may accept your order faster.`;
   }
 
   // ── Step 7: Resolve chosen restaurant + dish ──────────────────────────────

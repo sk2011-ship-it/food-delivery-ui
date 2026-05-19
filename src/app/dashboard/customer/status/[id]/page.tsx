@@ -94,6 +94,9 @@ export default function OrderStatusPage() {
   const [isCancelling, setIsCancelling] = React.useState(false);
   const [aiSuggestion, setAiSuggestion] = React.useState<AiSuggestion | null>(null);
   const aiTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track live status via ref so the setTimeout callback can do a fresh check
+  // without relying on a stale closure from when the effect first ran.
+  const orderStatusRef = React.useRef<string | undefined>(undefined);
 
   const order = orders.find(o => o.id === id);
   const silentRefreshOrders = useOrderStore(state => state.silentRefreshOrders);
@@ -160,22 +163,26 @@ export default function OrderStatusPage() {
     }
   };
 
-  // ── AI suggestion: fetch after 60s, only show popup if GPT returns a result ─
+  // Keep ref in sync with the latest order status on every render
+  orderStatusRef.current = order?.status;
+
+  // ── AI suggestion: fetch after 60s, only show popup if a suggestion is returned ─
   React.useEffect(() => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
 
     if (!order || order.status !== "PENDING_CONFIRMATION" || aiSuggestion) return;
 
+    const orderId = order.id;
     const elapsed = Date.now() - new Date(order.createdAt).getTime();
     const TRIGGER_MS = 60_000;
     const remaining = Math.max(0, TRIGGER_MS - elapsed);
 
     aiTimerRef.current = setTimeout(async () => {
-      // Re-check status at trigger time (could have changed)
-      if (order.status !== "PENDING_CONFIRMATION") return;
+      // Use ref for a live status check — avoids stale-closure false negatives
+      if (orderStatusRef.current !== "PENDING_CONFIRMATION") return;
       try {
         const session = useAuthStore.getState().session;
-        const res = await fetch(`/api/orders/${order.id}/ai-suggestion`, {
+        const res = await fetch(`/api/orders/${orderId}/ai-suggestion`, {
           headers: {
             Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
           },
@@ -183,7 +190,7 @@ export default function OrderStatusPage() {
         if (!res.ok) return;
         const json = await res.json();
         const suggestion = json?.data?.suggestion;
-        if (suggestion) setAiSuggestion(suggestion); // Only show if GPT returned something
+        if (suggestion) setAiSuggestion(suggestion);
       } catch {
         // Silent — never break the page
       }
