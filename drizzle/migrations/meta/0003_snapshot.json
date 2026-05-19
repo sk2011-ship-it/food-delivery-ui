@@ -1,6 +1,6 @@
 {
-  "id": "f8338b22-c72d-46c6-9ae6-757c9797cd76",
-  "prevId": "ac5f707d-6f7b-45c7-9bdb-47533061fd1e",
+  "id": "b6127c08-f780-4b8e-9ade-46ea2d0fab2c",
+  "prevId": "f8338b22-c72d-46c6-9ae6-757c9797cd76",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2020,6 +2020,19 @@
           "primaryKey": false,
           "notNull": false
         },
+        "order_ids": {
+          "name": "order_ids",
+          "type": "json",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "order_count": {
+          "name": "order_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -2241,92 +2254,6 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.whatsapp_templates": {
-      "name": "whatsapp_templates",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "twilio_content_sid": {
-          "name": "twilio_content_sid",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "body_preview": {
-          "name": "body_preview",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "is_active": {
-          "name": "is_active",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "whatsapp_templates_name_unique": {
-          "name": "whatsapp_templates_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
-        },
-        "whatsapp_templates_twilio_content_sid_unique": {
-          "name": "whatsapp_templates_twilio_content_sid_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "twilio_content_sid"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

@@ -67,6 +67,8 @@ export async function POST(req: Request) {
           periodStart,
           periodEnd,
           notes,
+          orderIds: targetedOrders.map(o => o.id),
+          orderCount: targetedOrders.length,
         }).returning();
 
         // b. Mark orders as settled

@@ -22,6 +22,13 @@
       "when": 1779028364051,
       "tag": "0002_worthless_blazing_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779168955207,
+      "tag": "0003_classy_prowler",
+      "breakpoints": true
     }
   ]
 }

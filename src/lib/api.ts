@@ -493,7 +493,8 @@ export interface SettlementSummary {
   restaurants: (AdminRestaurantItem & {
     totalEarned: number;
     totalPaid: number;
-    pendingBalance: number;
+    pendingBalance: number;  // accurate: sum of isSettled=NO orders
+    unsettledCount: number;  // count of isSettled=NO orders
     orderCount: number;
   })[];
   platformSummary: {

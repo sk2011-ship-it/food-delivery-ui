@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   BarChart3, Store, ShoppingBag, Clock, CheckCircle2,
-  TrendingUp, FileText, RefreshCw, AlertCircle, ChevronDown
+  TrendingUp, FileText, RefreshCw, AlertCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
 
@@ -32,6 +32,8 @@ interface Settlement {
   periodStart: string | null;
   periodEnd: string | null;
   notes: string | null;
+  orderCount: number;
+  orderIds: string[] | null;
   createdAt: string;
 }
 
@@ -73,11 +75,12 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
 ];
 
 export default function OwnerReports() {
-  const [period, setPeriod]   = useState<Period>("all");
-  const [status, setStatus]   = useState<StatusFilter>("all");
-  const [data, setData]       = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState<string | null>(null);
+  const [period, setPeriod]         = useState<Period>("all");
+  const [status, setStatus]         = useState<StatusFilter>("all");
+  const [data, setData]             = useState<ReportData | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -245,54 +248,103 @@ export default function OwnerReports() {
           </div>
         ) : (
           <div className="divide-y divide-gray-50">
-            {data.settlements.map(s => (
-              <div key={s.id} className="px-5 py-4">
-                <div className="flex items-start justify-between gap-4">
-                  {/* Left: details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <p className="text-sm font-semibold text-gray-900">{s.restaurantName}</p>
-                      <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                        s.status === "COMPLETED"
-                          ? "bg-green-50 text-green-700 border border-green-100"
-                          : "bg-amber-50 text-amber-700 border border-amber-100"
-                      }`}>
-                        {s.status === "COMPLETED" ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                        {s.status === "COMPLETED" ? "Settled" : "Pending"}
-                      </span>
+            {data.settlements.map(s => {
+              const isExpanded = expandedId === s.id;
+              const orderCount = s.orderCount > 0 ? s.orderCount : (s.orderIds?.length ?? 0);
+              return (
+                <div key={s.id}>
+                  {/* Clickable main row */}
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : s.id)}
+                    className="w-full px-5 py-4 flex items-start gap-4 hover:bg-gray-50 transition-colors text-left"
+                  >
+                    <div className="flex-1 min-w-0">
+                      {/* Top line: restaurant + status badge */}
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <p className="text-sm font-semibold text-gray-900">{s.restaurantName}</p>
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                          s.status === "COMPLETED"
+                            ? "bg-green-50 text-green-700 border border-green-100"
+                            : "bg-amber-50 text-amber-700 border border-amber-100"
+                        }`}>
+                          {s.status === "COMPLETED" ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                          {s.status === "COMPLETED" ? "Settled" : "Pending"}
+                        </span>
+                      </div>
+
+                      {/* Meta row */}
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-500 mb-1.5">
+                        {orderCount > 0 && (
+                          <span className="font-medium text-gray-700">{orderCount} order{orderCount !== 1 ? "s" : ""} included</span>
+                        )}
+                        {(s.periodStart || s.periodEnd) && (
+                          <span>Period: {fmtDate(s.periodStart)} → {fmtDate(s.periodEnd)}</span>
+                        )}
+                        {s.transactionId && (
+                          <span className="font-mono">Ref: {s.transactionId}</span>
+                        )}
+                        <span className="text-gray-400">{fmtDate(s.createdAt)}</span>
+                      </div>
+
+                      {/* Admin notes */}
+                      {s.notes && (
+                        <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
+                          <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
+                          <p className="text-xs text-blue-800 leading-relaxed">{s.notes}</p>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Period */}
-                    {(s.periodStart || s.periodEnd) && (
-                      <p className="text-xs text-gray-500 mb-1">
-                        Period: {fmtDate(s.periodStart)} → {fmtDate(s.periodEnd)}
-                      </p>
-                    )}
-
-                    {/* Transaction ID */}
-                    {s.transactionId && (
-                      <p className="text-xs text-gray-400 font-mono mb-1">
-                        Ref: {s.transactionId}
-                      </p>
-                    )}
-
-                    {/* Admin notes */}
-                    {s.notes && (
-                      <div className="mt-2 flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                        <FileText className="w-3.5 h-3.5 text-blue-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-blue-800 leading-relaxed">{s.notes}</p>
+                    {/* Right: amount + expand toggle */}
+                    <div className="text-right shrink-0 flex items-center gap-2">
+                      <div>
+                        <p className="text-base font-black text-gray-900">{fmt(parseFloat(s.amount))}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{fmtDate(s.createdAt)}</p>
                       </div>
-                    )}
-                  </div>
+                      {isExpanded
+                        ? <ChevronUp className="w-4 h-4 text-gray-400" />
+                        : <ChevronDown className="w-4 h-4 text-gray-400" />
+                      }
+                    </div>
+                  </button>
 
-                  {/* Right: amount + date */}
-                  <div className="text-right shrink-0">
-                    <p className="text-base font-black text-gray-900">{fmt(parseFloat(s.amount))}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{fmtDate(s.createdAt)}</p>
-                  </div>
+                  {/* Expanded order breakdown */}
+                  {isExpanded && (
+                    <div className="px-5 pb-4 bg-gray-50/50">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        Orders included in this settlement
+                      </p>
+                      {(!s.orderIds || s.orderIds.length === 0) ? (
+                        <p className="text-xs text-gray-400 italic">
+                          Order-level detail is not available for this settlement. Contact the platform admin for a breakdown.
+                        </p>
+                      ) : (
+                        <div className="rounded-xl border border-gray-100 bg-white overflow-hidden">
+                          <div className="grid grid-cols-2 gap-2 px-3 py-2 bg-gray-50 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                            <span>Order ID</span>
+                            <span className="text-right">Ref</span>
+                          </div>
+                          <div className="divide-y divide-gray-50 max-h-48 overflow-y-auto">
+                            {s.orderIds.map(id => (
+                              <div key={id} className="grid grid-cols-2 gap-2 px-3 py-2 text-xs items-center">
+                                <span className="font-mono text-gray-600">#{id.slice(0, 8).toUpperCase()}</span>
+                                <span className="text-right text-gray-400 font-mono text-[10px]">{id.slice(-6).toUpperCase()}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex justify-between items-center px-3 py-2 border-t border-gray-100 bg-gray-50">
+                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                              {s.orderIds.length} orders · Total
+                            </span>
+                            <span className="text-sm font-black text-gray-900">{fmt(parseFloat(s.amount))}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

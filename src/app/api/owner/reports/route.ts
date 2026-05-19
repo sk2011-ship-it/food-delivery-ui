@@ -83,6 +83,8 @@ export async function GET(req: Request) {
           periodStart:  settlements.periodStart,
           periodEnd:    settlements.periodEnd,
           notes:        settlements.notes,
+          orderIds:     settlements.orderIds,
+          orderCount:   settlements.orderCount,
           createdAt:    settlements.createdAt,
         })
         .from(settlements)

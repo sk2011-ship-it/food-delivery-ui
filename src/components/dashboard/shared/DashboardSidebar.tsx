@@ -16,12 +16,13 @@ type NavItem = { label: string; href: string; icon: React.ElementType };
 
 const navByRole: Record<UserRole, NavItem[]> = {
   owner: [
-    { label: "Overview",        href: "/dashboard/owner",             icon: LayoutDashboard },
-    { label: "Live Orders",     href: "/dashboard/owner/orders",      icon: UtensilsCrossed },
+    { label: "Overview",        href: "/dashboard/owner",                icon: LayoutDashboard },
+    { label: "Live Orders",     href: "/dashboard/owner/orders",         icon: UtensilsCrossed },
     { label: "Order History",   href: "/dashboard/owner/orders/history", icon: HistoryIcon },
-    { label: "Restaurants",     href: "/dashboard/owner/restaurants", icon: Store },
-    { label: "Settings",        href: "/dashboard/owner/settings",    icon: Settings },
-    { label: "Support",         href: "/dashboard/owner/support",     icon: MessageSquare },
+    { label: "Reports",         href: "/dashboard/owner/reports",        icon: BarChart3 },
+    { label: "Restaurants",     href: "/dashboard/owner/restaurants",    icon: Store },
+    { label: "Settings",        href: "/dashboard/owner/settings",       icon: Settings },
+    { label: "Support",         href: "/dashboard/owner/support",        icon: MessageSquare },
   ],
   admin: [
     { label: "Overview",    href: "/dashboard/admin",              icon: LayoutDashboard },
