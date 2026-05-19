@@ -65,41 +65,44 @@ export async function POST(
 
     if (updatedOrder) {
       // 4. Notify Restaurant Owner (same logic as webhook)
-      const [restaurant] = await db
-        .select({
-          ownerId: restaurants.ownerId,
-          name: restaurants.name
-        })
-        .from(restaurants)
-        .where(eq(restaurants.id, updatedOrder.restaurantId))
-        .limit(1);
-
-      if (restaurant) {
-        const subject = "Payment Received";
-        
-        const itemsRows = await db
+      try {
+        const [restaurant] = await db
           .select({
-            name: menuItems.name,
-            quantity: orderItems.quantity,
+            ownerId: restaurants.ownerId,
+            name: restaurants.name
           })
-          .from(orderItems)
-          .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
-          .where(eq(orderItems.orderId, updatedOrder.id));
-        
-        const itemsSummary = itemsRows.map(i => `${i.quantity}x ${i.name}`).join("\n");
-        const ownerBody = `Payment Received! 💰\nOrder: #${updatedOrder.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${updatedOrder.totalAmount}`;
+          .from(restaurants)
+          .where(eq(restaurants.id, updatedOrder.restaurantId))
+          .limit(1);
 
-        // Dispatch Owner Notifications
-        if (restaurant.ownerId) {
-          await NotificationService.dispatchOrderNotifications({
-            userId: restaurant.ownerId,
-            type: "ORDER",
-            subject,
-            body: ownerBody,
-            metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "owner" },
-            channels: ["FCM", "WHATSAPP"]
-          });
+        if (restaurant) {
+          const subject = "Payment Received";
+
+          const itemsRows = await db
+            .select({
+              name: menuItems.name,
+              quantity: orderItems.quantity,
+            })
+            .from(orderItems)
+            .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+            .where(eq(orderItems.orderId, updatedOrder.id));
+
+          const itemsSummary = itemsRows.map(i => `${i.quantity}x ${i.name}`).join("\n");
+          const ownerBody = `Payment Received! 💰\nOrder: #${updatedOrder.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${updatedOrder.totalAmount}`;
+
+          if (restaurant.ownerId) {
+            await NotificationService.dispatchOrderNotifications({
+              userId: restaurant.ownerId,
+              type: "ORDER",
+              subject,
+              body: ownerBody,
+              metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "owner" },
+              channels: ["FCM", "WHATSAPP"]
+            });
+          }
         }
+      } catch (notifyOwnerErr) {
+        console.error("[Stripe Verify] Failed to notify owner:", notifyOwnerErr);
       }
 
       // 5. Notify Customer

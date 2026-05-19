@@ -28,7 +28,9 @@ export type ShipdayOrderResult = {
 const SHIPDAY_API_BASE_URL = process.env.SHIPDAY_API_BASE_URL || "https://api.shipday.com";
 
 function readString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return null;
 }
 
 function pickFirstString(...values: unknown[]): string | null {
