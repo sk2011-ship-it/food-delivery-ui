@@ -4,6 +4,7 @@ import React from "react";
 import { useParams } from "next/navigation";
 import { useOrders } from "@/context/OrderContext";
 import { useSite } from "@/context/SiteContext";
+import AiSuggestionPopup, { type AiSuggestion } from "@/components/dashboard/customer/AiSuggestionPopup";
 import {
   Clock,
   CheckCircle2,
@@ -90,6 +91,8 @@ export default function OrderStatusPage() {
   const { site } = useSite();
   const [isPaying, setIsPaying] = React.useState(false);
   const [isCancelling, setIsCancelling] = React.useState(false);
+  const [aiSuggestion, setAiSuggestion] = React.useState<AiSuggestion | null>(null);
+  const aiTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const order = orders.find(o => o.id === id);
 
@@ -144,6 +147,39 @@ export default function OrderStatusPage() {
     }
   };
 
+  // ── AI suggestion: fetch after 60s, only show popup if GPT returns a result ─
+  React.useEffect(() => {
+    if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
+
+    if (!order || order.status !== "PENDING_CONFIRMATION" || aiSuggestion) return;
+
+    const elapsed = Date.now() - new Date(order.createdAt).getTime();
+    const TRIGGER_MS = 60_000;
+    const remaining = Math.max(0, TRIGGER_MS - elapsed);
+
+    aiTimerRef.current = setTimeout(async () => {
+      // Re-check status at trigger time (could have changed)
+      if (order.status !== "PENDING_CONFIRMATION") return;
+      try {
+        const session = useAuthStore.getState().session;
+        const res = await fetch(`/api/orders/${order.id}/ai-suggestion`, {
+          headers: {
+            Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+          },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const suggestion = json?.data?.suggestion;
+        if (suggestion) setAiSuggestion(suggestion); // Only show if GPT returned something
+      } catch {
+        // Silent — never break the page
+      }
+    }, remaining);
+
+    return () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id, order?.status]);
+
   const { formattedTime, isExpired } = useOrderTimer(
     order?.createdAt || new Date().toISOString(),
     10,
@@ -155,6 +191,17 @@ export default function OrderStatusPage() {
     5,
     handlePaymentExpire
   );
+
+  // 3-minute cancel window after payment (visible even when status moves to PREPARING)
+  const paidCancelTimer = useOrderTimer(
+    order?.paidAt ?? null,
+    3,
+    () => {} // no expiry action — just used to track remaining time and isExpired
+  );
+  const canCancelAfterPayment =
+    (order?.status === "PAID" || order?.status === "PREPARING") &&
+    Boolean(order?.paidAt) &&
+    !paidCancelTimer.isExpired;
 
   const deliveryJob     = order?.deliveryJob;
   const liveTrackingUrl = deliveryJob?.trackingUrl;
@@ -376,6 +423,26 @@ export default function OrderStatusPage() {
                           <span className="text-[11px] font-sans font-bold tabular-nums">{formattedTime}</span>
                         </div>
                       )}
+
+                      {/* Cancel grace window after payment — visible even if kitchen started (PREPARING) */}
+                      {canCancelAfterPayment && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="inline-flex items-center gap-1.5 text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                            <Timer className="w-3 h-3" />
+                            <span className="text-[11px] font-sans font-bold tabular-nums">
+                              Cancel in {paidCancelTimer.formattedTime}
+                            </span>
+                          </div>
+                          <button
+                            onClick={handleCancel}
+                            disabled={isCancelling}
+                            className="inline-flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl text-xs font-sans font-black uppercase tracking-widest hover:bg-red-100 transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isCancelling ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                            Cancel Order
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -431,7 +498,7 @@ export default function OrderStatusPage() {
 
         {/* Footer Actions */}
         <div className="mt-12 flex flex-col items-center gap-6">
-          <Link 
+          <Link
             href="/contact"
             className="flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-colors group"
           >
@@ -444,6 +511,16 @@ export default function OrderStatusPage() {
           </p>
         </div>
       </div>
+
+      {/* AI Suggestion Card — slides up from bottom, no backdrop */}
+      {aiSuggestion && order && (
+        <AiSuggestionPopup
+          orderId={order.id}
+          suggestion={aiSuggestion}
+          onDismiss={() => setAiSuggestion(null)}
+          onCancelled={() => setAiSuggestion(null)}
+        />
+      )}
     </div>
   );
 }

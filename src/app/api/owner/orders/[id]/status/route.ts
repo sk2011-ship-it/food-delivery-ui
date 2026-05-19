@@ -114,7 +114,45 @@ export async function PATCH(
         }
       })();
 
-      // 3. Fire-and-forget BACKGROUND tasks
+      // 3. Fetch restaurant name — needed for customer notification (awaited, fast)
+      let restaurantName = "restaurant";
+      try {
+        const [restaurantInfo] = await db
+          .select({ name: restaurants.name })
+          .from(restaurants)
+          .where(eq(restaurants.id, ownedOrder.restaurantId))
+          .limit(1);
+        if (restaurantInfo) restaurantName = restaurantInfo.name;
+      } catch (dbErr) {
+        console.error("[owner/orders/status] Failed to fetch restaurant name:", dbErr);
+      }
+
+      // 4. Notify customer BEFORE responding — ensures FCM fires even in serverless
+      try {
+        if (ownedOrder.userId) {
+          const label = STATUS_LABELS[nextStatus] ?? {
+            subject: "Order Update",
+            body: (oid: string, r: string) => `Your order #${oid} from ${r} is now ${nextStatus.toLowerCase().replace(/_/g, " ")}.`,
+          };
+          await NotificationService.dispatchOrderNotifications({
+            userId: ownedOrder.userId,
+            type: "ORDER",
+            subject: label.subject,
+            body: label.body(id.slice(0, 8), restaurantName),
+            metadata: {
+              orderId: id,
+              orderStatus: nextStatus,
+              targetRole: "customer",
+              ...(nextStatus === "CANCELLED" && { cancellationReason: "Declined by the restaurant" }),
+            },
+            channels: ["FCM", "WHATSAPP"],
+          });
+        }
+      } catch (notifyCustomerErr) {
+        console.error("[owner/orders/status] Failed to notify customer:", notifyCustomerErr);
+      }
+
+      // 5. Background tasks — non-critical, fire-and-forget after response
       void (async () => {
         // A. Sync Session Status
         try {
@@ -125,7 +163,7 @@ export async function PATCH(
           console.error("[owner/orders/status] syncSessionStatus failed:", syncErr);
         }
 
-        // B. Handle Shipday for Dispatch
+        // B. Shipday integration
         try {
           if (nextStatus === "OUT_FOR_DELIVERY") {
             const { ShipdayService } = await import("@/services/shipday.service");
@@ -138,90 +176,38 @@ export async function PATCH(
           console.error("[owner/orders/status] Shipday integration failed:", shipdayErr);
         }
 
-        // 2. Fetch Restaurant Info for notifications
-        let restaurantName = "restaurant";
-        try {
-          const [restaurantInfo] = await db
-            .select({ name: restaurants.name })
-            .from(restaurants)
-            .where(eq(restaurants.id, ownedOrder.restaurantId))
-            .limit(1);
-          if (restaurantInfo) restaurantName = restaurantInfo.name;
-        } catch (dbErr) {
-          console.error("[owner/orders/status] Failed to fetch restaurant name for notifications:", dbErr);
-        }
-
-        // C. Notify the customer
-        try {
-          if (ownedOrder.userId) {
-            const label = STATUS_LABELS[nextStatus] || {
-              subject: "Order Update",
-              body: (id: string, r: string) => `Your order #${id} from ${r} is now ${nextStatus.toLowerCase().replace(/_/g, " ")}.`
-            };
-
-            const subject = label.subject;
-            const body = label.body(id.slice(0, 8), restaurantName);
-
-            const customerChannels: (typeof notificationChannelEnum)[number][] = ["FCM", "WHATSAPP"];
-
-            await NotificationService.dispatchOrderNotifications({
-              userId: ownedOrder.userId,
-              type: "ORDER",
-              subject,
-              body,
-              metadata: {
-                orderId: id,
-                orderStatus: nextStatus,
-                targetRole: "customer",
-                ...(nextStatus === "CANCELLED" && { cancellationReason: "Declined by the restaurant" }),
-              },
-              channels: customerChannels
-            });
-          }
-        } catch (notifyCustomerErr) {
-          console.error("[owner/orders/status] Failed to notify customer:", notifyCustomerErr);
-        }
-
-        // D. Notify the owner
+        // C. Notify owner (WhatsApp + FCM echo)
         try {
           const statusText = nextStatus.replace(/_/g, " ").toLowerCase();
-          const subject = `Order Update: #${id.slice(0, 8)}`;
-
           const itemsRows = await db
-            .select({
-              name: menuItems.name,
-              quantity: orderItems.quantity,
-            })
+            .select({ name: menuItems.name, quantity: orderItems.quantity })
             .from(orderItems)
             .leftJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
             .where(eq(orderItems.orderId, id));
 
-          const totalAmount = ownedOrder.totalAmount || "0.00";
           const itemsSummary = itemsRows.length > 0
             ? itemsRows.map(i => `${i.quantity}x ${i.name || "Unknown Item"}`).join("\n")
-            : "No specific items found for this order.";
-
-          const detailedBody = `*Order Update: #${id.slice(0, 8)}*\nRestaurant: ${restaurantName}\nStatus: ${statusText.toUpperCase()}\n\n*Items:*\n${itemsSummary}\n\n*Total:* £${totalAmount}`;
+            : "No specific items found.";
 
           await NotificationService.dispatchOrderNotifications({
             userId: user.id,
             type: "ORDER",
-            subject,
-            body: detailedBody,
+            subject: `Order Update: #${id.slice(0, 8)}`,
+            body: `*Order Update: #${id.slice(0, 8)}*\nRestaurant: ${restaurantName}\nStatus: ${statusText.toUpperCase()}\n\n*Items:*\n${itemsSummary}\n\n*Total:* £${ownedOrder.totalAmount || "0.00"}`,
             metadata: {
               orderId: id,
               orderStatus: nextStatus,
               targetRole: "owner",
               ...(nextStatus === "CANCELLED" && { cancellationReason: "Cancelled by restaurant" }),
             },
-            channels: ["FCM", "WHATSAPP"]
+            channels: ["FCM", "WHATSAPP"],
           });
         } catch (notifyOwnerErr) {
           console.error("[owner/orders/status] Failed to notify owner:", notifyOwnerErr);
         }
       })();
 
-      // 4. Respond to owner IMMEDIATELY after DB status update
+      // 6. Respond to owner immediately
       return ok({ order: updated });
     } catch (err) {
       console.error("[api/owner/orders/[id]/status PATCH]", err);

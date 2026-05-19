@@ -29,6 +29,8 @@ const StatusSchema = z.object({
     "CANCELLED"
   ]),
   paymentIntentId: z.string().optional(),
+  /** Optional human-readable cancel reason (e.g. "waiting_too_long", "wrong_order"). Stored in orderMetrics. */
+  cancelReason: z.string().optional(),
 });
 
 /**
@@ -46,7 +48,7 @@ export async function PATCH(
       const { id } = await params;
       const body = await parseBody(req, StatusSchema);
       if ("error" in body) return body.error;
-      const { status, paymentIntentId } = body.data;
+      const { status, paymentIntentId, cancelReason } = body.data;
 
       // 1. Fetch the order
       const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
@@ -89,14 +91,14 @@ export async function PATCH(
 
         // If customer is cancelling, ensure it's THEIR order and it's still in a cancellable state
         if (isCustomerOwner && user.role === "customer") {
-          if (order.status === "PAID") {
-            // Allow cancel within 3-minute grace window after payment
+          if (order.status === "PAID" || order.status === "PREPARING") {
+            // Allow cancel within 3-minute grace window after payment regardless of kitchen status
             const THREE_MINUTES_MS = 3 * 60 * 1000;
             const paidAt = order.paidAt ? new Date(order.paidAt).getTime() : null;
             if (!paidAt || Date.now() - paidAt > THREE_MINUTES_MS) {
               return fail("Your order is already being prepared and can no longer be cancelled.", 403);
             }
-            // Within 3 minutes of payment — allow
+            // Within 3 minutes of payment — allow even if kitchen already started
           } else {
             const cancellableStatuses = ["PENDING_CONFIRMATION", "CONFIRMED", "CANCELLED"];
             if (!cancellableStatuses.includes(order.status)) {
@@ -174,9 +176,10 @@ export async function PATCH(
         const now = new Date();
         if (status === "CANCELLED") {
           const isCustomer = order.userId === user.id && user.role === "customer";
+          const reasonLabel = cancelReason ?? (isCustomer ? "customer_cancelled" : "owner_rejected");
           void trackOrderMetric(id, {
             cancelledAt: now,
-            cancellationReason: isCustomer ? "customer_cancelled" : "owner_rejected",
+            cancellationReason: reasonLabel,
           });
         } else if (status === "PAID") {
           void trackOrderMetric(id, { paidAt: now });

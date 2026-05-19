@@ -96,47 +96,49 @@ export async function POST(req: Request) {
         // Track paidAt for every sub-order
         void Promise.all(updatedOrders.map(o => trackOrderMetric(o.id, { paidAt })));
 
-        // Background notifications and Shipday
+        // Background notifications and Shipday — each step isolated
         const backgroundTask = (async () => {
-          try {
-            // Notify each restaurant owner
-            for (const order of updatedOrders) {
-              try {
-                const [restaurant] = await db
-                  .select({ ownerId: restaurants.ownerId, name: restaurants.name })
-                  .from(restaurants)
-                  .where(eq(restaurants.id, order.restaurantId))
-                  .limit(1);
+          // Notify each restaurant owner + trigger Shipday per sub-order
+          for (const order of updatedOrders) {
+            try {
+              const [restaurant] = await db
+                .select({ ownerId: restaurants.ownerId, name: restaurants.name })
+                .from(restaurants)
+                .where(eq(restaurants.id, order.restaurantId))
+                .limit(1);
 
-                if (restaurant?.ownerId) {
-                  const itemsRows = await db
-                    .select({ name: menuItems.name, quantity: orderItems.quantity })
-                    .from(orderItems)
-                    .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
-                    .where(eq(orderItems.orderId, order.id));
+              if (restaurant?.ownerId) {
+                const itemsRows = await db
+                  .select({ name: menuItems.name, quantity: orderItems.quantity })
+                  .from(orderItems)
+                  .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
+                  .where(eq(orderItems.orderId, order.id));
 
-                  const itemsSummary = itemsRows.map(i => `${i.quantity}x ${i.name}`).join("\n");
-                  const ownerBody = `Payment Confirmed! 💰\nOrder: #${order.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${order.totalAmount}`;
-
-                  await NotificationService.dispatchOrderNotifications({
-                    userId: restaurant.ownerId,
-                    type: "ORDER",
-                    subject: "Payment Received",
-                    body: ownerBody,
-                    metadata: { orderId: order.id, orderStatus: "PAID", targetRole: "owner" },
-                    channels: ["FCM", "WHATSAPP"],
-                  });
-                }
-
-                // Trigger Shipday for each sub-order
-                const { ShipdayService } = await import("@/services/shipday.service");
-                await ShipdayService.triggerShipdayOrder(order.id, "DISPATCH_REQUESTED");
-              } catch (subErr) {
-                console.error(`[Stripe Webhook] Error processing sub-order ${order.id}:`, subErr);
+                const itemsSummary = itemsRows.map(i => `${i.quantity}x ${i.name}`).join("\n");
+                await NotificationService.dispatchOrderNotifications({
+                  userId: restaurant.ownerId,
+                  type: "ORDER",
+                  subject: "Payment Received",
+                  body: `Payment Confirmed! 💰\nOrder: #${order.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${order.totalAmount}`,
+                  metadata: { orderId: order.id, orderStatus: "PAID", targetRole: "owner" },
+                  channels: ["FCM", "WHATSAPP"],
+                });
               }
+            } catch (err) {
+              console.error(`[Stripe Webhook] Failed to notify owner for sub-order ${order.id}:`, err);
             }
 
-            // Notify customer once for the whole session
+            // Shipday isolated — always runs regardless of notification outcome
+            try {
+              const { ShipdayService } = await import("@/services/shipday.service");
+              await ShipdayService.triggerShipdayOrder(order.id, "DISPATCH_REQUESTED");
+            } catch (err) {
+              console.error(`[Stripe Webhook] Failed to trigger Shipday for sub-order ${order.id}:`, err);
+            }
+          }
+
+          // Notify customer once for the whole session
+          try {
             if (existingSession.userId) {
               await NotificationService.dispatchOrderNotifications({
                 userId: existingSession.userId,
@@ -147,8 +149,8 @@ export async function POST(req: Request) {
                 channels: ["FCM", "WHATSAPP"],
               });
             }
-          } catch (bgErr) {
-            console.error("[Stripe Webhook] Session Background Task Error:", bgErr);
+          } catch (err) {
+            console.error("[Stripe Webhook] Failed to notify customer for session:", err);
           }
         })();
 
@@ -197,63 +199,59 @@ export async function POST(req: Request) {
         if (updatedOrder) {
           void trackOrderMetric(orderId, { paidAt: singlePaidAt });
 
-          // Offload notifications and external services to the background
+          // Each step is independently wrapped — one failure cannot block another
           const backgroundTask = (async () => {
+            // 3. Notify Restaurant Owner
             try {
-              // 3. Notify Restaurant Owner
               const [restaurant] = await db
-                .select({
-                  ownerId: restaurants.ownerId,
-                  name: restaurants.name
-                })
+                .select({ ownerId: restaurants.ownerId, name: restaurants.name })
                 .from(restaurants)
                 .where(eq(restaurants.id, updatedOrder.restaurantId))
                 .limit(1);
 
-              if (restaurant) {
-                const subject = "Payment Received";
+              if (restaurant?.ownerId) {
                 const itemsRows = await db
-                  .select({
-                    name: menuItems.name,
-                    quantity: orderItems.quantity,
-                  })
+                  .select({ name: menuItems.name, quantity: orderItems.quantity })
                   .from(orderItems)
                   .innerJoin(menuItems, eq(orderItems.menuItemId, menuItems.id))
                   .where(eq(orderItems.orderId, updatedOrder.id));
 
                 const itemsSummary = itemsRows.map(i => `${i.quantity}x ${i.name}`).join("\n");
-                const ownerBody = `Payment Confirmed! 💰\nOrder: #${updatedOrder.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${updatedOrder.totalAmount}`;
-
-                if (restaurant.ownerId) {
-                  await NotificationService.dispatchOrderNotifications({
-                    userId: restaurant.ownerId,
-                    type: "ORDER",
-                    subject,
-                    body: ownerBody,
-                    metadata: { orderId: updatedOrder.id, orderStatus: "PAID" },
-                    channels: ["FCM", "WHATSAPP"]
-                  });
-                }
+                await NotificationService.dispatchOrderNotifications({
+                  userId: restaurant.ownerId,
+                  type: "ORDER",
+                  subject: "Payment Received",
+                  body: `Payment Confirmed! 💰\nOrder: #${updatedOrder.id.slice(0, 8)}\nRestaurant: ${restaurant.name}\nStatus: PAID\n\nItems:\n${itemsSummary}\n\nTotal: £${updatedOrder.totalAmount}`,
+                  metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "owner" },
+                  channels: ["FCM", "WHATSAPP"],
+                });
               }
+            } catch (err) {
+              console.error("[Stripe Webhook] Failed to notify owner:", err);
+            }
 
-              // 4. Notify Customer
+            // 4. Notify Customer
+            try {
               if (updatedOrder.userId) {
                 await NotificationService.dispatchOrderNotifications({
                   userId: updatedOrder.userId,
                   type: "ORDER",
                   subject: "Payment Confirmed",
-                  body: `Your payment was successful. The restaurant will start preparing your meal shortly.`,
+                  body: "Your payment was successful. The restaurant will start preparing your meal shortly.",
                   metadata: { orderId: updatedOrder.id, orderStatus: "PAID", targetRole: "customer" },
-                  channels: ["FCM", "WHATSAPP"]
+                  channels: ["FCM", "WHATSAPP"],
                 });
               }
+            } catch (err) {
+              console.error("[Stripe Webhook] Failed to notify customer:", err);
+            }
 
-              // 5. Trigger Shipday
+            // 5. Trigger Shipday — isolated so notification failures never block it
+            try {
               const { ShipdayService } = await import("@/services/shipday.service");
               await ShipdayService.triggerShipdayOrder(updatedOrder.id, "DISPATCH_REQUESTED");
-
-            } catch (bgErr) {
-              console.error("[Stripe Webhook] Background Task Error:", bgErr);
+            } catch (err) {
+              console.error("[Stripe Webhook] Failed to trigger Shipday:", err);
             }
           })();
 
