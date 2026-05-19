@@ -96,8 +96,8 @@ export async function POST(req: Request) {
         // Track paidAt for every sub-order
         void Promise.all(updatedOrders.map(o => trackOrderMetric(o.id, { paidAt })));
 
-        // Background notifications and Shipday — each step isolated
-        const backgroundTask = (async () => {
+        // Await all post-payment tasks — Stripe allows up to 30s before timing out
+        await (async () => {
           // Notify each restaurant owner + trigger Shipday per sub-order
           for (const order of updatedOrders) {
             try {
@@ -153,10 +153,6 @@ export async function POST(req: Request) {
             console.error("[Stripe Webhook] Failed to notify customer for session:", err);
           }
         })();
-
-        if (typeof (req as any).waitUntil === "function") {
-          (req as any).waitUntil(backgroundTask);
-        }
       } catch (dbErr) {
         console.error("[Stripe Webhook] Database Error (session):", dbErr);
         return new NextResponse("Internal Server Error during session update", { status: 500 });
@@ -199,8 +195,8 @@ export async function POST(req: Request) {
         if (updatedOrder) {
           void trackOrderMetric(orderId, { paidAt: singlePaidAt });
 
-          // Each step is independently wrapped — one failure cannot block another
-          const backgroundTask = (async () => {
+          // Await all post-payment tasks — Stripe allows up to 30s before timing out
+          await (async () => {
             // 3. Notify Restaurant Owner
             try {
               const [restaurant] = await db
@@ -254,10 +250,6 @@ export async function POST(req: Request) {
               console.error("[Stripe Webhook] Failed to trigger Shipday:", err);
             }
           })();
-
-          if (typeof (req as any).waitUntil === "function") {
-            (req as any).waitUntil(backgroundTask);
-          }
         }
       } catch (dbErr) {
         console.error("[Stripe Webhook] Database Error:", dbErr);
