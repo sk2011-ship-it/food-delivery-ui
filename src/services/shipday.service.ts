@@ -21,8 +21,15 @@ export class ShipdayService {
         .where(eq(deliveryJobs.orderId, orderId))
         .limit(1);
 
-      if (existingJob && existingJob.providerOrderId !== "LOCK") {
-        console.log(`[ShipdayService] Delivery job already exists for order ${orderId}. Syncing status only.`);
+      // Only treat as "already exists" if we have a real Shipday order ID (not null/"null")
+      const hasRealShipdayOrder =
+        existingJob &&
+        existingJob.providerOrderId !== "LOCK" &&
+        existingJob.providerOrderId !== null &&
+        existingJob.providerOrderId !== "null";
+
+      if (hasRealShipdayOrder) {
+        console.log(`[ShipdayService] Delivery job already exists for order ${orderId} (providerOrderId: ${existingJob!.providerOrderId}). Syncing status only.`);
         await db
           .update(deliveryJobs)
           .set({
@@ -32,10 +39,16 @@ export class ShipdayService {
           .where(eq(deliveryJobs.orderId, orderId));
 
         return {
-          ...existingJob,
+          ...existingJob!,
           status: initialStatus,
           updatedAt: new Date(),
         };
+      }
+
+      // If there's an existing job with null providerOrderId (failed previous attempt), delete it and retry
+      if (existingJob && existingJob.providerOrderId !== "LOCK" && !existingJob.providerOrderId) {
+        console.warn(`[ShipdayService] Existing delivery job for ${orderId} has no providerOrderId — deleting and retrying Shipday creation.`);
+        await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId));
       }
 
       // 2. Atomic Lock: Try to insert a placeholder record
