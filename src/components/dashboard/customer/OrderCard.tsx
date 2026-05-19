@@ -57,10 +57,10 @@ export default function OrderCard({
     () => { if (order.status === "CONFIRMED") onExpire(order.id, "payment_timeout"); }
   );
 
-  // 3-min cancel window after payment (also active when PREPARING within same window)
+  // 2-min cancel window after payment (also active when PREPARING within same window)
   const paidTimer = useOrderTimer(
     (order.status === "PAID" || order.status === "PREPARING") ? (order.paidAt ?? null) : null,
-    3
+    2
   );
 
   const date = new Date(order.createdAt).toLocaleDateString("en-GB", {

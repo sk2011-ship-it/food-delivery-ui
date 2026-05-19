@@ -205,10 +205,10 @@ export default function OrderStatusPage() {
     handlePaymentExpire
   );
 
-  // 3-minute cancel window after payment (visible even when status moves to PREPARING)
+  // 2-minute cancel window after payment (visible even when status moves to PREPARING)
   const paidCancelTimer = useOrderTimer(
     order?.paidAt ?? null,
-    3,
+    2,
     () => {} // no expiry action — just used to track remaining time and isExpired
   );
   const canCancelAfterPayment =
