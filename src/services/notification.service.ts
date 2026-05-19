@@ -373,11 +373,13 @@ export class NotificationService {
         )
         .returning({ id: notifications.id });
 
-      inserted.forEach((notif) => {
-        this.trigger(notif.id).catch((err) =>
-          console.error(`[NotificationService] Failed to trigger ${notif.id}:`, err)
-        );
-      });
+      await Promise.all(
+        inserted.map((notif) =>
+          this.trigger(notif.id).catch((err) =>
+            console.error(`[NotificationService] Failed to trigger ${notif.id}:`, err)
+          )
+        )
+      );
 
       return inserted.map((n) => n.id);
     } catch (err) {

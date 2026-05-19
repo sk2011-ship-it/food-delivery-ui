@@ -57,9 +57,9 @@ export default function OrderCard({
     () => { if (order.status === "CONFIRMED") onExpire(order.id, "payment_timeout"); }
   );
 
-  // 3-min cancel window after payment
+  // 3-min cancel window after payment (also active when PREPARING within same window)
   const paidTimer = useOrderTimer(
-    order.status === "PAID" ? (order.paidAt ?? null) : null,
+    (order.status === "PAID" || order.status === "PREPARING") ? (order.paidAt ?? null) : null,
     3
   );
 
@@ -173,7 +173,7 @@ export default function OrderCard({
               </div>
             )}
 
-            {order.status === "PAID" && !paidTimer.isExpired && order.paidAt && (
+            {(order.status === "PAID" || order.status === "PREPARING") && !paidTimer.isExpired && order.paidAt && (
               <div className="flex flex-col items-end gap-2">
                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse border border-blue-100 flex items-center gap-1.5">
                   <Timer className="w-3 h-3" />

@@ -18,7 +18,7 @@
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { orders, orderItems, menuItems, restaurants, orderMetrics } from "@/lib/db/schema";
-import { eq, and, ne, avg, isNotNull, inArray } from "drizzle-orm";
+import { eq, and, ne, avg, isNotNull, inArray, sql } from "drizzle-orm";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -104,12 +104,14 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
       restaurantId: orders.restaurantId,
       deliveryArea: orders.deliveryArea,
       totalAmount: orders.totalAmount,
+      status: orders.status,
     })
     .from(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.status, "PENDING_CONFIRMATION")))
+    .where(eq(orders.id, orderId))
     .limit(1);
 
-  if (!currentOrder) return null;
+  // Only suggest alternatives while the order is still unconfirmed
+  if (!currentOrder || currentOrder.status !== "PENDING_CONFIRMATION") return null;
 
   // ── Step 2: Get ordered item names + categories ────────────────────────────
   const itemRows = await db
@@ -131,7 +133,10 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
         ne(restaurants.id, currentOrder.restaurantId),
         eq(restaurants.status, "active"),
         eq(restaurants.isActive, true),
-        ...(currentOrder.deliveryArea ? [eq(restaurants.location, currentOrder.deliveryArea)] : [])
+        // Only suggest restaurants in the same delivery area (case-insensitive)
+        ...(currentOrder.deliveryArea
+          ? [sql`LOWER(${restaurants.location}) = LOWER(${currentOrder.deliveryArea})`]
+          : [])
       )
     );
 

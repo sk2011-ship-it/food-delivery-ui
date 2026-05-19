@@ -55,9 +55,28 @@ export class ShipdayService {
           return;
         }
       } else if (existingJob.providerOrderId === "LOCK") {
-        console.log(`[ShipdayService] Order ${orderId} is currently being processed by another request. Waiting...`);
-        // Optionally wait a bit or just return. Returning is safer to avoid long hangs.
-        return;
+        // If lock is older than 2 minutes it's stale (process died mid-flight) — delete and retry
+        const lockAge = Date.now() - new Date(existingJob.updatedAt).getTime();
+        if (lockAge < 2 * 60 * 1000) {
+          console.log(`[ShipdayService] Order ${orderId} is being processed by another request. Skipping.`);
+          return;
+        }
+        console.warn(`[ShipdayService] Stale lock detected for ${orderId} (${Math.round(lockAge / 1000)}s old). Removing and retrying.`);
+        await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId));
+        // Fall through — the lock insert below will re-acquire
+        try {
+          await db.insert(deliveryJobs).values({
+            orderId,
+            provider: "shipday",
+            status: initialStatus,
+            providerOrderId: "LOCK",
+            updatedAt: new Date(),
+          });
+          console.log(`[ShipdayService] Re-acquired lock for order ${orderId} after stale lock cleanup.`);
+        } catch {
+          console.log(`[ShipdayService] Could not re-acquire lock for ${orderId}.`);
+          return;
+        }
       }
 
       // 2. Fetch full order details using explicit joins for reliability
@@ -67,6 +86,7 @@ export class ShipdayService {
           totalAmount: orders.totalAmount,
           deliveryFee: orders.deliveryFee,
           deliveryAddress: orders.deliveryAddress,
+          deliveryArea: orders.deliveryArea,
           customerPhone: orders.customerPhone,
           userName: users.name,
           userPhone: users.phone,
@@ -87,12 +107,15 @@ export class ShipdayService {
 
       const orderData = orderRows[0];
 
-      if (!orderData.restaurantName || !orderData.deliveryAddress) {
-        console.warn(`[ShipdayService] Missing critical details for order ${orderId}.`, {
+      // Use deliveryArea as fallback when deliveryAddress is null
+      const resolvedDeliveryAddress = orderData.deliveryAddress || orderData.deliveryArea || null;
+
+      if (!orderData.restaurantName || !resolvedDeliveryAddress) {
+        console.error(`[ShipdayService] Missing critical details for order ${orderId}.`, {
           hasRestaurant: !!orderData.restaurantName,
-          hasAddress: !!orderData.deliveryAddress,
+          hasAddress: !!resolvedDeliveryAddress,
         });
-        return null;
+        throw new Error(`Order ${orderId} is missing restaurantName or deliveryAddress — cannot send to Shipday.`);
       }
 
       // Fetch items
@@ -117,7 +140,7 @@ export class ShipdayService {
         orderId: orderData.id,
         customerName: orderData.userName || "Customer",
         customerPhoneNumber: orderData.customerPhone || orderData.userPhone || "0000000000",
-        customerAddress: orderData.deliveryAddress,
+        customerAddress: resolvedDeliveryAddress,
         restaurantName: orderData.restaurantName,
         restaurantAddress: orderData.restaurantLocation || orderData.restaurantName,
         restaurantPhoneNumber: orderData.restaurantPhone,
@@ -151,10 +174,16 @@ export class ShipdayService {
       console.log(`[ShipdayService] Successfully updated delivery job for ${orderId}`);
       return newJob;
     } catch (error) {
-      // If we fail after acquiring the lock, we should probably remove the lock record
-      // so it can be retried. Or leave it and let a manual retry handle it.
-      // For now, let's just log.
       console.error(`[ShipdayService] ERROR for order ${orderId}:`, error);
+      // Remove the LOCK record so Stripe webhook retries can re-attempt cleanly
+      try {
+        await db
+          .delete(deliveryJobs)
+          .where(eq(deliveryJobs.orderId, orderId));
+        console.log(`[ShipdayService] Lock cleared for ${orderId} — safe to retry.`);
+      } catch (cleanupErr) {
+        console.error(`[ShipdayService] Failed to clear lock for ${orderId}:`, cleanupErr);
+      }
       throw error;
     }
   }
