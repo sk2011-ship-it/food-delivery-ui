@@ -47,13 +47,10 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     throw new Error("SHIPDAY_API_KEY is not configured.");
   }
 
-  // Use current time so Shipday always places the order under "Current" (not "Scheduled").
-  // Shipday expects MM/DD/YYYY HH:mm:ss format.
+  // Use current time in HH:mm:ss format — Shipday requires this exact format.
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  const expectedPickupTime =
-    `${pad(now.getMonth() + 1)}/${pad(now.getDate())}/${now.getFullYear()} ` +
-    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const expectedPickupTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   const payload = {
     orderNumber: input.orderId,
@@ -71,7 +68,7 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     totalOrderCost: Number.parseFloat(input.totalAmount),
     deliveryFee: input.deliveryFee ? Number.parseFloat(input.deliveryFee) : 0,
     autoAssign: true,
-    expectedPickupTime, // Explicitly set to now so order always appears under "Current" in Shipday
+    expectedPickupTime,
   };
 
   const response = await fetch(`${SHIPDAY_API_BASE_URL}/orders`, {
@@ -93,24 +90,19 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     json = { raw: text };
   }
 
-  if (!response.ok) {
-    let message = `Shipday order creation failed with status ${response.status}.`;
-    if (json && typeof json === "object") {
-      const j = json as Record<string, unknown>;
-      if (typeof j.message === "string") message = j.message;
-      else if (typeof j.error === "string") message = j.error;
-      else if (typeof j.raw === "string") message = j.raw;
-    }
+  const data = (json && typeof json === "object" ? json : {}) as Record<string, unknown>;
 
-    console.error("[Shipday] Create order failed", {
-      status: response.status,
-      body: json,
-      payload,
-    });
+  // Shipday sometimes returns HTTP 200 with success:false — treat this as a hard failure
+  if (!response.ok || data.success === false) {
+    const message =
+      (typeof data.response === "string" && data.response) ||
+      (typeof data.message === "string" && data.message) ||
+      (typeof data.error === "string" && data.error) ||
+      `Shipday order creation failed (HTTP ${response.status}).`;
+
+    console.error("[Shipday] Create order failed", { status: response.status, body: json, payload });
     throw new Error(String(message));
   }
-
-  const data = (json && typeof json === "object" ? json : {}) as Record<string, unknown>;
 
   const result = {
     raw: data,

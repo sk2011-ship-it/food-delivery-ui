@@ -14,82 +14,63 @@ export class ShipdayService {
   ) {
     console.log(`[ShipdayService] triggerShipdayOrder called for ${orderId} with status ${initialStatus}`);
     try {
-      // 1. Pre-emptive check
+      // 1. Check for existing delivery job
       const [existingJob] = await db
         .select()
         .from(deliveryJobs)
         .where(eq(deliveryJobs.orderId, orderId))
         .limit(1);
 
-      // Only treat as "already exists" if we have a real Shipday order ID (not null/"null")
-      const hasRealShipdayOrder =
+      // Guard A: Already has a real Shipday order ID → just sync status, nothing more to do
+      if (
         existingJob &&
         existingJob.providerOrderId !== "LOCK" &&
         existingJob.providerOrderId !== null &&
-        existingJob.providerOrderId !== "null";
-
-      if (hasRealShipdayOrder) {
-        console.log(`[ShipdayService] Delivery job already exists for order ${orderId} (providerOrderId: ${existingJob!.providerOrderId}). Syncing status only.`);
+        existingJob.providerOrderId !== "null"
+      ) {
+        console.log(`[ShipdayService] Already created for ${orderId} (providerOrderId: ${existingJob.providerOrderId}). Syncing status only.`);
         await db
           .update(deliveryJobs)
-          .set({
-            status: initialStatus,
-            updatedAt: new Date(),
-          })
+          .set({ status: initialStatus, updatedAt: new Date() })
           .where(eq(deliveryJobs.orderId, orderId));
-
-        return {
-          ...existingJob!,
-          status: initialStatus,
-          updatedAt: new Date(),
-        };
+        return { ...existingJob, status: initialStatus, updatedAt: new Date() };
       }
 
-      // If there's an existing job with null providerOrderId (failed previous attempt), delete it and retry
-      if (existingJob && existingJob.providerOrderId !== "LOCK" && !existingJob.providerOrderId) {
-        console.warn(`[ShipdayService] Existing delivery job for ${orderId} has no providerOrderId — deleting and retrying Shipday creation.`);
-        await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId));
-      }
-
-      // 2. Atomic Lock: Try to insert a placeholder record
-      // If another request is doing this, the unique constraint on orderId will fail.
-      if (!existingJob) {
-        try {
-          await db.insert(deliveryJobs).values({
-            orderId,
-            provider: "shipday",
-            status: initialStatus,
-            providerOrderId: "LOCK", // Temporary lock
-            updatedAt: new Date(),
-          });
-          console.log(`[ShipdayService] Lock acquired for order ${orderId}`);
-        } catch {
-          console.log(`[ShipdayService] Could not acquire lock for ${orderId} (likely already being processed).`);
-          return;
-        }
-      } else if (existingJob.providerOrderId === "LOCK") {
-        // If lock is older than 2 minutes it's stale (process died mid-flight) — delete and retry
+      // Guard B: Active fresh lock → another request is already processing this order
+      if (existingJob?.providerOrderId === "LOCK") {
         const lockAge = Date.now() - new Date(existingJob.updatedAt).getTime();
         if (lockAge < 2 * 60 * 1000) {
-          console.log(`[ShipdayService] Order ${orderId} is being processed by another request. Skipping.`);
+          console.log(`[ShipdayService] Order ${orderId} is locked by another request (${Math.round(lockAge / 1000)}s ago). Skipping.`);
           return;
         }
-        console.warn(`[ShipdayService] Stale lock detected for ${orderId} (${Math.round(lockAge / 1000)}s old). Removing and retrying.`);
+        // Stale lock (process died mid-flight) — clean up and fall through to re-acquire
+        console.warn(`[ShipdayService] Stale lock (${Math.round(lockAge / 1000)}s) for ${orderId}. Removing.`);
         await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId));
-        // Fall through — the lock insert below will re-acquire
-        try {
-          await db.insert(deliveryJobs).values({
-            orderId,
-            provider: "shipday",
-            status: initialStatus,
-            providerOrderId: "LOCK",
-            updatedAt: new Date(),
-          });
-          console.log(`[ShipdayService] Re-acquired lock for order ${orderId} after stale lock cleanup.`);
-        } catch {
-          console.log(`[ShipdayService] Could not re-acquire lock for ${orderId}.`);
-          return;
-        }
+      }
+
+      // Guard C: Failed previous attempt — providerOrderId is null (real NULL or string "null")
+      // NOTE: Must check existingJob again since Guard B may have already deleted it
+      if (existingJob && existingJob.providerOrderId !== "LOCK") {
+        // At this point providerOrderId is null/"null" (Guards A+B ruled out other cases)
+        console.warn(`[ShipdayService] Null providerOrderId for ${orderId} — deleting stale record and retrying.`);
+        await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId)).catch(() => {});
+        // Fall through — insert the LOCK below
+      }
+
+      // 2. Acquire lock — all paths that reach here need a fresh LOCK record.
+      // The unique constraint on orderId makes this atomic: only one request wins.
+      try {
+        await db.insert(deliveryJobs).values({
+          orderId,
+          provider: "shipday",
+          status: initialStatus,
+          providerOrderId: "LOCK",
+          updatedAt: new Date(),
+        });
+        console.log(`[ShipdayService] Lock acquired for order ${orderId}`);
+      } catch {
+        console.log(`[ShipdayService] Could not acquire lock for ${orderId} (race condition — another request got there first).`);
+        return;
       }
 
       // 2. Fetch full order details using explicit joins for reliability
