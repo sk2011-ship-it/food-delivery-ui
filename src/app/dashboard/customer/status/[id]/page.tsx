@@ -13,7 +13,10 @@ import {
   ShoppingBag,
   CreditCard,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  Phone,
+  User,
+  MapPin,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -153,11 +156,13 @@ export default function OrderStatusPage() {
     handlePaymentExpire
   );
 
-  const liveTrackingUrl = order?.deliveryJob?.trackingUrl;
-  const showLiveTracking = Boolean(
-    liveTrackingUrl &&
+  const deliveryJob     = order?.deliveryJob;
+  const liveTrackingUrl = deliveryJob?.trackingUrl;
+  const hasDriverInfo   = Boolean(
+    deliveryJob &&
     ["DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order?.status || "")
   );
+  const showLiveTracking = Boolean(liveTrackingUrl && hasDriverInfo);
 
   const handlePayment = async () => {
     if (!order) return;
@@ -248,20 +253,53 @@ export default function OrderStatusPage() {
           <p className="text-sm font-sans font-medium text-gray-500 leading-relaxed max-w-lg">
             {config?.description}
           </p>
-          {showLiveTracking && (
-            <div className="mt-5">
-              <a
-                href={liveTrackingUrl!}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-sans font-black uppercase tracking-widest text-white bg-gray-900 hover:bg-black transition-all active:scale-[0.98] shadow-lg"
-              >
-                Live Tracking
-                <ExternalLink className="w-4 h-4" />
-              </a>
-              <p className="text-[10px] font-medium text-gray-400 mt-2 max-w-md">
-                Follow the rider from the restaurant to your home in real time.
-              </p>
+          {hasDriverInfo && (
+            <div className="mt-5 bg-gray-50 rounded-2xl border border-gray-100 p-4 space-y-3">
+              {/* Driver info row */}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center shrink-0">
+                  <Truck className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-sans font-bold text-gray-400 uppercase tracking-widest">Your Rider</p>
+                  <p className="text-sm font-sans font-bold text-gray-900 truncate">
+                    {deliveryJob?.driverName || "Assigning driver…"}
+                  </p>
+                </div>
+                {deliveryJob?.driverPhone && (
+                  <a
+                    href={`tel:${deliveryJob.driverPhone}`}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 text-xs font-sans font-bold text-gray-700 hover:bg-gray-100 transition-colors shrink-0"
+                  >
+                    <Phone className="w-3.5 h-3.5" />
+                    Call
+                  </a>
+                )}
+              </div>
+
+              {/* ETA row */}
+              {deliveryJob?.eta && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-gray-100">
+                  <Clock className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                  <p className="text-xs font-sans font-semibold text-gray-700">
+                    ETA: <span className="text-orange-600 font-black">{deliveryJob.eta}</span>
+                  </p>
+                </div>
+              )}
+
+              {/* Live tracking button */}
+              {showLiveTracking && (
+                <a
+                  href={liveTrackingUrl!}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-xs font-sans font-black uppercase tracking-widest text-white bg-gray-900 hover:bg-black transition-all active:scale-[0.98]"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  Track on Map
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
             </div>
           )}
         </div>

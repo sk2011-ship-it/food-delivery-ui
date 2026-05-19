@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   Utensils, Truck, CheckCircle2, Clock, ChevronRight,
-  AlertCircle, Loader2, X, RotateCcw, ExternalLink, Bell,
+  AlertCircle, Loader2, X, RotateCcw, ExternalLink, Bell, Phone, MapPin,
 } from "lucide-react";
 import { useOwnerStore, type OwnerOrder } from "@/store/useOwnerStore";
 import { cn } from "@/lib/utils";
@@ -144,6 +144,52 @@ function OrderCard({
             </div>
           ))}
         </div>
+
+        {/* Driver info panel — shown when a driver has been assigned */}
+        {(order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") &&
+          order.deliveryJob &&
+          (order.deliveryJob.driverName || order.deliveryJob.eta || order.deliveryJob.trackingUrl) && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
+            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Rider Assigned</p>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                  <Truck className="w-3.5 h-3.5 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-gray-900 truncate">
+                    {order.deliveryJob.driverName || "Assigning…"}
+                  </p>
+                  {order.deliveryJob.eta && (
+                    <p className="text-[10px] text-blue-600 font-semibold">ETA: {order.deliveryJob.eta}</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {order.deliveryJob.driverPhone && (
+                  <a
+                    href={`tel:${order.deliveryJob.driverPhone}`}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
+                  >
+                    <Phone className="w-3 h-3" />
+                    Call
+                  </a>
+                )}
+                {order.deliveryJob.trackingUrl && (
+                  <a
+                    href={order.deliveryJob.trackingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
+                  >
+                    <MapPin className="w-3 h-3" />
+                    Track
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2 pt-0.5">

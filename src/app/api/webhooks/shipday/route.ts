@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { and, eq, or } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { deliveryJobs, orders, restaurants, notifications, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
+import { deliveryJobs, orders, restaurants, orderMetrics } from "@/lib/db/schema";
 import { NotificationService } from "@/services/notification.service";
 
 console.log("[Shipday Webhook] Route file loaded");
 
 export async function GET() {
   console.log("[Shipday Webhook] GET request received (health check)");
-  return NextResponse.json({ 
-    status: "alive", 
+  return NextResponse.json({
+    status: "alive",
     message: "Shipday Webhook endpoint is active and ready for POST requests.",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -51,7 +51,9 @@ function pickFirstNestedString(
   return null;
 }
 
-function mapShipdayStatus(payload: ShipdayWebhookPayload) {
+type MappedStatus = "DISPATCH_REQUESTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
+
+function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   const order = readObject(payload.order);
   const deliveryDetails = readObject(payload.delivery_details);
   const rawStatus = pickFirstString(
@@ -67,6 +69,7 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload) {
   )?.toUpperCase();
 
   if (!rawStatus) return null;
+
   if (
     rawStatus === "DELIVERED" ||
     rawStatus === "COMPLETED" ||
@@ -74,7 +77,7 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload) {
     rawStatus.includes("DELIVERED") ||
     rawStatus.includes("COMPLETED")
   ) {
-    return "DELIVERED" as const;
+    return "DELIVERED";
   }
   if (
     rawStatus.includes("OUT_FOR_DELIVERY") ||
@@ -83,14 +86,14 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload) {
     rawStatus.includes("PICKED_UP") ||
     rawStatus.includes("STARTED")
   ) {
-    return "OUT_FOR_DELIVERY" as const;
+    return "OUT_FOR_DELIVERY";
   }
   if (
     rawStatus.includes("FAILED") ||
     rawStatus.includes("INCOMPLETE") ||
     rawStatus.includes("CANCELLED")
   ) {
-    return "CANCELLED" as const;
+    return "CANCELLED";
   }
   if (
     rawStatus.includes("PRE_ASSIGNED") ||
@@ -98,14 +101,23 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload) {
     rawStatus.includes("NOT_ASSIGNED") ||
     rawStatus.includes("PENDING")
   ) {
-    return "DISPATCH_REQUESTED" as const;
+    return "DISPATCH_REQUESTED";
   }
   return null;
 }
 
+// Valid source statuses for each transition
+const ALLOWED_TRANSITIONS: Record<MappedStatus, string[]> = {
+  DISPATCH_REQUESTED: ["PAID", "CONFIRMED", "PREPARING"],
+  OUT_FOR_DELIVERY:   ["DISPATCH_REQUESTED", "PAID", "CONFIRMED", "PREPARING"],
+  DELIVERED:          ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED", "PAID", "CONFIRMED"],
+  CANCELLED:          ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],
+};
+
 export async function POST(req: Request) {
   const requestId = Math.random().toString(36).substring(7);
   console.log(`[Shipday Webhook] [${requestId}] POST request received`);
+
   try {
     const body = await req.text();
     if (!body) {
@@ -117,11 +129,11 @@ export async function POST(req: Request) {
     try {
       payload = JSON.parse(body);
     } catch {
-      console.error("[Shipday Webhook] Invalid JSON or unexpected end of input:", body);
+      console.error("[Shipday Webhook] Invalid JSON:", body);
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    console.log(`[Shipday Webhook] Raw status fields:`, {
+    console.log(`[Shipday Webhook] [${requestId}] Raw status fields:`, {
       orderStatus: payload.orderStatus,
       order_status: payload.order_status,
       status: payload.status,
@@ -129,7 +141,7 @@ export async function POST(req: Request) {
       delivery_status: payload.delivery_status,
     });
 
-    // Verify token if configured
+    // ── Token verification ─────────────────────────────────────────────────
     const expectedToken = process.env.SHIPDAY_WEBHOOK_TOKEN;
     if (expectedToken) {
       const url = new URL(req.url);
@@ -150,48 +162,30 @@ export async function POST(req: Request) {
         req.headers.get("authorization")?.replace("Bearer ", "")
       );
 
-
-
       if (receivedToken !== expectedToken) {
-        console.warn(`[Shipday Webhook] Unauthorized.`);
-        console.warn(`- Expected: "${expectedToken}"`);
-        console.warn(`- Received: "${receivedToken}"`);
-        console.warn(`- Payload keys: ${Object.keys(payload).join(", ")}`);
-        console.warn(`- Headers: ${JSON.stringify(Object.fromEntries(req.headers.entries()))}`);
+        console.warn(`[Shipday Webhook] Unauthorized. Expected "${expectedToken}", got "${receivedToken}"`);
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
     } else {
-      console.warn("[Shipday Webhook] Warning: SHIPDAY_WEBHOOK_TOKEN is not set in environment variables.");
+      console.warn("[Shipday Webhook] SHIPDAY_WEBHOOK_TOKEN not set — skipping auth.");
     }
 
+    // ── Identify the delivery job ──────────────────────────────────────────
     const order = readObject(payload.order);
     const deliveryDetails = readObject(payload.delivery_details);
 
-    const providerOrderId = pickFirstString(
-      payload.orderId,
-      payload.orderID,
-      payload.id,
-      payload.orderNumber,
-      payload.order_number
-    ) || pickFirstNestedString(
-      [order, deliveryDetails],
-      ["id", "orderId", "orderID", "orderNumber", "order_number"]
-    );
-    const trackingId = pickFirstString(
-      payload.trackingId,
-      payload.trackingID,
-      payload.tracking_id
-    ) || pickFirstNestedString(
-      [order, deliveryDetails],
-      ["trackingId", "trackingID", "tracking_id"]
-    );
-    const localOrderId = pickFirstNestedString(
-      [order],
-      ["order_number", "orderNumber"]
-    );
+    const providerOrderId =
+      pickFirstString(payload.orderId, payload.orderID, payload.id, payload.orderNumber, payload.order_number) ||
+      pickFirstNestedString([order, deliveryDetails], ["id", "orderId", "orderID", "orderNumber", "order_number"]);
+
+    const trackingId =
+      pickFirstString(payload.trackingId, payload.trackingID, payload.tracking_id) ||
+      pickFirstNestedString([order, deliveryDetails], ["trackingId", "trackingID", "tracking_id"]);
+
+    const localOrderId = pickFirstNestedString([order], ["order_number", "orderNumber"]);
 
     if (!providerOrderId && !trackingId && !localOrderId) {
-      console.warn("[Shipday Webhook] Missing order identifier in payload:", payload);
+      console.warn("[Shipday Webhook] Missing order identifier:", payload);
       return NextResponse.json({ error: "Missing Shipday order identifier." }, { status: 400 });
     }
 
@@ -205,156 +199,166 @@ export async function POST(req: Request) {
     });
 
     if (!deliveryJob) {
-      console.warn("[Shipday Webhook] Delivery job not found for identifiers:", {
-        providerOrderId,
-        trackingId,
-        localOrderId,
-      });
+      console.warn("[Shipday Webhook] Delivery job not found:", { providerOrderId, trackingId, localOrderId });
       return NextResponse.json({ error: "Delivery job not found." }, { status: 404 });
     }
 
     const mappedStatus = mapShipdayStatus(payload);
-    const rawStatusLabel = pickFirstString(
-      payload.orderStatus,
-      payload.order_status,
-      payload.status,
-      payload.deliveryStatus,
-      payload.delivery_status
-    ) || "unknown";
+    const rawStatusLabel =
+      pickFirstString(payload.orderStatus, payload.order_status, payload.status, payload.deliveryStatus, payload.delivery_status) ||
+      "unknown";
 
-    console.log(`[Shipday Webhook] Raw Status: "${rawStatusLabel}" -> Mapped: "${mappedStatus}"`);
+    console.log(`[Shipday Webhook] [${requestId}] "${rawStatusLabel}" → "${mappedStatus}" for order ${deliveryJob.orderId}`);
 
-    const updateDeliveryJob: Record<string, string | Date | null> = {
+    // ── Step 1: Always update deliveryJobs with latest driver/tracking info ─
+    const djUpdate: Record<string, string | Date | null> = {
       providerOrderId: providerOrderId || deliveryJob.providerOrderId,
       trackingId: trackingId || deliveryJob.trackingId,
-      trackingUrl: pickFirstNestedString(
-        [payload, order, deliveryDetails],
-        ["trackingUrl", "trackingURL", "tracking_url"]
-      ) || deliveryJob.trackingUrl,
-      driverName: pickFirstNestedString(
-        [payload, deliveryDetails],
-        ["driverName", "driver_name", "driver"]
-      ) || deliveryJob.driverName,
-      driverPhone: pickFirstNestedString(
-        [payload, deliveryDetails],
-        ["driverPhone", "driver_phone", "phone"]
-      ) || deliveryJob.driverPhone,
-      eta: pickFirstNestedString(
-        [payload, deliveryDetails],
-        ["eta", "estimatedDeliveryTime", "estimatedArrival", "estimated_arrival"]
-      ) || deliveryJob.eta,
+      trackingUrl:
+        pickFirstNestedString([payload, order, deliveryDetails], ["trackingUrl", "trackingURL", "tracking_url"]) ||
+        deliveryJob.trackingUrl,
+      driverName:
+        pickFirstNestedString([payload, deliveryDetails], ["driverName", "driver_name", "driver"]) ||
+        deliveryJob.driverName,
+      driverPhone:
+        pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone"]) ||
+        deliveryJob.driverPhone,
+      eta:
+        pickFirstNestedString([payload, deliveryDetails], ["eta", "estimatedDeliveryTime", "estimatedArrival", "estimated_arrival"]) ||
+        deliveryJob.eta,
       updatedAt: new Date(),
     };
+    if (mappedStatus) djUpdate.status = mappedStatus;
 
-    if (mappedStatus) {
-      updateDeliveryJob.status = mappedStatus;
+    await db.update(deliveryJobs).set(djUpdate).where(eq(deliveryJobs.id, deliveryJob.id));
+
+    if (!mappedStatus) {
+      console.log(`[Shipday Webhook] No mappable status in payload — delivery job updated only.`);
+      return NextResponse.json({ ok: true });
     }
 
+    // ── Step 2: Update order status if transition is valid ─────────────────
+    const orderId = deliveryJob.orderId;
+
+    const [currentOrder] = await db
+      .select({ status: orders.status, userId: orders.userId, restaurantId: orders.restaurantId })
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!currentOrder) {
+      console.warn(`[Shipday Webhook] Order ${orderId} not found.`);
+      return NextResponse.json({ ok: true });
+    }
+
+    const allowed = ALLOWED_TRANSITIONS[mappedStatus];
+    if (!allowed.includes(currentOrder.status)) {
+      console.log(
+        `[Shipday Webhook] Transition ${currentOrder.status} → ${mappedStatus} not allowed. Skipping order update.`
+      );
+      // Still notify UIs so driver details (already saved) appear immediately
+      await notifyBoth(orderId, currentOrder.userId, currentOrder.restaurantId, mappedStatus, false);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Apply status update
     await db
-      .update(deliveryJobs)
-      .set(updateDeliveryJob)
-      .where(eq(deliveryJobs.id, deliveryJob.id));
+      .update(orders)
+      .set({ status: mappedStatus, updatedAt: new Date() })
+      .where(eq(orders.id, orderId));
 
-    // 3. Update the Order Status (STRICTLY CONTROLLED)
-    // We only allow the webhook to advance the order to terminal states (DELIVERED/CANCELLED).
-    // The "OUT_FOR_DELIVERY" status MUST be triggered by the owner in the dashboard.
-    const isTerminal = mappedStatus === "DELIVERED" || mappedStatus === "CANCELLED";
-    console.log(`[Shipday Webhook Debug] OrderId: ${deliveryJob.orderId}, MappedStatus: ${mappedStatus}, isTerminal: ${isTerminal}`);
-
-    // HARD BLOCK: Never allow OUT_FOR_DELIVERY from webhook
-    if (mappedStatus === "OUT_FOR_DELIVERY") {
-      console.log(`[Shipday Webhook] REJECTED OUT_FOR_DELIVERY for ${deliveryJob.orderId}. Owner must dispatch manually.`);
-      return NextResponse.json({ ok: true, message: "Logistics updated, order status preserved." });
+    // Update orderMetrics timestamps
+    const now = new Date();
+    const metricsUpdate: Record<string, Date | number> = {};
+    if (mappedStatus === "OUT_FOR_DELIVERY") metricsUpdate.dispatchedAt = now;
+    if (mappedStatus === "DELIVERED") metricsUpdate.deliveredAt = now;
+    if (Object.keys(metricsUpdate).length > 0) {
+      await db.update(orderMetrics).set(metricsUpdate).where(eq(orderMetrics.orderId, orderId)).catch(() => {
+        // orderMetrics row may not exist for older orders — ignore
+      });
     }
 
-    if (isTerminal) {
-      const orderId = deliveryJob.orderId;
+    console.log(`[Shipday Webhook] Order ${orderId} updated: ${currentOrder.status} → ${mappedStatus}`);
 
-      const [currentOrder] = await db
-        .select({ status: orders.status })
-        .from(orders)
-        .where(eq(orders.id, orderId))
-        .limit(1);
-
-      const allowedTransitions: Record<string, string[]> = {
-        DELIVERED: ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED"],
-        CANCELLED: ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],
-      };
-
-      if (!currentOrder || !allowedTransitions[mappedStatus]?.includes(currentOrder.status)) {
-        console.warn(
-          `[Shipday Webhook] BLOCKED ${mappedStatus} for order ${orderId}. ` +
-          `Current status "${currentOrder?.status}" is not a valid source for this transition.`
-        );
-        return NextResponse.json({ ok: true, message: "Transition blocked — invalid status." });
-      }
-
-      await db
-        .update(orders)
-        .set({
-          status: mappedStatus,
-          updatedAt: new Date(),
-        })
-        .where(eq(orders.id, orderId));
-
-      // --- Notify for terminal states ---
-      try {
-        const [orderData] = await db
-          .select({
-            orderId: orders.id,
-            userId: orders.userId,
-            restaurantId: orders.restaurantId,
-            restaurantName: restaurants.name,
-            ownerId: restaurants.ownerId,
-            totalAmount: orders.totalAmount,
-          })
-          .from(orders)
-          .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
-          .where(eq(orders.id, orderId))
-          .limit(1);
-
-        if (orderData) {
-          const statusText = mappedStatus.replace(/_/g, " ").toLowerCase();
-          const subject = mappedStatus === "DELIVERED" ? "Order Delivered! 🎉" : `Order Update: #${orderData.orderId.slice(0, 8)}`;
-
-          const customerBody = mappedStatus === "DELIVERED"
-            ? `Congratulations! Your order #${orderData.orderId.slice(0, 8)} from ${orderData.restaurantName} is successfully delivered. Enjoy your meal! 🍴`
-            : `Your order #${orderData.orderId.slice(0, 8)} from ${orderData.restaurantName} was ${statusText.toUpperCase()}.`;
-
-          // Notify Owner
-          if (orderData.ownerId) {
-            await NotificationService.dispatchOrderNotifications({
-              userId: orderData.ownerId,
-              type: "ORDER",
-              subject,
-              body: `Order #${orderData.orderId.slice(0, 8)}: ${statusText.toUpperCase()}`,
-              metadata: { orderId: orderData.orderId, orderStatus: mappedStatus, targetRole: "owner" },
-              channels: ["FCM", "WHATSAPP"]
-            });
-          }
-
-          // Notify Customer
-          if (orderData.userId) {
-            await NotificationService.dispatchOrderNotifications({
-              userId: orderData.userId,
-              type: "ORDER",
-              subject,
-              body: customerBody,
-              metadata: { orderId: orderData.orderId, orderStatus: mappedStatus, targetRole: "customer" },
-              channels: ["FCM", "WHATSAPP"]
-            });
-          }
-        }
-      } catch (notifyErr) {
-        console.error("[Shipday Webhook] Failed to notify terminal status:", notifyErr);
-      }
-    } else {
-      console.log(`[Shipday Webhook] Status "${mappedStatus}" is logistical. Updated delivery job ${deliveryJob.id} only.`);
-    }
+    // ── Step 3: Notify customer and owner ──────────────────────────────────
+    await notifyBoth(orderId, currentOrder.userId, currentOrder.restaurantId, mappedStatus, true);
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[Shipday Webhook] Error:", error);
     return NextResponse.json({ error: "Webhook handling failed." }, { status: 500 });
+  }
+}
+
+// ── Notification helper ────────────────────────────────────────────────────────
+
+async function notifyBoth(
+  orderId: string,
+  userId: string | null,
+  restaurantId: string,
+  mappedStatus: MappedStatus,
+  statusChanged: boolean
+) {
+  try {
+    const [restaurant] = await db
+      .select({ ownerId: restaurants.ownerId, name: restaurants.name })
+      .from(restaurants)
+      .where(eq(restaurants.id, restaurantId))
+      .limit(1);
+
+    const shortId = orderId.slice(0, 8);
+    const channels: ("FCM" | "WHATSAPP")[] =
+      mappedStatus === "DELIVERED" || mappedStatus === "CANCELLED"
+        ? ["FCM", "WHATSAPP"]
+        : ["FCM"];
+
+    const notifMap: Record<MappedStatus, { customerSubject: string; customerBody: string; ownerBody: string }> = {
+      DISPATCH_REQUESTED: {
+        customerSubject: "Rider Assigned",
+        customerBody: `A rider has been assigned to your order #${shortId}. They will pick up your food soon.`,
+        ownerBody: `A rider has been assigned to order #${shortId} and is heading to you for pickup.`,
+      },
+      OUT_FOR_DELIVERY: {
+        customerSubject: "Order On The Way!",
+        customerBody: `Your order #${shortId} from ${restaurant?.name ?? "the restaurant"} has been picked up and is on its way to you!`,
+        ownerBody: `Order #${shortId} has been picked up by the rider and is out for delivery.`,
+      },
+      DELIVERED: {
+        customerSubject: "Order Delivered! 🎉",
+        customerBody: `Your order #${shortId} from ${restaurant?.name ?? "the restaurant"} has been delivered. Enjoy your meal! 🍴`,
+        ownerBody: `Order #${shortId} has been successfully delivered to the customer.`,
+      },
+      CANCELLED: {
+        customerSubject: "Order Cancelled",
+        customerBody: `Your order #${shortId} was cancelled.`,
+        ownerBody: `Order #${shortId} was cancelled by the delivery provider.`,
+      },
+    };
+
+    const notif = notifMap[mappedStatus];
+
+    if (userId) {
+      await NotificationService.dispatchOrderNotifications({
+        userId,
+        type: "ORDER",
+        subject: notif.customerSubject,
+        body: notif.customerBody,
+        metadata: { orderId, orderStatus: mappedStatus, targetRole: "customer" },
+        channels,
+      });
+    }
+
+    if (restaurant?.ownerId) {
+      await NotificationService.dispatchOrderNotifications({
+        userId: restaurant.ownerId,
+        type: "ORDER",
+        subject: statusChanged ? notif.customerSubject : "Driver Update",
+        body: notif.ownerBody,
+        metadata: { orderId, orderStatus: mappedStatus, targetRole: "owner" },
+        channels,
+      });
+    }
+  } catch (err) {
+    console.error("[Shipday Webhook] Notification failed:", err);
   }
 }
