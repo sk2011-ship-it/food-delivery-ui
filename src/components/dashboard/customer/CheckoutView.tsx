@@ -207,8 +207,13 @@ export default function CheckoutView() {
         toast.success("Order placed!");
         clearCart();
         await refreshOrders();
-        // Redirect to the first sub-order or a custom session status page
-        router.push(`/dashboard/customer/orders`);
+        // Redirect directly to the new order's status page so the 10-min countdown
+        // starts immediately — not after the user browses the orders list.
+        const firstOrderId = data?.data?.orders?.[0]?.id;
+        router.push(firstOrderId
+          ? `/dashboard/customer/status/${firstOrderId}`
+          : `/dashboard/customer/orders`
+        );
       } else {
         toast.error(data.error || data.message || "Failed to place order");
       }

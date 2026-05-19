@@ -97,6 +97,12 @@ export default function OrderStatusPage() {
   // Track live status via ref so the setTimeout callback can do a fresh check
   // without relying on a stale closure from when the effect first ran.
   const orderStatusRef = React.useRef<string | undefined>(undefined);
+  // Once the AI suggestion has been triggered for a given order ID, never trigger again
+  // (prevents re-triggering after dismiss, and prevents firing on stale old orders).
+  const aiTriggeredForOrderRef = React.useRef<string | undefined>(undefined);
+  // Record the exact moment we first see this order as PENDING so the timer is
+  // always a full 60s from when the user is actually looking at it.
+  const pendingSeenAtRef = React.useRef<number | undefined>(undefined);
 
   const order = orders.find(o => o.id === id);
   const silentRefreshOrders = useOrderStore(state => state.silentRefreshOrders);
@@ -166,20 +172,43 @@ export default function OrderStatusPage() {
   // Keep ref in sync with the latest order status on every render
   orderStatusRef.current = order?.status;
 
-  // ── AI suggestion: fetch after 60s, only show popup if a suggestion is returned ─
+  // When order ID changes (user navigated to a different order), clear all AI state
+  // so the old popup/suggestion never bleeds into the new order.
+  React.useEffect(() => {
+    setAiSuggestion(null);
+    aiTriggeredForOrderRef.current = undefined;
+    pendingSeenAtRef.current = undefined;
+  }, [order?.id]);
+
+  // Record the first moment we observe this specific order in PENDING_CONFIRMATION.
+  // Timer always counts 60s from this point — never from createdAt.
+  if (order?.id && order.status === "PENDING_CONFIRMATION") {
+    if (pendingSeenAtRef.current === undefined) {
+      pendingSeenAtRef.current = Date.now();
+    }
+  } else {
+    // Order changed or is no longer pending — reset so next order gets a fresh timer
+    pendingSeenAtRef.current = undefined;
+  }
+
+  // ── AI suggestion: fire once per order, 60s after we first see it as PENDING ──
   React.useEffect(() => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
 
-    if (!order || order.status !== "PENDING_CONFIRMATION" || aiSuggestion) return;
+    if (!order || order.status !== "PENDING_CONFIRMATION") return;
+    // Already triggered for this order — never re-trigger even after dismiss
+    if (aiTriggeredForOrderRef.current === order.id) return;
 
     const orderId = order.id;
-    const elapsed = Date.now() - new Date(order.createdAt).getTime();
     const TRIGGER_MS = 60_000;
+    const seenAt = pendingSeenAtRef.current ?? Date.now();
+    const elapsed = Date.now() - seenAt;
     const remaining = Math.max(0, TRIGGER_MS - elapsed);
 
     aiTimerRef.current = setTimeout(async () => {
-      // Use ref for a live status check — avoids stale-closure false negatives
       if (orderStatusRef.current !== "PENDING_CONFIRMATION") return;
+      // Mark as triggered BEFORE the fetch so a re-render can't fire a second timeout
+      aiTriggeredForOrderRef.current = orderId;
       try {
         const session = useAuthStore.getState().session;
         const res = await fetch(`/api/orders/${orderId}/ai-suggestion`, {
@@ -537,6 +566,13 @@ export default function OrderStatusPage() {
         <AiSuggestionPopup
           orderId={order.id}
           suggestion={aiSuggestion}
+          deliveryDetails={{
+            deliveryAddress: order.deliveryAddress || "",
+            deliveryArea: order.deliveryArea || site.location,
+            customerPhone: order.customerPhone || "",
+            deliveryFee: parseFloat(order.deliveryFee || "0"),
+            siteLocation: site.location,
+          }}
           onDismiss={() => setAiSuggestion(null)}
           onCancelled={() => setAiSuggestion(null)}
         />

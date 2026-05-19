@@ -104,6 +104,9 @@ export interface Order {
   sessionId?: string | null;
   totalAmount: string;
   deliveryFee: string;
+  deliveryAddress?: string | null;
+  deliveryArea?: string | null;
+  customerPhone?: string | null;
   currency: string;
   createdAt: string;
   updatedAt: string;

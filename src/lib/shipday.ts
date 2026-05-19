@@ -122,7 +122,6 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
       (data.order as any)?.orderId,
       (data.order as any)?.id,
       (data.order as any)?.orderNumber,
-      data.orderId !== undefined ? String(data.orderId) : null,
     ),
     trackingId: pickFirstString(data.trackingId, data.trackingID, data.tracking_id),
     trackingUrl: pickFirstString(data.trackingUrl, data.trackingURL, data.tracking_url),

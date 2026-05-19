@@ -18,6 +18,8 @@ import { useRouter } from "next/navigation";
 import { X, Zap, Clock, ChevronRight, Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/useAuthStore";
+import { useCart } from "@/context/CartContext";
+import { useOrderStore } from "@/store/useOrderStore";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -45,17 +47,28 @@ const CANCEL_REASONS = [
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
+type DeliveryDetails = {
+  deliveryAddress: string;
+  deliveryArea: string;
+  customerPhone: string;
+  deliveryFee: number;
+  siteLocation: string;
+};
+
 type Props = {
   orderId: string;
   suggestion: AiSuggestion;
+  deliveryDetails: DeliveryDetails;
   onDismiss: () => void;
   onCancelled: () => void;
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-export default function AiSuggestionPopup({ orderId, suggestion, onDismiss, onCancelled }: Props) {
+export default function AiSuggestionPopup({ orderId, suggestion, deliveryDetails, onDismiss, onCancelled }: Props) {
   const router = useRouter();
+  const { addItem, clearCart } = useCart();
+  const refreshOrders = useOrderStore(state => state.refreshOrders);
   const [phase, setPhase] = useState<"suggestion" | "reason">("suggestion");
   const [selectedReason, setSelectedReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
@@ -65,24 +78,75 @@ export default function AiSuggestionPopup({ orderId, suggestion, onDismiss, onCa
     try {
       setCancelling(true);
       const session = useAuthStore.getState().session;
-      const res = await fetch(`/api/orders/${orderId}/status`, {
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
+      };
+
+      // Step 1: Cancel the current order
+      const cancelRes = await fetch(`/api/orders/${orderId}/status`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: session?.access_token ? `Bearer ${session.access_token}` : "",
-        },
+        headers,
         body: JSON.stringify({ status: "CANCELLED", cancelReason: selectedReason }),
       });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
+      if (!cancelRes.ok) {
+        const data = await cancelRes.json().catch(() => null);
         toast.error(data?.message || data?.error || "Could not cancel order.");
         return;
       }
 
-      toast.success("Order cancelled.");
+      // Step 2: Replace cart with only the suggested dish
+      await clearCart(true); // silent — no "cart cleared" toast
+      await addItem({
+        menuItemId: suggestion.dish.id,
+        name: suggestion.dish.name,
+        price: suggestion.dish.price,
+        restaurantId: suggestion.restaurantId,
+        restaurantName: suggestion.restaurantName,
+        imageUrl: suggestion.dish.imageUrl,
+      });
+
+      // Step 3: Place new order automatically using same delivery details
+      console.log("[AiSuggestionPopup] Placing new order with details:", {
+        deliveryAddress: deliveryDetails.deliveryAddress,
+        deliveryArea: deliveryDetails.deliveryArea,
+        deliveryFee: deliveryDetails.deliveryFee,
+        customerPhone: deliveryDetails.customerPhone,
+        siteLocation: deliveryDetails.siteLocation,
+        restaurantId: suggestion.restaurantId,
+        dishId: suggestion.dish.id,
+      });
+
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          deliveryAddress: deliveryDetails.deliveryAddress,
+          deliveryArea: deliveryDetails.deliveryArea,
+          deliveryFee: deliveryDetails.deliveryFee,
+          deliveryFeesBreakdown: { [suggestion.restaurantId]: deliveryDetails.deliveryFee },
+          distanceMiles: 0,
+          customerPhone: deliveryDetails.customerPhone,
+          siteLocation: deliveryDetails.siteLocation,
+        }),
+      });
+
+      const orderData = await orderRes.json();
+      console.log("[AiSuggestionPopup] New order response:", orderRes.status, orderData);
+      if (!orderRes.ok) {
+        toast.error(orderData?.error || orderData?.message || "Could not place new order.", { duration: 6000 });
+        return;
+      }
+
+      // Step 4: Refresh store and redirect to new order's status page
+      await refreshOrders();
       onCancelled();
-      router.push(`/dashboard/customer/restaurant/${suggestion.restaurantId}`);
+      const newOrderId = orderData?.data?.orders?.[0]?.id;
+      toast.success(`New order placed at ${suggestion.restaurantName}!`);
+      router.push(newOrderId
+        ? `/dashboard/customer/status/${newOrderId}`
+        : `/dashboard/customer/orders`
+      );
     } catch {
       toast.error("Network error. Please try again.");
     } finally {

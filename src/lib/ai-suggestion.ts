@@ -18,7 +18,8 @@
 import OpenAI from "openai";
 import { db } from "@/lib/db";
 import { orders, orderItems, menuItems, restaurants, orderMetrics } from "@/lib/db/schema";
-import { eq, and, ne, avg, isNotNull, inArray, sql } from "drizzle-orm";
+import { eq, and, ne, avg, isNotNull, inArray, sql, isNull } from "drizzle-orm";
+import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -95,20 +96,25 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
   const apiKey = process.env.OPENAI_API_KEY;
   // No key — we still run the analytics pipeline and fall back to top-ranked candidate
 
-  // ── Step 1: Load current order ─────────────────────────────────────────────
+  // ── Step 1: Load current order + its restaurant's location ───────────────
   const [currentOrder] = await db
     .select({
       restaurantId: orders.restaurantId,
       deliveryArea: orders.deliveryArea,
       totalAmount: orders.totalAmount,
       status: orders.status,
+      restaurantLocation: restaurants.location,
     })
     .from(orders)
+    .innerJoin(restaurants, eq(restaurants.id, orders.restaurantId))
     .where(eq(orders.id, orderId))
     .limit(1);
 
   // Only suggest alternatives while the order is still unconfirmed
   if (!currentOrder || currentOrder.status !== "PENDING_CONFIRMATION") return null;
+
+  // Use restaurant's actual location (authoritative) — deliveryArea is often empty in DB
+  const locationFilter = currentOrder.restaurantLocation || currentOrder.deliveryArea;
 
   // ── Step 2: Get ordered item names + categories ────────────────────────────
   const itemRows = await db
@@ -121,21 +127,32 @@ export async function getAlternativeSuggestion(orderId: string): Promise<AiSugge
   const itemNames = itemRows.map((r) => r.name);
   if (categories.length === 0) return null;
 
-  // ── Step 3: Find candidate restaurants ────────────────────────────────────
-  const candidateRestaurants = await db
-    .select({ id: restaurants.id, name: restaurants.name, logoUrl: restaurants.logoUrl })
+  // ── Step 3: Find candidate restaurants in the same location ─────────────
+  const allCandidateRestaurants = await db
+    .select({
+      id: restaurants.id,
+      name: restaurants.name,
+      logoUrl: restaurants.logoUrl,
+      openingHours: restaurants.openingHours,
+    })
     .from(restaurants)
     .where(
       and(
         ne(restaurants.id, currentOrder.restaurantId),
         eq(restaurants.status, "active"),
         eq(restaurants.isActive, true),
-        // Only suggest restaurants in the same delivery area (case-insensitive)
-        ...(currentOrder.deliveryArea
-          ? [sql`LOWER(${restaurants.location}) = LOWER(${currentOrder.deliveryArea})`]
+        isNull(restaurants.deletionStatus),
+        // Always filter by location using restaurant's own location (deliveryArea is often empty)
+        ...(locationFilter
+          ? [sql`LOWER(${restaurants.location}) = LOWER(${locationFilter})`]
           : [])
       )
     );
+
+  // Only suggest restaurants that are currently open — otherwise addItem will fail server-side
+  const candidateRestaurants = allCandidateRestaurants.filter((r) =>
+    isRestaurantOpen(r.openingHours as Parameters<typeof isRestaurantOpen>[0])
+  );
 
   if (candidateRestaurants.length === 0) return null;
 
