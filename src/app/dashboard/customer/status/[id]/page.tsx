@@ -44,10 +44,10 @@ const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: st
     step: 2
   },
   PAID: {
-    label: "Paid & Preparing",
+    label: "Paid — Finding Driver",
     icon: CreditCard,
     color: "#3B82F6", // Blue
-    description: "Payment successful. Preparing your food...",
+    description: "Payment confirmed! We're assigning a driver now.",
     step: 3
   },
   PREPARING: {
@@ -58,10 +58,10 @@ const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: st
     step: 3
   },
   DISPATCH_REQUESTED: {
-    label: "Dispatch Requested",
+    label: "Driver Assigned",
     icon: Truck,
     color: "#FB923C",
-    description: "We're arranging your rider now.",
+    description: "A driver is on the way to the restaurant.",
     step: 4
   },
   OUT_FOR_DELIVERY: {
@@ -69,14 +69,14 @@ const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: st
     icon: Truck,
     color: "#F97316", // Orange
     description: "Your food is on the way!",
-    step: 4
+    step: 5
   },
   DELIVERED: {
     label: "Delivered",
     icon: CheckCircle2,
     color: "#10B981", // Emerald
     description: "Enjoy your meal!",
-    step: 5
+    step: 6
   },
   CANCELLED: {
     label: "Cancelled",
@@ -336,7 +336,11 @@ export default function OrderStatusPage() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-[10px] font-sans font-bold text-gray-400 uppercase tracking-widest mb-1">Estimated Arrival</p>
-              <h2 className="text-4xl font-heading font-black text-gray-900 tracking-tight">25 - 40 <span className="text-xl">mins</span></h2>
+              <h2 className="text-4xl font-heading font-black text-gray-900 tracking-tight">
+                {order.deliveryJob?.eta
+                  ? <span>{order.deliveryJob.eta}</span>
+                  : <>{`25 - 40`} <span className="text-xl">mins</span></>}
+              </h2>
             </div>
             <div className="flex flex-col items-end">
               <span
@@ -407,9 +411,10 @@ export default function OrderStatusPage() {
           {[
             { id: "PENDING_CONFIRMATION", label: "Order Placed", step: 1, icon: Clock },
             { id: "CONFIRMED", label: "Order Confirmed", step: 2, icon: CheckCircle2 },
-            { id: "PAID", label: "Paid & Preparing", step: 3, icon: CreditCard },
-            { id: "OUT_FOR_DELIVERY", label: "Out for Delivery", step: 4, icon: Truck },
-            { id: "DELIVERED", label: "Delivered", step: 5, icon: CheckCircle2 },
+            { id: "PAID", label: "Paid — Finding Driver", step: 3, icon: CreditCard },
+            { id: "DISPATCH_REQUESTED", label: "Driver Assigned", step: 4, icon: Truck },
+            { id: "OUT_FOR_DELIVERY", label: "Out for Delivery", step: 5, icon: Truck },
+            { id: "DELIVERED", label: "Delivered", step: 6, icon: CheckCircle2 },
           ].map((item, index, arr) => {
             const isCompleted = (config?.step || 0) > item.step || (config?.step === 5 && item.step === 5);
             const isActive = (config?.step || 0) === item.step && !isCompleted;

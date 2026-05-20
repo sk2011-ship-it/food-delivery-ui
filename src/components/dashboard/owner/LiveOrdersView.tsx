@@ -148,7 +148,7 @@ function OrderCard({
         </div>
 
         {/* Driver info panel — shown when a driver has been assigned */}
-        {(order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") &&
+        {(order.status === "PREPARING" || order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") &&
           order.deliveryJob &&
           (order.deliveryJob.driverName || order.deliveryJob.eta || order.deliveryJob.trackingUrl) && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
@@ -242,15 +242,19 @@ function OrderCard({
             )
           )}
 
-          {/* PREPARING: Dispatch */}
+          {/* PREPARING: driver assigned by Shipday — no manual dispatch */}
           {order.status === "PREPARING" && (
-            <button
-              disabled={busy}
-              onClick={() => handleUpdate("OUT_FOR_DELIVERY")}
-              className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-orange-500 text-white hover:bg-orange-400 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
-            >
-              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Dispatch Order <ChevronRight className="w-3.5 h-3.5" /></>}
-            </button>
+            order.deliveryJob?.driverName ? (
+              <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center gap-1.5">
+                <Truck className="w-3.5 h-3.5" />
+                Driver en route — awaiting pickup
+              </div>
+            ) : (
+              <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-500 border border-blue-100 flex items-center justify-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Assigning driver via Shipday…
+              </div>
+            )
           )}
 
           {/* OUT_FOR_DELIVERY */}
