@@ -26,6 +26,7 @@ import { Loader2, Timer } from "lucide-react";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useOrderStore } from "@/store/useOrderStore";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string; description: string; step: number }> = {
   PENDING_CONFIRMATION: {
@@ -92,6 +93,7 @@ export default function OrderStatusPage() {
   const { site } = useSite();
   const [isPaying, setIsPaying] = React.useState(false);
   const [isCancelling, setIsCancelling] = React.useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = React.useState(false);
   const [aiSuggestion, setAiSuggestion] = React.useState<AiSuggestion | null>(null);
   const aiTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track live status via ref so the setTimeout callback can do a fresh check
@@ -456,7 +458,7 @@ export default function OrderStatusPage() {
                             {isPaying ? "Processing..." : `Pay £${parseFloat(order.totalAmount).toFixed(2)} Now`}
                           </button>
                           <button
-                            onClick={handleCancel}
+                            onClick={() => setShowCancelConfirm(true)}
                             disabled={isCancelling}
                             className="inline-flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl text-xs font-sans font-black uppercase tracking-widest hover:bg-red-100 transition-all active:scale-95 disabled:opacity-50"
                           >
@@ -483,7 +485,7 @@ export default function OrderStatusPage() {
                             </span>
                           </div>
                           <button
-                            onClick={handleCancel}
+                            onClick={() => setShowCancelConfirm(true)}
                             disabled={isCancelling}
                             className="inline-flex items-center gap-2 text-red-600 bg-red-50 border border-red-200 px-4 py-2.5 rounded-xl text-xs font-sans font-black uppercase tracking-widest hover:bg-red-100 transition-all active:scale-95 disabled:opacity-50"
                           >
@@ -560,6 +562,20 @@ export default function OrderStatusPage() {
           </p>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={() => {
+          setShowCancelConfirm(false);
+          handleCancel();
+        }}
+        title="Cancel Order?"
+        message="Are you sure you want to cancel this order? This action cannot be undone."
+        confirmText="Yes, Cancel Order"
+        cancelText="Keep Order"
+        danger
+      />
 
       {/* AI Suggestion Card — slides up from bottom, no backdrop */}
       {aiSuggestion && order && (
