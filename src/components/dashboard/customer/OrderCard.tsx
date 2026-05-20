@@ -10,6 +10,7 @@ import { useOrderTimer } from "@/hooks/useOrderTimer";
 
 import { useOrders, type Order } from "@/context/OrderContext";
 import { type StatusConfig } from "@/app/dashboard/customer/orders/page";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 
 interface OrderCardProps {
   order: Order;
@@ -40,6 +41,7 @@ export default function OrderCard({
   onExpire,
   onCancel
 }: OrderCardProps) {
+  const [showCancelConfirm, setShowCancelConfirm] = React.useState(false);
   const isPending = order.status === "PENDING_CONFIRMATION";
   const isDelivered = order.status === "DELIVERED";
   const isCancelled = order.status === "CANCELLED";
@@ -165,7 +167,7 @@ export default function OrderCard({
                   Pay £{parseFloat(order.totalAmount).toFixed(2)}
                 </button>
                 <button
-                  onClick={() => onCancel(order.id)}
+                  onClick={() => setShowCancelConfirm(true)}
                   className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95 shrink-0"
                 >
                   Cancel
@@ -180,7 +182,7 @@ export default function OrderCard({
                   Cancel within {paidTimer.formattedTime}
                 </span>
                 <button
-                  onClick={() => onCancel(order.id)}
+                  onClick={() => setShowCancelConfirm(true)}
                   className="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 transition-all active:scale-95"
                 >
                   Cancel Order
@@ -223,6 +225,20 @@ export default function OrderCard({
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={() => {
+          setShowCancelConfirm(false);
+          onCancel(order.id);
+        }}
+        title="Cancel Order?"
+        message="Are you sure you want to cancel this order? This action cannot be undone."
+        confirmText="Yes, Cancel Order"
+        cancelText="Keep Order"
+        danger
+      />
     </div>
   );
 }
