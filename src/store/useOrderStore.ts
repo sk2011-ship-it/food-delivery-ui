@@ -28,7 +28,7 @@ interface OrderState {
 
 export const useOrderStore = create<OrderState>()((set, get) => ({
   orders: [],
-  isLoading: false,
+  isLoading: true,
   pagination: {
     total: 0,
     page: 1,
