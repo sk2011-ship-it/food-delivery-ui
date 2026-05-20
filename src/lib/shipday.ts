@@ -53,7 +53,8 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
   const expectedPickupTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
   const payload = {
-    orderNumber: input.orderId,
+    // Shipday requires alphanumeric orderNumber — strip UUID hyphens
+    orderNumber: input.orderId.replace(/-/g, ""),
     customerName: input.customerName,
     customerPhoneNumber: input.customerPhoneNumber,
     customerAddress: input.customerAddress,
@@ -92,15 +93,22 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
 
   const data = (json && typeof json === "object" ? json : {}) as Record<string, unknown>;
 
-  // Shipday sometimes returns HTTP 200 with success:false — treat this as a hard failure
+  // Shipday returns HTTP 200 with success:false on logical errors,
+  // and HTTP 400 with empty body {} on bad request (e.g. invalid orderNumber).
   if (!response.ok || data.success === false) {
     const message =
-      (typeof data.response === "string" && data.response) ||
       (typeof data.message === "string" && data.message) ||
       (typeof data.error === "string" && data.error) ||
+      (typeof data.response === "string" && data.response) ||
       `Shipday order creation failed (HTTP ${response.status}).`;
 
-    console.error("[Shipday] Create order failed", { status: response.status, body: json, payload });
+    console.error("[Shipday] Create order failed", {
+      status: response.status,
+      body: json,
+      sentOrderNumber: payload.orderNumber,
+      sentRestaurant: payload.restaurantName,
+      sentAddress: payload.customerAddress,
+    });
     throw new Error(String(message));
   }
 
