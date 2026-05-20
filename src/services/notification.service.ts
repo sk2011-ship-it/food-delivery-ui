@@ -91,6 +91,15 @@ async function fetchOrderContext(orderId: string) {
 
 // ─── FCM ──────────────────────────────────────────────────────────────────────
 
+function parseFcmTokens(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((t): t is string => typeof t === "string" && t.length > 0);
+  } catch {}
+  return [raw]; // backward-compat: legacy plain-string token
+}
+
 export class NotificationService {
   static async sendFCM(notificationId: string) {
     try {
@@ -111,7 +120,9 @@ export class NotificationService {
 
       const { notification, user } = result;
 
-      if (!user?.fcmToken) {
+      // Parse tokens — supports both legacy single-token string and new JSON array
+      const tokens = parseFcmTokens(user?.fcmToken ?? null);
+      if (tokens.length === 0) {
         await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));
         return;
       }
@@ -129,8 +140,7 @@ export class NotificationService {
         if (v !== null && v !== undefined) stringified[k] = String(v);
       }
 
-      await messaging.send({
-        token: user.fcmToken,
+      const payload = {
         data: {
           title:  notification.subject,
           body:   notification.body,
@@ -138,10 +148,20 @@ export class NotificationService {
           status: stringified.orderStatus ?? "PENDING_CONFIRMATION",
           ...stringified,
         },
-      });
+      };
+
+      if (tokens.length === 1) {
+        await messaging.send({ token: tokens[0], ...payload });
+      } else {
+        const batchResponse = await messaging.sendEachForMulticast({ tokens, ...payload });
+        const failCount = batchResponse.failureCount;
+        if (failCount > 0) {
+          console.warn(`[FCM] ${failCount}/${tokens.length} tokens failed for notification ${notificationId}`);
+        }
+      }
 
       await db.update(notifications).set({ status: "SENT" }).where(eq(notifications.id, notificationId));
-      console.log(`[FCM] Sent ${notificationId}`);
+      console.log(`[FCM] Sent ${notificationId} to ${tokens.length} device(s)`);
     } catch (err) {
       console.error(`[FCM] Error ${notificationId}:`, err);
       await db.update(notifications).set({ status: "FAILED" }).where(eq(notifications.id, notificationId));

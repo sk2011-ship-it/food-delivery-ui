@@ -118,8 +118,11 @@ export const authApi = {
   deleteAccount() {
     return del<{ message: string }>("/api/customer/account");
   },
-  clearFcmToken() {
-    return del<null>("/api/user/fcm-token");
+  clearFcmToken(token?: string | null) {
+    const url = token
+      ? `/api/user/fcm-token?token=${encodeURIComponent(token)}`
+      : "/api/user/fcm-token";
+    return del<null>(url);
   },
 };
 

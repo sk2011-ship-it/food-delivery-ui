@@ -3,17 +3,39 @@ import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
+const MAX_TOKENS = 5; // keep at most 5 active devices per user
+
+function parseTokens(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter((t): t is string => typeof t === "string");
+  } catch {}
+  // Backward-compat: old single-token plain string
+  return [raw];
+}
+
 export async function POST(req: Request) {
   return withAuth(req, async (user) => {
     try {
       const { token } = await req.json();
-      if (!token) {
+      if (!token || typeof token !== "string") {
         return fail("FCM token required", 400);
       }
 
+      const [row] = await db
+        .select({ fcmToken: users.fcmToken })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .limit(1);
+
+      const existing = parseTokens(row?.fcmToken ?? null);
+      // Deduplicate then cap to MAX_TOKENS (keep most recent)
+      const updated = [...new Set([...existing.filter(t => t !== token), token])].slice(-MAX_TOKENS);
+
       await db
         .update(users)
-        .set({ fcmToken: token, lastActive: new Date() })
+        .set({ fcmToken: JSON.stringify(updated), lastActive: new Date() })
         .where(eq(users.id, user.id));
 
       return ok({ success: true });
@@ -27,12 +49,31 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   return withAuth(req, async (user) => {
     try {
-      await db
-        .update(users)
-        .set({ fcmToken: null })
-        .where(eq(users.id, user.id));
+      const { searchParams } = new URL(req.url);
+      const tokenToRemove = searchParams.get("token");
 
-      return ok({ success: true, message: "FCM token cleared" });
+      if (tokenToRemove) {
+        // Remove only this device's token
+        const [row] = await db
+          .select({ fcmToken: users.fcmToken })
+          .from(users)
+          .where(eq(users.id, user.id))
+          .limit(1);
+
+        const remaining = parseTokens(row?.fcmToken ?? null).filter(t => t !== tokenToRemove);
+        await db
+          .update(users)
+          .set({ fcmToken: remaining.length ? JSON.stringify(remaining) : null })
+          .where(eq(users.id, user.id));
+      } else {
+        // No specific token — clear all (full logout / account deletion)
+        await db
+          .update(users)
+          .set({ fcmToken: null })
+          .where(eq(users.id, user.id));
+      }
+
+      return ok({ success: true });
     } catch (err) {
       console.error("FCM Token Clear error:", err);
       return fail("Internal Server Error", 500);

@@ -27,6 +27,10 @@ function _isDuplicate(key: string): boolean {
   return false;
 }
 
+// ─── Current device token (module-level so logout can remove just this device) ─
+let _currentDeviceToken: string | null = null;
+export function getCurrentDeviceToken(): string | null { return _currentDeviceToken; }
+
 // ─── Audio alarm ─────────────────────────────────────────────────────────────
 
 // Module-level audio instance — persists across renders so we can stop it from anywhere
@@ -121,6 +125,7 @@ export const useFcmToken = (userId: string | undefined) => {
             serviceWorkerRegistration: registration,
           });
           if (currentToken) {
+            _currentDeviceToken = currentToken;
             setToken(currentToken);
             registerToken(currentToken);
           }
@@ -293,9 +298,12 @@ export const useFcmToken = (userId: string | undefined) => {
       const isNewOrder  = status === "PENDING_CONFIRMATION";
       const isMerchant  = targetRole ? (targetRole === "owner" || targetRole === "admin") : (role === "owner" || role === "admin");
 
-      // Play alarm for new orders targeting owner/admin
+      // Play / stop alarm based on order status
       if (isNewOrder && isMerchant) {
         startNewOrderAlarm();
+      } else if (isMerchant) {
+        // Any non-new update (CANCELLED, CONFIRMED, PAID, etc.) silences the alarm
+        stopNewOrderAlarm();
       }
 
       // Refresh the correct store

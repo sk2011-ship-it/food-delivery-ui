@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useOwnerStore, type OwnerOrder } from "@/store/useOwnerStore";
 import { cn } from "@/lib/utils";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import { formatDistanceToNow } from "date-fns";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
 
@@ -45,6 +46,7 @@ function OrderCard({
   onUpdate: (id: string, status: string) => Promise<boolean>;
 }) {
   const [busy, setBusy] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
   const isPending   = order.status === "PENDING_CONFIRMATION";
   const isConfirmed = order.status === "CONFIRMED";
   const isPaid      = order.status === "PAID";
@@ -206,7 +208,7 @@ function OrderCard({
               </button>
               <button
                 disabled={busy}
-                onClick={() => handleUpdate("CANCELLED")}
+                onClick={() => setShowRejectConfirm(true)}
                 className="px-3 py-2.5 rounded-xl text-red-500 border border-red-100 bg-white hover:bg-red-50 transition-colors disabled:opacity-50"
               >
                 <X className="w-3.5 h-3.5" />
@@ -291,6 +293,21 @@ function OrderCard({
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showRejectConfirm}
+        onClose={() => setShowRejectConfirm(false)}
+        onConfirm={async () => {
+          setShowRejectConfirm(false);
+          await handleUpdate("CANCELLED");
+        }}
+        title="Reject Order?"
+        message={`Are you sure you want to reject order #${order.id.slice(-6).toUpperCase()}? The customer will be notified.`}
+        confirmText="Reject Order"
+        cancelText="Keep Order"
+        danger
+        loading={busy}
+      />
     </div>
   );
 }

@@ -56,9 +56,10 @@ export const useAuthStore = create<AuthState>()(
       setAuthError: (authError) => set({ authError }),
 
       logout: async () => {
-        // Clear FCM token from database first so user doesn't get notifications for previous account
+        // Remove only this device's FCM token — other logged-in devices keep theirs
         try {
-          await authApi.clearFcmToken();
+          const { getCurrentDeviceToken } = await import("@/hooks/useFcmToken");
+          await authApi.clearFcmToken(getCurrentDeviceToken());
         } catch (err) {
           console.error("[auth-store] Failed to clear FCM token during logout:", err);
         }
