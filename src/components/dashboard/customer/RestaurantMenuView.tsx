@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
@@ -38,59 +36,39 @@ export default function RestaurantMenuView({
   reviews = []
 }: RestaurantMenuViewProps) {
   const { site } = useSite();
-  const router = useRouter();
   const { gradientFrom, accent } = site.theme;
   const { cartItems, currentCartItems, addItem: addToCart, updateQuantity } = useCart();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(() => isRestaurantOpen(restaurant.openingHours));
 
-  // Re-evaluate immediately when the prop changes (server component refreshed with new data)
+  // Direct poll: every 10s fetch just the restaurant's openingHours + isActive from the DB.
+  // This is the ONLY reliable mechanism — no Supabase Realtime config needed, no Next.js
+  // route cache, no object-reference comparisons. If the owner changes anything, the
+  // next poll (≤10s) picks it up.
   useEffect(() => {
-    setIsOpen(isRestaurantOpen(restaurant.openingHours));
-  }, [restaurant.openingHours]);
-
-  // Supabase Realtime: instantly reflect owner changes (fires within ~1s of owner saving).
-  useEffect(() => {
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`restaurant-status-${restaurant.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "restaurants",
-          filter: `id=eq.${restaurant.id}`,
-        },
-        (payload: { new: Record<string, unknown> }) => {
-          const newHours = payload.new?.opening_hours;
-          const newIsActive = payload.new?.is_active;
-          if (newIsActive === false) {
-            setIsOpen(false);
-          } else if (newHours !== undefined) {
-            setIsOpen(isRestaurantOpen(newHours as Parameters<typeof isRestaurantOpen>[0]));
-          }
-          // Refresh the server component to sync all derived data
-          router.refresh();
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/restaurants/${restaurant.id}/status`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.isActive === false || data.status !== "active") {
+          setIsOpen(false);
+          return;
         }
-      )
-      .subscribe();
+        setIsOpen(isRestaurantOpen(data.openingHours));
+      } catch {
+        // silent — keep current state on network error
+      }
+    };
 
-    return () => { supabase.removeChannel(channel); };
-  }, [restaurant.id, router]);
-
-  // Polling fallback: refresh server component data every 30s.
-  // This catches the case where the Realtime subscription didn't fire
-  // (e.g. network hiccup, cold subscription). The server component fetches
-  // directly from DB (no cache), so this always gives fresh openingHours.
-  // The useEffect([restaurant.openingHours]) above then re-evaluates isOpen.
-  useEffect(() => {
-    const timer = setInterval(() => {
-      router.refresh();
-    }, 30_000);
+    // Run once immediately on mount (catches the case where the server component
+    // rendered stale data), then every 10 seconds.
+    checkStatus();
+    const timer = setInterval(checkStatus, 10_000);
     return () => clearInterval(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [restaurant.id]);
 
   // 1. Determine the menu source (DB vs Mock)
   const menu = useMemo<MappedSection[]>(() => {

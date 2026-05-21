@@ -46,8 +46,9 @@ export function useRestaurants(searchQuery: string = "") {
 
   useEffect(() => {
     fetchRestaurants();
-    // Fallback poll every 30s for time-based transitions (e.g. closes at 10pm by schedule)
-    const interval = setInterval(fetchRestaurants, 30_000);
+    // Poll every 10s — keeps open/closed status on the list page fresh without
+    // depending on Supabase Realtime. The API is no-store so each call hits the DB.
+    const interval = setInterval(fetchRestaurants, 10_000);
     return () => clearInterval(interval);
   }, [fetchRestaurants]);
 

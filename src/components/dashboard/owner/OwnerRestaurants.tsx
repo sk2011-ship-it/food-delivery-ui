@@ -6,6 +6,7 @@ import {
   ChevronsUpDown, ChevronUp, Store, Loader2, Pencil, Trash2
 } from "lucide-react";
 import PageHeader from "@/components/dashboard/shared/PageHeader";
+import ConfirmModal from "@/components/shared/ConfirmModal";
 import { toast } from "sonner";
 
 import { useAuthStore } from "@/store/useAuthStore";
@@ -46,26 +47,32 @@ export default function OwnerRestaurants() {
 
   const [editTarget,   setEditTarget]   = useState<Restaurant | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Restaurant | null>(null);
+  const [deleting,     setDeleting]     = useState(false);
 
   const handleEdit = (r: Restaurant) => {
-    // Navigate to owner settings - the owner can edit their restaurant there
     window.location.href = "/dashboard/owner/settings";
   };
 
-  const handleDelete = async (r: Restaurant) => {
-    if (!confirm(`Request deletion of "${r.name}"? You have 14 days to restore it.`)) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     const session = useAuthStore.getState().session;
     if (!session) return;
-    const res = await fetch(`/api/owner/restaurants/${r.id}/delete`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${session.access_token}` },
-    });
-    const json = await res.json();
-    if (res.ok) {
-      toast.success("Deletion requested. You have 14 days to restore.");
-      setRestaurants((prev) => prev.filter((x) => x.id !== r.id));
-    } else {
-      toast.error(json.error || "Failed to request deletion.");
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/owner/restaurants/${deleteTarget.id}/delete`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${session.access_token}` },
+      });
+      const json = await res.json();
+      if (res.ok) {
+        toast.success("Deletion requested. You have 14 days to restore.");
+        setRestaurants((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+        setDeleteTarget(null);
+      } else {
+        toast.error(json.error || "Failed to request deletion.");
+      }
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -239,7 +246,7 @@ export default function OwnerRestaurants() {
                           <Pencil className="w-3.5 h-3.5 text-gray-500" />
                         </button>
                         <button
-                          onClick={() => handleDelete(r)}
+                          onClick={() => setDeleteTarget(r)}
                           className="p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                           title="Request deletion"
                         >
@@ -269,6 +276,17 @@ export default function OwnerRestaurants() {
           </div>
         </div>
       </div>
+      <ConfirmModal
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Request Deletion?"
+        message={`Are you sure you want to request deletion of "${deleteTarget?.name}"? You will have 14 days to restore it before it is permanently removed.`}
+        confirmText="Yes, Request Deletion"
+        cancelText="Cancel"
+        loading={deleting}
+        danger
+      />
     </div>
   );
 }
