@@ -18,7 +18,7 @@ const navByRole: Record<UserRole, NavItem[]> = {
   owner: [
     { label: "Overview",        href: "/dashboard/owner",                icon: LayoutDashboard },
     { label: "Live Orders",     href: "/dashboard/owner/orders",         icon: UtensilsCrossed },
-    { label: "Order History",   href: "/dashboard/owner/orders/history", icon: HistoryIcon },
+    { label: "Order History",   href: "/dashboard/owner/history",        icon: HistoryIcon },
     { label: "Reports",         href: "/dashboard/owner/reports",        icon: BarChart3 },
     { label: "Restaurants",     href: "/dashboard/owner/restaurants",    icon: Store },
     { label: "Settings",        href: "/dashboard/owner/settings",       icon: Settings },
@@ -93,7 +93,7 @@ export default function DashboardSidebar({
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {nav.map(({ label, href, icon: Icon }) => {
-          const active = pathname === href || (href !== `/dashboard/${user.role}` && pathname.startsWith(href));
+          const active = pathname === href || (href !== `/dashboard/${user.role}` && pathname.startsWith(href + "/"));
           return (
             <Link
               key={href}

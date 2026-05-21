@@ -4,8 +4,10 @@ import React, { useState, useMemo } from "react";
 import {
   History, CheckCircle2, AlertCircle, Store,
   Calendar, Clock, Filter, ArrowUpDown, ChevronDown,
-  Search, Download, TrendingUp, ChevronLeft, ChevronRight
+  Search, Download, TrendingUp, ChevronLeft, ChevronRight,
+  Utensils,
 } from "lucide-react";
+import Link from "next/link";
 import { useOwnerOrders } from "@/context/OwnerOrderContext";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,6 +86,22 @@ export default function HistoryOrdersView() {
 
   return (
     <div className="w-full space-y-4 pb-8 selection:bg-primary/20">
+
+      {/* Section navigation */}
+      <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-2xl w-fit">
+        <Link
+          href="/dashboard/owner/orders"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-700 hover:bg-white/60 transition-all"
+        >
+          <Utensils className="w-3.5 h-3.5" />
+          Live Orders
+        </Link>
+        <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-sm text-xs font-black uppercase tracking-widest text-gray-900">
+          <History className="w-3.5 h-3.5" />
+          Order History
+        </span>
+      </div>
+
       {/* Enhanced Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/40">
         <div className="space-y-0.5">

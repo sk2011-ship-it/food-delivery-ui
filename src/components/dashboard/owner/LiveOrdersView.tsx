@@ -4,7 +4,9 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Utensils, Truck, CheckCircle2, Clock, ChevronRight,
   AlertCircle, Loader2, X, RotateCcw, ExternalLink, Bell, Phone, MapPin,
+  History,
 } from "lucide-react";
+import Link from "next/link";
 import { useOwnerStore, type OwnerOrder } from "@/store/useOwnerStore";
 import { cn } from "@/lib/utils";
 import ConfirmModal from "@/components/shared/ConfirmModal";
@@ -360,6 +362,21 @@ export default function LiveOrdersView() {
 
   return (
     <div className="space-y-5 pb-8">
+
+      {/* Section navigation */}
+      <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-2xl w-fit">
+        <span className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white shadow-sm text-xs font-black uppercase tracking-widest text-gray-900">
+          <Utensils className="w-3.5 h-3.5" />
+          Live Orders
+        </span>
+        <Link
+          href="/dashboard/owner/history"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest text-gray-400 hover:text-gray-700 hover:bg-white/60 transition-all"
+        >
+          <History className="w-3.5 h-3.5" />
+          Order History
+        </Link>
+      </div>
 
       {/* New order toast */}
       {newOrderAlert && (
