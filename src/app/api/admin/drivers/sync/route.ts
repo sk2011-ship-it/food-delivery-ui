@@ -15,7 +15,7 @@ function generateTempPassword() {
  * POST /api/admin/drivers/sync
  * Pulls all carriers from Shipday and:
  *  1. Updates shipdayCarrierId for existing DB drivers matched by email
- *  2. Imports Shipday-only carriers as new driver accounts in our DB
+ *  2. For Shipday-only carriers: links existing Supabase users (no password change) or creates brand-new ones
  */
 export async function POST(req: Request) {
   return withAuth(req, async () => {
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const adminClient = createAdminClient();
     let synced   = 0;
     let imported = 0;
+    // Only brand-new users (not pre-existing Supabase accounts) get a temp password shown
     const importedDrivers: Array<{ name: string; email: string; tempPassword: string; carrierId: number }> = [];
 
     for (const carrier of carriers) {
@@ -50,11 +51,16 @@ export async function POST(req: Request) {
         console.warn(`[drivers/sync] Skipping carrier with no carrierId:`, carrier);
         continue;
       }
+      if (!carrier.email) {
+        console.warn(`[drivers/sync] Skipping carrier ${carrier.carrierId} — no email`);
+        continue;
+      }
+
       const emailKey = carrier.email.toLowerCase();
       const dbDriver = dbDriversByEmail.get(emailKey);
 
       if (dbDriver) {
-        // Already in DB — just update carrierId if missing
+        // Already in our DB — only sync the carrierId if it changed
         if (!dbDriver.shipdayCarrierId || dbDriver.shipdayCarrierId === "undefined" || dbDriver.shipdayCarrierId !== String(carrier.carrierId)) {
           await db
             .update(users)
@@ -65,24 +71,53 @@ export async function POST(req: Request) {
         continue;
       }
 
-      // Not in DB — import as new driver
-      const tempPassword = generateTempPassword();
-
+      // Not in our DB yet — try to create or link
       try {
-        const { data: authData, error: authErr } = await adminClient.auth.admin.createUser({
+        let userId: string;
+        let isNewAccount = false;
+        const tempPassword = generateTempPassword();
+
+        const { data: createData, error: createErr } = await adminClient.auth.admin.createUser({
           email:         carrier.email,
           password:      tempPassword,
           email_confirm: true,
           user_metadata: { name: carrier.name, phone: carrier.phoneNumber },
         });
 
-        if (authErr || !authData.user) {
-          console.warn(`[drivers/sync] Could not create auth for ${carrier.email}:`, authErr?.message);
-          continue;
+        if (createErr) {
+          // If the Supabase account already exists, look it up and link it —
+          // do NOT reset their password.
+          const isAlreadyExists = createErr.message?.toLowerCase().includes("already") ||
+                                  createErr.message?.toLowerCase().includes("exists") ||
+                                  createErr.status === 422;
+
+          if (!isAlreadyExists) {
+            console.warn(`[drivers/sync] Auth creation failed for ${carrier.email}:`, createErr.message);
+            continue;
+          }
+
+          // Find the existing Supabase user by email
+          const { data: listData } = await adminClient.auth.admin.listUsers();
+          const existing = listData?.users?.find(
+            (u) => u.email?.toLowerCase() === emailKey
+          );
+
+          if (!existing) {
+            console.warn(`[drivers/sync] Could not find existing Supabase user for ${carrier.email}`);
+            continue;
+          }
+
+          userId = existing.id;
+          isNewAccount = false;
+          console.log(`[drivers/sync] Linking existing Supabase user ${userId} to Shipday carrier ${carrier.carrierId}`);
+        } else {
+          if (!createData.user) continue;
+          userId = createData.user.id;
+          isNewAccount = true;
         }
 
         await db.insert(users).values({
-          id:               authData.user.id as string,
+          id:               userId,
           name:             carrier.name,
           email:            carrier.email,
           phone:            carrier.phoneNumber || "",
@@ -92,14 +127,17 @@ export async function POST(req: Request) {
         });
 
         imported++;
-        importedDrivers.push({
-          name:         carrier.name,
-          email:        carrier.email,
-          tempPassword,
-          carrierId:    carrier.carrierId,
-        });
 
-        console.log(`[drivers/sync] Imported Shipday carrier ${carrier.carrierId} (${carrier.email}) as new driver`);
+        if (isNewAccount) {
+          importedDrivers.push({
+            name:         carrier.name,
+            email:        carrier.email,
+            tempPassword,
+            carrierId:    carrier.carrierId,
+          });
+        }
+
+        console.log(`[drivers/sync] ${isNewAccount ? "Imported" : "Linked"} carrier ${carrier.carrierId} (${carrier.email})`);
       } catch (err) {
         console.error(`[drivers/sync] Failed to import ${carrier.email}:`, err);
       }

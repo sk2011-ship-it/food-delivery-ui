@@ -331,9 +331,12 @@ export default function AdminDrivers() {
     }
   }, []);
 
-  // Load live status once on mount — kept fresh via Shipday webhook
+  // Poll live status every 30s — Shipday has no shift-change webhook,
+  // so polling GET /carriers is the only way to get current isOnShift.
   useEffect(() => {
     fetchLiveStatus();
+    const interval = setInterval(fetchLiveStatus, 30_000);
+    return () => clearInterval(interval);
   }, [fetchLiveStatus]);
 
   // ── Delete ─────────────────────────────────────────────────────────────────

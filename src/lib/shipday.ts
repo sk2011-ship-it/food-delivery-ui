@@ -246,10 +246,12 @@ export async function listShipdayCarriers(): Promise<ShipdayCarrier[]> {
     : ((json as Record<string, unknown>).carriers ?? (json as Record<string, unknown>).data ?? []) as unknown[];
 
   return (arr as Record<string, unknown>[]).map((c) => ({
-    carrierId:   (c.carrierId ?? c.id ?? c.carrier_id ?? c.driverId ?? c.driver_id) as number,
+    // Shipday GET /carriers uses "id" as the primary key, not "carrierId"
+    carrierId:   (c.id ?? c.carrierId ?? c.carrier_id ?? c.driverId ?? c.driver_id) as number,
     name:        (c.name ?? c.driverName ?? c.driver_name ?? "") as string,
     email:       (c.email ?? "") as string,
     phoneNumber: (c.phoneNumber ?? c.phone ?? c.phone_number ?? "") as string,
+    // isOnShift is the documented boolean field on GET /carriers
     isOnShift:   Boolean(c.isOnShift ?? c.is_on_shift),
     isActive:    Boolean(c.isActive ?? c.is_active),
   }));

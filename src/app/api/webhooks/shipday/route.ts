@@ -173,31 +173,68 @@ export async function POST(req: Request) {
     }
 
     // ── Driver on/off shift event ──────────────────────────────────────────
+    // A payload is a driver event only when it has carrier-specific shift fields
+    // OR an explicit driver/carrier eventType — but NOT when it also has order identifiers
+    // (Shipday includes driverId in order-assigned webhooks, which must not be mis-routed here).
     const eventType = readString(payload.eventType ?? payload.event_type ?? payload.type)?.toUpperCase();
+    const hasOrderIdentifier =
+      payload.orderId !== undefined ||
+      payload.orderID !== undefined ||
+      payload.orderNumber !== undefined ||
+      payload.order_number !== undefined ||
+      (readObject(payload.order) !== null);
+
+    const hasShiftField =
+      payload.isOnShift !== undefined ||
+      payload.is_on_shift !== undefined ||
+      payload.onShift !== undefined ||
+      payload.isOnDuty !== undefined ||
+      payload.is_on_duty !== undefined;
+
     const isDriverEvent =
-      eventType?.includes("DRIVER") ||
-      eventType?.includes("CARRIER") ||
-      payload.carrierId !== undefined ||
-      payload.carrier_id !== undefined ||
-      payload.driverId !== undefined;
+      !hasOrderIdentifier && (
+        eventType?.includes("DRIVER") ||
+        eventType?.includes("CARRIER") ||
+        payload.carrierId !== undefined ||
+        payload.carrier_id !== undefined ||
+        hasShiftField
+      );
 
     if (isDriverEvent) {
       const carrierId =
-        readString(payload.carrierId ?? payload.carrier_id ?? payload.driverId ?? payload.driver_id);
+        readString(payload.carrierId ?? payload.carrier_id);
+
+      // Resolve isOnShift from boolean fields or string status values
+      // Shipday may use isOnShift, isOnDuty, status, or driverStatus
+      const boolField = payload.isOnShift ?? payload.is_on_shift ?? payload.onShift ??
+                        payload.isOnDuty ?? payload.is_on_duty;
 
       const rawDriverStatus = readString(
-        payload.isOnShift ?? payload.is_on_shift ?? payload.onShift ??
-        payload.status ?? payload.driverStatus ?? payload.driver_status
+        payload.status ?? payload.driverStatus ?? payload.driver_status ?? payload.carrierStatus
       )?.toUpperCase();
 
       // Resolve boolean — could be a boolean field or a string like "ON_DUTY" / "OFF_DUTY"
       let isOnShift: boolean | null = null;
-      if (typeof (payload.isOnShift ?? payload.is_on_shift ?? payload.onShift) === "boolean") {
-        isOnShift = Boolean(payload.isOnShift ?? payload.is_on_shift ?? payload.onShift);
+      if (typeof boolField === "boolean") {
+        isOnShift = boolField;
+      } else if (typeof boolField === "number") {
+        isOnShift = boolField === 1;
       } else if (rawDriverStatus) {
-        if (rawDriverStatus.includes("ON") || rawDriverStatus === "ACTIVE" || rawDriverStatus === "ONLINE") {
+        if (
+          rawDriverStatus === "ON" ||
+          rawDriverStatus.includes("ON_DUTY") ||
+          rawDriverStatus.includes("ON_SHIFT") ||
+          rawDriverStatus === "ACTIVE" ||
+          rawDriverStatus === "ONLINE"
+        ) {
           isOnShift = true;
-        } else if (rawDriverStatus.includes("OFF") || rawDriverStatus === "INACTIVE" || rawDriverStatus === "OFFLINE") {
+        } else if (
+          rawDriverStatus === "OFF" ||
+          rawDriverStatus.includes("OFF_DUTY") ||
+          rawDriverStatus.includes("OFF_SHIFT") ||
+          rawDriverStatus === "INACTIVE" ||
+          rawDriverStatus === "OFFLINE"
+        ) {
           isOnShift = false;
         }
       }
