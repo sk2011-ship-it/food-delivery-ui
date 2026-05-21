@@ -147,7 +147,7 @@ export default function FeaturedRestaurants() {
             [1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="w-[58vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
+                className="w-[44vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonCard />
@@ -159,7 +159,7 @@ export default function FeaturedRestaurants() {
                 <div
                   key={restaurant.id}
                   ref={(el) => { cardRefs.current[i] = el; }}
-                  className="w-[58vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
+                  className="w-[44vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
                   style={{ scrollSnapAlign: "start" }}
                 >
                   <RestaurantCard restaurant={restaurant} theme={site.theme} priority={i < 2} featured />

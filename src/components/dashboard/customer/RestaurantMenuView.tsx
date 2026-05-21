@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
@@ -36,10 +37,24 @@ export default function RestaurantMenuView({
   reviews = []
 }: RestaurantMenuViewProps) {
   const { site } = useSite();
+  const router = useRouter();
   const { gradientFrom, accent } = site.theme;
   const { cartItems, currentCartItems, addItem: addToCart, updateQuantity } = useCart();
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const isOpen = isRestaurantOpen(restaurant.openingHours);
+  const [isOpen, setIsOpen] = useState(() => isRestaurantOpen(restaurant.openingHours));
+
+  // Re-evaluate open status every minute (handles time-based close/open transitions)
+  // and refresh server data every 30s (handles owner-changed hours)
+  useEffect(() => {
+    const timeInterval = setInterval(() => {
+      setIsOpen(isRestaurantOpen(restaurant.openingHours));
+    }, 60_000);
+    const refreshInterval = setInterval(() => router.refresh(), 30_000);
+    return () => {
+      clearInterval(timeInterval);
+      clearInterval(refreshInterval);
+    };
+  }, [restaurant.openingHours, router]);
 
   // 1. Determine the menu source (DB vs Mock)
   const menu = useMemo<MappedSection[]>(() => {
@@ -224,6 +239,7 @@ export default function RestaurantMenuView({
               return (
                 <div
                   key={item.id}
+                  id={`item-${item.id}`}
                   className="flex gap-4 p-4 rounded-3xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all group"
                 >
                   <div

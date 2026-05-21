@@ -245,13 +245,12 @@ export default function OrderStatusPage() {
 
   // 2-minute cancel window after payment (visible even when status moves to PREPARING)
   const paidCancelTimer = useOrderTimer(
-    order?.paidAt ?? null,
+    (order?.paidAt ?? order?.updatedAt) ?? null,
     2,
     () => {} // no expiry action — just used to track remaining time and isExpired
   );
   const canCancelAfterPayment =
     (order?.status === "PAID" || order?.status === "PREPARING") &&
-    Boolean(order?.paidAt) &&
     !paidCancelTimer.isExpired;
 
   const deliveryJob     = order?.deliveryJob;

@@ -230,7 +230,7 @@ export default function CheckoutView() {
   const paysDeliveryAtDoor = site.key === "newcastleeats";
 
   const uniqueRestosCount = Array.from(new Set(currentCartItems.map(i => i.restaurantId))).length;
-  const serviceCharge = (site.serviceCharge ?? 0) * uniqueRestosCount;
+  const serviceCharge = site.serviceCharge ?? 0;
   const hasDeliveryFeeInfo = paysDeliveryAtDoor && (isFixedAreas || isDistSlabs) && deliveryFee > 0;
   const deliveryAreaRules = (site.deliveryPricing?.rules ?? []) as Array<{ name: string; fee: number }>;
   const deliveryFeeNote = hasDeliveryFeeInfo

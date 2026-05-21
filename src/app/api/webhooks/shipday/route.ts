@@ -110,7 +110,7 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
 // OUT_FOR_DELIVERY requires DISPATCH_REQUESTED first — driver must be assigned
 // before they can be picking up. This prevents instant PAID → OUT_FOR_DELIVERY jumps.
 const ALLOWED_TRANSITIONS: Record<MappedStatus, string[]> = {
-  DISPATCH_REQUESTED: ["PAID", "CONFIRMED", "PREPARING"],
+  DISPATCH_REQUESTED: ["PREPARING"],
   OUT_FOR_DELIVERY:   ["DISPATCH_REQUESTED", "PREPARING"],
   DELIVERED:          ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED"],
   CANCELLED:          ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],

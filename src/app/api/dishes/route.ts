@@ -58,8 +58,15 @@ export async function GET(req: Request) {
       .orderBy(desc(sql`is_featured`))
       .limit(limit * 2); // Fetch more to allow for filtering closed ones
 
+    const perRestaurantCap = search ? 5 : limit;
+    const restaurantCounts: Record<string, number> = {};
     const items = rows
       .filter((r) => isRestaurantOpen(r.restaurantOpeningHours as OpeningHours | null | undefined))
+      .filter((r) => {
+        if (!search) return true;
+        restaurantCounts[r.restaurantId] = (restaurantCounts[r.restaurantId] ?? 0) + 1;
+        return restaurantCounts[r.restaurantId] <= perRestaurantCap;
+      })
       .map((r) => ({
         ...r,
         price: parseFloat(r.price as unknown as string),

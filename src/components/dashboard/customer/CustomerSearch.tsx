@@ -34,6 +34,7 @@ export default function CustomerSearch() {
   const [restaurantResults, setRestaurantResults] = useState<RestaurantItem[]>([]);
   const [dishResults, setDishResults] = useState<MenuItem[]>([]);
   const [defaultRestaurants, setDefaultRestaurants] = useState<RestaurantItem[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const { gradientFrom, accent } = site.theme;
 
@@ -53,9 +54,11 @@ export default function CustomerSearch() {
     if (!q) {
       setRestaurantResults([]);
       setDishResults([]);
+      setSearching(false);
       return;
     }
 
+    setSearching(true);
     const timer = setTimeout(async () => {
       try {
         const [resRes, dishRes] = await Promise.all([
@@ -74,6 +77,8 @@ export default function CustomerSearch() {
         }
       } catch (err) {
         console.error("Failed to fetch search results", err);
+      } finally {
+        setSearching(false);
       }
     }, 300);
 
@@ -188,7 +193,7 @@ export default function CustomerSearch() {
       )}
 
       {/* ── Search results ── */}
-      {q && !hasResults && (
+      {q && !hasResults && !searching && (
         <div className="text-center py-16">
           <p className="text-4xl mb-3">🍽️</p>
           <p className="font-semibold text-gray-800">No results for &ldquo;{query}&rdquo;</p>
@@ -209,7 +214,7 @@ export default function CustomerSearch() {
                 {dishResults.map((dish) => (
                   <Link
                     key={`${dish.restaurantId}-${dish.id}`}
-                    href={`/dashboard/customer/restaurant/${dish.restaurantId}`}
+                    href={`/dashboard/customer/restaurant/${dish.restaurantId}#item-${dish.id}`}
                     className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-gray-100 hover:shadow-md transition-all"
                   >
                     <div

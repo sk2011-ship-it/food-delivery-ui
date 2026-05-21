@@ -45,6 +45,9 @@ export function useRestaurants(searchQuery: string = "") {
 
   useEffect(() => {
     fetchRestaurants();
+    // Refresh every 30s so open/closed status stays current without a manual reload
+    const interval = setInterval(fetchRestaurants, 30_000);
+    return () => clearInterval(interval);
   }, [fetchRestaurants]);
 
   // Filtering Logic - Show all restaurants in location, even if closed (UI handles status)

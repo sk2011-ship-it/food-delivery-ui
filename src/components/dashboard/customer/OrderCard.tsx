@@ -61,7 +61,7 @@ export default function OrderCard({
 
   // 2-min cancel window after payment (also active when PREPARING within same window)
   const paidTimer = useOrderTimer(
-    (order.status === "PAID" || order.status === "PREPARING") ? (order.paidAt ?? null) : null,
+    (order.status === "PAID" || order.status === "PREPARING") ? (order.paidAt ?? order.updatedAt ?? null) : null,
     2
   );
 
@@ -148,7 +148,7 @@ export default function OrderCard({
           </div>
 
           {/* Actions Container */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
             {order.status === "CONFIRMED" && (
               <div className="flex items-center gap-2 flex-wrap justify-end">
                 {!confirmedTimer.isExpired && order.confirmedAt && (
@@ -175,7 +175,7 @@ export default function OrderCard({
               </div>
             )}
 
-            {(order.status === "PAID" || order.status === "PREPARING") && !paidTimer.isExpired && order.paidAt && (
+            {(order.status === "PAID" || order.status === "PREPARING") && !paidTimer.isExpired && (
               <div className="flex flex-col items-end gap-2">
                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse border border-blue-100 flex items-center gap-1.5">
                   <Timer className="w-3 h-3" />
