@@ -1,11 +1,12 @@
 import { ok, fail, parseBody, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, restaurants, orderItems, menuItems } from "@/lib/db/schema";
+import { orders, restaurants, orderItems, menuItems, deliveryJobs } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { syncSessionStatus } from "@/lib/order-session";
 import { trackOrderMetric } from "@/lib/metrics";
 import { NotificationService } from "@/services/notification.service";
+import { cancelShipdayOrder } from "@/lib/shipday";
 
 const ORDER_ALLOWED_TRANSITIONS: Record<string, string[]> = {
   PENDING_CONFIRMATION: ["CONFIRMED", "PAID", "CANCELLED"],
@@ -166,7 +167,31 @@ export async function PATCH(
         return fail("Conflict: Order status was changed recently. Please refresh and try again.", 409);
       }
 
-      // 4. Session Status Aggregation (Post-update)
+      // 4. If cancelling, cancel the delivery job in Shipday (best-effort, non-blocking)
+      if (status === "CANCELLED") {
+        void (async () => {
+          try {
+            const [job] = await db
+              .select({ providerOrderId: deliveryJobs.providerOrderId, id: deliveryJobs.id })
+              .from(deliveryJobs)
+              .where(eq(deliveryJobs.orderId, id))
+              .limit(1);
+
+            if (job?.providerOrderId && job.providerOrderId !== "LOCK" && job.providerOrderId !== "null") {
+              await cancelShipdayOrder(job.providerOrderId);
+              await db
+                .update(deliveryJobs)
+                .set({ status: "CANCELLED", updatedAt: new Date() })
+                .where(eq(deliveryJobs.id, job.id));
+              console.log(`[orders/status] Shipday order ${job.providerOrderId} cancelled for order ${id}`);
+            }
+          } catch (shipErr) {
+            console.error("[orders/status] Failed to cancel Shipday order:", shipErr);
+          }
+        })();
+      }
+
+      // 5. Session Status Aggregation (Post-update)
       if (updated.sessionId && ["CONFIRMED", "CANCELLED", "PAID"].includes(status)) {
         await syncSessionStatus(updated.sessionId);
       }

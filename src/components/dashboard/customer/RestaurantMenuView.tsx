@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
@@ -43,8 +43,13 @@ export default function RestaurantMenuView({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(() => isRestaurantOpen(restaurant.openingHours));
 
-  // Re-evaluate open status every minute (handles time-based close/open transitions)
-  // and refresh server data every 30s (handles owner-changed hours)
+  // Immediately re-evaluate when opening hours change (after router.refresh() updates the prop)
+  useEffect(() => {
+    setIsOpen(isRestaurantOpen(restaurant.openingHours));
+  }, [restaurant.openingHours]);
+
+  // Also re-evaluate every minute for time-based transitions (e.g. restaurant closes at 10pm)
+  // and refresh server-side data every 30s so owner hour changes propagate within half a minute.
   useEffect(() => {
     const timeInterval = setInterval(() => {
       setIsOpen(isRestaurantOpen(restaurant.openingHours));
@@ -86,6 +91,36 @@ export default function RestaurantMenuView({
 
   const [activeTab, setActiveTab] = useState(menu[0]?.category ?? "");
   const activeSection = menu.find((s) => s.category === activeTab);
+
+  // When arriving from search with ?dish=ID, switch to the right tab and scroll to the item.
+  // Use a ref so this runs exactly once — menu changes on every router.refresh() and we
+  // don't want to re-scroll 30 seconds later.
+  const didScrollToDish = useRef(false);
+  useEffect(() => {
+    if (didScrollToDish.current || menu.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const dishId = params.get("dish");
+    if (!dishId) return;
+
+    didScrollToDish.current = true;
+
+    // Switch to the tab that contains this dish
+    const targetSection = menu.find((s) => s.items.some((i) => i.id === dishId));
+    if (targetSection) setActiveTab(targetSection.category);
+
+    // Scroll + highlight after the tab re-renders
+    const t = setTimeout(() => {
+      const el = document.getElementById(`item-${dishId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.style.transition = "box-shadow 0.3s ease";
+        el.style.boxShadow = "0 0 0 3px #fb923c, 0 4px 20px rgba(251,146,60,0.3)";
+        setTimeout(() => { el.style.boxShadow = ""; }, 2500);
+      }
+    }, 200);
+
+    return () => clearTimeout(t);
+  }, [menu]); // runs each time menu populates, but guarded by the ref
 
   const cartCount = currentCartItems.reduce((acc, item) => acc + item.quantity, 0);
 

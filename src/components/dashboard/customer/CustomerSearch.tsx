@@ -214,7 +214,7 @@ export default function CustomerSearch() {
                 {dishResults.map((dish) => (
                   <Link
                     key={`${dish.restaurantId}-${dish.id}`}
-                    href={`/dashboard/customer/restaurant/${dish.restaurantId}#item-${dish.id}`}
+                    href={`/dashboard/customer/restaurant/${dish.restaurantId}?dish=${dish.id}`}
                     className="flex items-center gap-3 p-3 rounded-2xl bg-white border border-gray-100 hover:shadow-md transition-all"
                   >
                     <div

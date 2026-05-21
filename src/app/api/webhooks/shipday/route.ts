@@ -23,6 +23,19 @@ function readObject(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+/**
+ * When we create a Shipday order we send orderNumber = orderId.replace(/-/g,"")
+ * (32 hex chars, no hyphens). Shipday echoes this back as order.order_number.
+ * Our deliveryJobs.orderId stores the UUID WITH hyphens (36 chars).
+ * This function re-adds the hyphens so the DB lookup matches.
+ */
+function rehyphenUuid(s: string): string {
+  if (s.length === 32 && /^[0-9a-f]+$/i.test(s)) {
+    return `${s.slice(0,8)}-${s.slice(8,12)}-${s.slice(12,16)}-${s.slice(16,20)}-${s.slice(20)}`;
+  }
+  return s; // already hyphenated or different format — pass through
+}
+
 function readString(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" && Number.isFinite(value)) return String(value);
@@ -56,6 +69,26 @@ type MappedStatus = "DISPATCH_REQUESTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "C
 function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   const order = readObject(payload.order);
   const deliveryDetails = readObject(payload.delivery_details);
+
+  // Shipday sends a top-level "event" field (e.g. "ORDER_COMPLETED", "ORDER_ONTHEWAY").
+  // This is the most reliable signal — check it first.
+  const eventField = readString(payload.event ?? payload.eventType ?? payload.event_type)?.toUpperCase();
+  if (eventField) {
+    if (eventField === "ORDER_COMPLETED") return "DELIVERED";
+    if (eventField === "ORDER_ONTHEWAY" || eventField === "ORDER_PIKEDUP") return "OUT_FOR_DELIVERY";
+    if (
+      eventField === "ORDER_ASSIGNED" ||
+      eventField === "ORDER_ACCEPTED_AND_STARTED"
+    ) return "DISPATCH_REQUESTED";
+    if (
+      eventField === "ORDER_FAILED" ||
+      eventField === "ORDER_INCOMPLETE" ||
+      eventField === "ORDER_DELETE" ||
+      eventField === "ORDER_UNASSIGNED"
+    ) return "CANCELLED";
+  }
+
+  // Fallback: use the order_status field (e.g. "ALREADY_DELIVERED", "PICKED_UP", "STARTED")
   const rawStatus = pickFirstString(
     payload.orderStatus,
     payload.order_status,
@@ -79,12 +112,14 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   ) {
     return "DELIVERED";
   }
+  // "PICKED_UP" and "ON_THE_WAY" mean driver has the food and is en-route → OUT_FOR_DELIVERY
   if (
     rawStatus.includes("OUT_FOR_DELIVERY") ||
     rawStatus.includes("ON_THE_WAY") ||
+    rawStatus.includes("ONTHEWAY") ||
     rawStatus.includes("EN_ROUTE") ||
     rawStatus.includes("PICKED_UP") ||
-    rawStatus.includes("STARTED")
+    rawStatus.includes("PIKEDUP")
   ) {
     return "OUT_FOR_DELIVERY";
   }
@@ -95,10 +130,13 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   ) {
     return "CANCELLED";
   }
+  // "STARTED" in Shipday = driver accepted & heading to restaurant (not yet picked up)
+  // "ASSIGNED" = driver assigned to order — both map to DISPATCH_REQUESTED
   if (
     rawStatus.includes("PRE_ASSIGNED") ||
     rawStatus.includes("ASSIGNED") ||
     rawStatus.includes("NOT_ASSIGNED") ||
+    rawStatus.includes("STARTED") ||
     rawStatus.includes("PENDING")
   ) {
     return "DISPATCH_REQUESTED";
@@ -107,12 +145,11 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
 }
 
 // Valid source statuses for each transition.
-// OUT_FOR_DELIVERY requires DISPATCH_REQUESTED first — driver must be assigned
-// before they can be picking up. This prevents instant PAID → OUT_FOR_DELIVERY jumps.
+// Broadened to handle Shipday skipping intermediate states (e.g. ASSIGNED then straight to DELIVERED).
 const ALLOWED_TRANSITIONS: Record<MappedStatus, string[]> = {
   DISPATCH_REQUESTED: ["PREPARING"],
-  OUT_FOR_DELIVERY:   ["DISPATCH_REQUESTED", "PREPARING"],
-  DELIVERED:          ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED"],
+  OUT_FOR_DELIVERY:   ["DISPATCH_REQUESTED", "PREPARING", "PAID"],
+  DELIVERED:          ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED", "PREPARING", "PAID"],
   CANCELLED:          ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],
 };
 
@@ -135,12 +172,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
-    console.log(`[Shipday Webhook] [${requestId}] Raw status fields:`, {
+    console.log(`[Shipday Webhook] [${requestId}] Raw payload fields:`, {
+      event: payload.event,
+      eventType: payload.eventType,
       orderStatus: payload.orderStatus,
       order_status: payload.order_status,
       status: payload.status,
       deliveryStatus: payload.deliveryStatus,
       delivery_status: payload.delivery_status,
+      orderId: payload.orderId,
+      "order.id": (payload.order as any)?.id,
+      "order.order_number": (payload.order as any)?.order_number,
     });
 
     // ── Token verification ─────────────────────────────────────────────────
@@ -284,7 +326,10 @@ export async function POST(req: Request) {
       pickFirstString(payload.trackingId, payload.trackingID, payload.tracking_id) ||
       pickFirstNestedString([order, deliveryDetails], ["trackingId", "trackingID", "tracking_id"]);
 
-    const localOrderId = pickFirstNestedString([order], ["order_number", "orderNumber"]);
+    // Shipday sends back our orderNumber (UUID without hyphens) in order.order_number.
+    // Re-add hyphens so it matches deliveryJobs.orderId (which stores UUID with hyphens).
+    const rawLocalOrderId = pickFirstNestedString([order], ["order_number", "orderNumber"]);
+    const localOrderId = rawLocalOrderId ? rehyphenUuid(rawLocalOrderId) : null;
 
     if (!providerOrderId && !trackingId && !localOrderId) {
       console.warn("[Shipday Webhook] Missing order identifier:", payload);
@@ -313,6 +358,8 @@ export async function POST(req: Request) {
     console.log(`[Shipday Webhook] [${requestId}] "${rawStatusLabel}" → "${mappedStatus}" for order ${deliveryJob.orderId}`);
 
     // ── Step 1: Always update deliveryJobs with latest driver/tracking info ─
+    // Shipday puts driver info in a "carrier" object inside order event payloads.
+    const carrier = readObject(payload.carrier);
     const djUpdate: Record<string, string | Date | null> = {
       providerOrderId: providerOrderId || deliveryJob.providerOrderId,
       trackingId: trackingId || deliveryJob.trackingId,
@@ -321,9 +368,11 @@ export async function POST(req: Request) {
         deliveryJob.trackingUrl,
       driverName:
         pickFirstNestedString([payload, deliveryDetails], ["driverName", "driver_name", "driver"]) ||
+        pickFirstNestedString([carrier], ["name", "driverName", "driver_name"]) ||
         deliveryJob.driverName,
       driverPhone:
         pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone"]) ||
+        pickFirstNestedString([carrier], ["phone", "phoneNumber", "phone_number"]) ||
         deliveryJob.driverPhone,
       eta:
         pickFirstNestedString([payload, deliveryDetails], ["eta", "estimatedDeliveryTime", "estimatedArrival", "estimated_arrival"]) ||

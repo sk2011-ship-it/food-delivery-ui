@@ -195,6 +195,31 @@ export async function createShipdayCarrier(input: {
 }
 
 /**
+ * Cancels / deletes a delivery order from Shipday.
+ * Called when the customer or owner cancels an order so Shipday doesn't
+ * keep dispatching a driver for an order that no longer exists.
+ * DELETE https://api.shipday.com/orders/{orderId}
+ */
+export async function cancelShipdayOrder(providerOrderId: string | number): Promise<void> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(`${SHIPDAY_API_BASE_URL}/orders/${providerOrderId}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${apiKey}`,
+    },
+    cache: "no-store",
+  });
+
+  // 404 = already gone from Shipday — treat as success
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Shipday cancelOrder failed (HTTP ${response.status}).`);
+  }
+}
+
+/**
  * Deletes a driver account from Shipday.
  * DELETE https://api.shipday.com/carriers/{carrierId}
  */
