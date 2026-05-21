@@ -65,18 +65,52 @@ export default function CustomerCart() {
     });
   }, [site.location]);
 
+  // Fresh restaurant open/closed status fetched from the server (no cached data).
+  // The snapshot stored in cart items (item.openingHours) can be stale if the owner
+  // changed their hours after the customer added items.
+  const [freshOpenStatus, setFreshOpenStatus] = React.useState<Record<string, boolean>>({});
+
+  React.useEffect(() => {
+    if (currentCartItems.length === 0) return;
+    const uniqueLocations = [...new Set(currentCartItems.map(i => i.restaurantLocation).filter((l): l is string => !!l))];
+    const uniqueIds = [...new Set(currentCartItems.map(i => i.restaurantId))];
+
+    Promise.all(
+      uniqueLocations.map(loc =>
+        fetch(`/api/restaurants?location=${encodeURIComponent(loc)}`)
+          .then(r => r.json())
+          .catch(() => null)
+      )
+    ).then(results => {
+      const statusMap: Record<string, boolean> = {};
+      for (const result of results) {
+        if (!result?.data?.items) continue;
+        for (const r of result.data.items) {
+          if (uniqueIds.includes(r.id)) {
+            statusMap[r.id] = isRestaurantOpen(r.openingHours);
+          }
+        }
+      }
+      setFreshOpenStatus(statusMap);
+    });
+  }, [currentCartItems]);
+
   const groupedItems = React.useMemo(() => {
     return currentCartItems.reduce((acc, item) => {
+      // Use fresh status if available, fall back to snapshot
+      const isOpen = item.restaurantId in freshOpenStatus
+        ? freshOpenStatus[item.restaurantId]
+        : isRestaurantOpen(item.openingHours);
       const g = acc[item.restaurantId] || {
         name: item.restaurantName,
         items: [],
-        isOpen: isRestaurantOpen(item.openingHours)
+        isOpen,
       };
       g.items.push(item);
       acc[item.restaurantId] = g;
       return acc;
     }, {} as Record<string, { name: string; items: typeof currentCartItems; isOpen: boolean }>);
-  }, [currentCartItems]);
+  }, [currentCartItems, freshOpenStatus]);
 
   const handleCheckout = () => {
     router.push("/dashboard/customer/checkout");

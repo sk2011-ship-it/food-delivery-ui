@@ -2,6 +2,7 @@ import { ok, fail, withAuth } from "@/lib/proxy";
 import { db } from "@/lib/db";
 import { restaurants } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(req, async (user) => {
@@ -87,6 +88,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
       .where(eq(restaurants.id, id))
       .returning();
+
+      // Immediately invalidate the Next.js route cache for all customer pages
+      // so the next router.refresh() or navigation gets the fresh openingHours.
+      revalidatePath("/dashboard/customer", "layout");
+      revalidatePath(`/dashboard/customer/restaurant/${id}`);
 
       return ok(updated);
     } catch (err) {

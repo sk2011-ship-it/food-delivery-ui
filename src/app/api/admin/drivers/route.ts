@@ -8,13 +8,20 @@ import { normalizePhone } from "@/lib/phone";
 import { createShipdayCarrier } from "@/lib/shipday";
 
 const CreateDriverSchema = z.object({
-  name:     z.string().min(2).max(150),
-  email:    z.string().email(),
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters.")
+    .max(150, "Name must be at most 150 characters.")
+    .regex(
+      /^[a-zA-Z\s'\-]+$/,
+      "Name must contain only letters, spaces, hyphens, and apostrophes. Numbers and special characters are not allowed."
+    ),
+  email:    z.string().email("Please enter a valid email address."),
   phone:    z.preprocess(
     (v) => normalizePhone(v),
-    z.string().regex(/^\+?\d{10,15}$/, "Phone must be 10–15 digits with optional leading +.")
+    z.string().regex(/^\+?\d{10,15}$/, "Phone must be 10–15 digits with an optional leading +.")
   ),
-  password: z.string().min(8).max(72),
+  password: z.string().min(8, "Password must be at least 8 characters.").max(72, "Password is too long."),
 });
 
 /* ── GET /api/admin/drivers ── */

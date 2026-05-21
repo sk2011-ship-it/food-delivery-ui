@@ -266,6 +266,7 @@ export default function AdminDrivers() {
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating]     = useState(false);
   const [form, setForm]             = useState({ name: "", email: "", phone: "", password: "" });
+  const [formErrors, setFormErrors] = useState<{ name?: string; email?: string; phone?: string; password?: string }>({});
   const [showPass, setShowPass]     = useState(false);
   // Shipday temp password revealed after creation
   const [shipdayCredentials, setShipdayCredentials] = useState<{ email: string; password: string } | null>(null);
@@ -383,15 +384,41 @@ export default function AdminDrivers() {
 
   // ── Create ─────────────────────────────────────────────────────────────────
 
+  const validateCreateForm = (): boolean => {
+    const errors: typeof formErrors = {};
+
+    if (!form.name.trim()) {
+      errors.name = "Name is required.";
+    } else if (!/^[a-zA-Z\s'\-]+$/.test(form.name.trim())) {
+      errors.name = "Name must contain only letters, spaces, hyphens, and apostrophes. Numbers and special characters are not allowed.";
+    } else if (form.name.trim().length < 2) {
+      errors.name = "Name must be at least 2 characters.";
+    }
+
+    if (!form.email.trim()) {
+      errors.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      errors.email = "Please enter a valid email address.";
+    }
+
+    if (!form.phone.trim()) {
+      errors.phone = "Phone number is required.";
+    } else if (!/^\+?\d{10,15}$/.test(form.phone.replace(/[\s\-()]/g, ""))) {
+      errors.phone = "Phone must be 10–15 digits with an optional leading +.";
+    }
+
+    if (!form.password) {
+      errors.password = "Password is required.";
+    } else if (form.password.length < 8) {
+      errors.password = "Password must be at least 8 characters.";
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleCreate = async () => {
-    if (!form.name.trim() || !form.email.trim() || !form.phone.trim() || !form.password.trim()) {
-      toast.error("All fields are required.");
-      return;
-    }
-    if (form.password.length < 8) {
-      toast.error("Password must be at least 8 characters.");
-      return;
-    }
+    if (!validateCreateForm()) return;
 
     setCreating(true);
     try {
@@ -401,15 +428,31 @@ export default function AdminDrivers() {
         body:    JSON.stringify(form),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed to create driver.");
+      if (!res.ok) {
+        const msg: string = json.error ?? "Failed to create driver.";
+        // Try to pin server-side errors to the relevant field
+        const lower = msg.toLowerCase();
+        if (lower.includes("name")) {
+          setFormErrors((e) => ({ ...e, name: msg }));
+        } else if (lower.includes("email") || lower.includes("already exists")) {
+          setFormErrors((e) => ({ ...e, email: msg }));
+        } else if (lower.includes("phone")) {
+          setFormErrors((e) => ({ ...e, phone: msg }));
+        } else if (lower.includes("password")) {
+          setFormErrors((e) => ({ ...e, password: msg }));
+        } else {
+          toast.error(msg);
+        }
+        return;
+      }
 
       const { driver, shipdayPassword } = json.data;
       setDrivers((prev) => [driver, ...prev]);
       setTotal((t) => t + 1);
       setShowCreate(false);
       setForm({ name: "", email: "", phone: "", password: "" });
+      setFormErrors({});
 
-      // Show Shipday credentials so admin can hand them to the driver
       if (shipdayPassword) {
         setShipdayCredentials({ email: driver.email, password: shipdayPassword });
       }
@@ -722,7 +765,7 @@ export default function AdminDrivers() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold" style={{ color: "var(--dash-text-primary)" }}>Add New Driver</h2>
               <button
-                onClick={() => { setShowCreate(false); setForm({ name: "", email: "", phone: "", password: "" }); }}
+                onClick={() => { setShowCreate(false); setForm({ name: "", email: "", phone: "", password: "" }); setFormErrors({}); }}
                 className="p-1.5 rounded-lg hover:bg-black/10 transition-colors"
               >
                 <X className="w-4 h-4" style={{ color: "var(--dash-text-muted)" }} />
@@ -737,16 +780,26 @@ export default function AdminDrivers() {
               {(["name", "email", "phone"] as const).map((field) => (
                 <div key={field}>
                   <label className="block text-xs font-semibold mb-1 capitalize" style={{ color: "var(--dash-text-muted)" }}>
-                    {field}
+                    {field === "name" ? "Full Name" : field === "email" ? "Email" : "Phone"}
                   </label>
                   <input
                     type={field === "email" ? "email" : field === "phone" ? "tel" : "text"}
                     value={form[field]}
-                    onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
-                    placeholder={field === "name" ? "Full name" : field === "email" ? "driver@example.com" : "+447700123456"}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none focus:ring-2 focus:ring-blue-500"
-                    style={{ background: "var(--dash-bg)", borderColor: "var(--dash-border)", color: "var(--dash-text-primary)" }}
+                    onChange={(e) => {
+                      setForm((f) => ({ ...f, [field]: e.target.value }));
+                      if (formErrors[field]) setFormErrors((fe) => ({ ...fe, [field]: undefined }));
+                    }}
+                    placeholder={field === "name" ? "e.g. John Smith" : field === "email" ? "driver@example.com" : "+447700123456"}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm border outline-none focus:ring-2 transition-colors"
+                    style={{
+                      background: "var(--dash-bg)",
+                      borderColor: formErrors[field] ? "#ef4444" : "var(--dash-border)",
+                      color: "var(--dash-text-primary)",
+                    }}
                   />
+                  {formErrors[field] && (
+                    <p className="mt-1 text-xs text-red-500">{formErrors[field]}</p>
+                  )}
                 </div>
               ))}
 
@@ -758,10 +811,17 @@ export default function AdminDrivers() {
                   <input
                     type={showPass ? "text" : "password"}
                     value={form.password}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                    onChange={(e) => {
+                      setForm((f) => ({ ...f, password: e.target.value }));
+                      if (formErrors.password) setFormErrors((fe) => ({ ...fe, password: undefined }));
+                    }}
                     placeholder="Min. 8 characters"
-                    className="w-full px-3 py-2.5 pr-10 rounded-xl text-sm border outline-none focus:ring-2 focus:ring-blue-500"
-                    style={{ background: "var(--dash-bg)", borderColor: "var(--dash-border)", color: "var(--dash-text-primary)" }}
+                    className="w-full px-3 py-2.5 pr-10 rounded-xl text-sm border outline-none focus:ring-2 transition-colors"
+                    style={{
+                      background: "var(--dash-bg)",
+                      borderColor: formErrors.password ? "#ef4444" : "var(--dash-border)",
+                      color: "var(--dash-text-primary)",
+                    }}
                   />
                   <button
                     type="button"
@@ -773,12 +833,15 @@ export default function AdminDrivers() {
                       : <Eye className="w-4 h-4" style={{ color: "var(--dash-text-muted)" }} />}
                   </button>
                 </div>
+                {formErrors.password && (
+                  <p className="mt-1 text-xs text-red-500">{formErrors.password}</p>
+                )}
               </div>
             </div>
 
             <div className="flex gap-3 pt-1">
               <button
-                onClick={() => { setShowCreate(false); setForm({ name: "", email: "", phone: "", password: "" }); }}
+                onClick={() => { setShowCreate(false); setForm({ name: "", email: "", phone: "", password: "" }); setFormErrors({}); }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-colors hover:bg-black/5"
                 style={{ borderColor: "var(--dash-border)", color: "var(--dash-text-primary)" }}
               >

@@ -44,13 +44,12 @@ export default function RestaurantMenuView({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(() => isRestaurantOpen(restaurant.openingHours));
 
-  // Re-evaluate immediately when the prop changes (e.g. parent re-renders with new data)
+  // Re-evaluate immediately when the prop changes (server component refreshed with new data)
   useEffect(() => {
     setIsOpen(isRestaurantOpen(restaurant.openingHours));
   }, [restaurant.openingHours]);
 
-  // Supabase Realtime: instantly reflect owner changes to opening_hours or is_active.
-  // This fires within ~1s of the owner saving — no polling delay.
+  // Supabase Realtime: instantly reflect owner changes (fires within ~1s of owner saving).
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -64,18 +63,14 @@ export default function RestaurantMenuView({
           filter: `id=eq.${restaurant.id}`,
         },
         (payload: { new: Record<string, unknown> }) => {
-          // DB column is opening_hours (snake_case)
           const newHours = payload.new?.opening_hours;
           const newIsActive = payload.new?.is_active;
-          // Force closed if admin/owner deactivated the restaurant
           if (newIsActive === false) {
             setIsOpen(false);
-            return;
-          }
-          if (newHours !== undefined) {
+          } else if (newHours !== undefined) {
             setIsOpen(isRestaurantOpen(newHours as Parameters<typeof isRestaurantOpen>[0]));
           }
-          // Also refresh the server component so menu items / details update
+          // Refresh the server component to sync all derived data
           router.refresh();
         }
       )
@@ -84,13 +79,18 @@ export default function RestaurantMenuView({
     return () => { supabase.removeChannel(channel); };
   }, [restaurant.id, router]);
 
-  // Re-evaluate every minute for time-based transitions (e.g. restaurant closes at 10pm by schedule)
+  // Polling fallback: refresh server component data every 30s.
+  // This catches the case where the Realtime subscription didn't fire
+  // (e.g. network hiccup, cold subscription). The server component fetches
+  // directly from DB (no cache), so this always gives fresh openingHours.
+  // The useEffect([restaurant.openingHours]) above then re-evaluates isOpen.
   useEffect(() => {
     const timer = setInterval(() => {
-      setIsOpen(isRestaurantOpen(restaurant.openingHours));
-    }, 60_000);
+      router.refresh();
+    }, 30_000);
     return () => clearInterval(timer);
-  }, [restaurant.openingHours]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 1. Determine the menu source (DB vs Mock)
   const menu = useMemo<MappedSection[]>(() => {
