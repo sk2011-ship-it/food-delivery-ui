@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import type { CSSProperties } from "react";
+import { useState, useEffect } from "react";
 import { Star, Clock, Sparkles, Store, MapPin, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RestaurantItem, FeaturedItem } from "@/types/api.types";
@@ -49,7 +50,27 @@ export default function RestaurantCard({
   const deliveryTime = "deliveryTime" in restaurant ? restaurant.deliveryTime ?? null : null;
   const openingHours = restaurant.openingHours ?? null;
 
-  const isOpen = isRestaurantOpen(openingHours);
+  const [isOpen, setIsOpen] = useState(() => isRestaurantOpen(openingHours));
+
+  useEffect(() => {
+    if (!id) return;
+    const check = async () => {
+      try {
+        const res = await fetch(`/api/restaurants/${id}/status`, { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.isActive === false || data.status !== "active") {
+          setIsOpen(false);
+          return;
+        }
+        setIsOpen(isRestaurantOpen(data.openingHours));
+      } catch { /* silent */ }
+    };
+    check();
+    const timer = setInterval(check, 10_000);
+    return () => clearInterval(timer);
+  }, [id]);
+
   const titleStyle = { "--group-hover-color": theme.accent } as CSSProperties;
 
   return (

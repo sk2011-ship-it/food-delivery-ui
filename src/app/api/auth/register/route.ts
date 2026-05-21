@@ -51,10 +51,17 @@ export async function POST(req: Request) {
     process.env.NEXT_PUBLIC_PUBLISHABLE_KEY!
   );
 
+  // Derive the app's origin from the request so the redirect URL works in
+  // both local dev (localhost:3000) and production without hardcoding.
+  const origin = new URL(req.url).origin;
+
   const { data: authData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { name, phone } },
+    options: {
+      data: { name, phone },
+      emailRedirectTo: `${origin}/auth/callback`,
+    },
   });
 
   if (signUpError) {

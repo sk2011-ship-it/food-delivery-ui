@@ -124,6 +124,9 @@ export const authApi = {
       : "/api/user/fcm-token";
     return del<null>(url);
   },
+  resendConfirmation(email: string) {
+    return post<{ message: string }>("/api/auth/resend-confirmation", { email });
+  },
 };
 
 /* ── Admin: Restaurant Management API ── */

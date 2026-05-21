@@ -8,7 +8,7 @@ import AuthCard from "@/components/auth/AuthCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/useAuthStore";
 import { toast } from "sonner";
@@ -37,9 +37,13 @@ function LoginContent() {
   const [form, setForm] = useState({ email: "", password: "", remember: false });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    if (e.target.name === "email") setUnverifiedEmail(null);
+  };
 
   useEffect(() => {
     // If the user lands here already logged in, send them to the dashboard.
@@ -65,11 +69,16 @@ function LoginContent() {
       return;
     }
 
+    setUnverifiedEmail(null);
     setLoading(true);
     const result = await authApi.login(form.email, form.password);
 
     if (!result.success || !result.data) {
       setLoading(false);
+      if (result.error === "EMAIL_NOT_VERIFIED") {
+        setUnverifiedEmail(form.email);
+        return;
+      }
       toast.error(result.error || "Login failed.");
       return;
     }
@@ -77,6 +86,18 @@ function LoginContent() {
     // Sync the profile into the store, then navigate client-side.
     await useAuthStore.getState().sync(result.data);
     router.push(redirectTo);
+  };
+
+  const handleResend = async () => {
+    if (!unverifiedEmail || resending) return;
+    setResending(true);
+    const result = await authApi.resendConfirmation(unverifiedEmail);
+    setResending(false);
+    if (result.success) {
+      toast.success("Verification email sent! Please check your inbox.");
+    } else {
+      toast.error("Failed to resend email. Please try again.");
+    }
   };
 
   return (
@@ -155,6 +176,27 @@ function LoginContent() {
             Keep me signed in
           </Label>
         </div>
+
+        {/* Unverified email banner */}
+        {unverifiedEmail && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+              <div>
+                <p className="font-semibold mb-0.5">Email not verified</p>
+                <p className="text-amber-700 text-xs">Your email address has not been verified. Please check your inbox for the confirmation link.</p>
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={resending}
+                  className="mt-2 text-xs font-bold underline underline-offset-2 text-amber-800 hover:text-amber-900 disabled:opacity-50"
+                >
+                  {resending ? "Sending..." : "Resend verification email"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Submit */}
         <button

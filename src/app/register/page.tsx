@@ -63,6 +63,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [needsEmailVerification, setNeedsEmailVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [registeredName, setRegisteredName] = useState("");
   const [errors, setErrors] = useState<Errors>({});
 
   useEffect(() => {
@@ -134,11 +136,29 @@ export default function RegisterPage() {
       return;
     }
 
-    setNeedsEmailVerification(Boolean(result.data?.needsEmailVerification));
+    const verificationRequired = Boolean(result.data?.needsEmailVerification);
+    setNeedsEmailVerification(verificationRequired);
+    setRegisteredName(form.name);
     setSuccess(true);
+
+    if (verificationRequired) {
+      toast.success("Account created! Please check your inbox and verify your email to continue.");
+    }
   };
 
   const strength = passwordStrength(form.password);
+
+  const handleResend = async () => {
+    if (resending) return;
+    setResending(true);
+    const result = await authApi.resendConfirmation(form.email);
+    setResending(false);
+    if (result.success) {
+      toast.success("Verification email sent! Please check your inbox.");
+    } else {
+      toast.error("Failed to resend email. Please try again.");
+    }
+  };
 
   if (success) {
     return (
@@ -154,10 +174,10 @@ export default function RegisterPage() {
             <CheckCircle2 className="w-10 h-10 text-white" />
           </div>
           <h3 className="font-heading font-bold text-gray-900 text-xl mb-2">Account Created!</h3>
-          <p className="text-gray-500 text-sm mb-8 max-w-xs mx-auto">
+          <p className="text-gray-500 text-sm mb-6 max-w-xs mx-auto">
             {needsEmailVerification
-              ? `Welcome, ${form.name.split(" ")[0]}! Please check your inbox and verify your email before signing in.`
-              : `Welcome, ${form.name.split(" ")[0]}! You can now sign in and start ordering from your favourite restaurants.`}
+              ? `Welcome, ${registeredName.split(" ")[0]}! Please check your inbox and verify your email before signing in.`
+              : `Welcome, ${registeredName.split(" ")[0]}! You can now sign in and start ordering from your favourite restaurants.`}
           </p>
           <Link
             href="/login"
@@ -166,6 +186,19 @@ export default function RegisterPage() {
           >
             Sign In Now <ArrowRight className="w-4 h-4" />
           </Link>
+          {needsEmailVerification && (
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <p className="text-xs text-gray-400 mb-2">Didn&apos;t receive the email?</p>
+              <button
+                onClick={handleResend}
+                disabled={resending}
+                className="text-sm font-semibold hover:underline disabled:opacity-50"
+                style={{ color: site.theme.primary }}
+              >
+                {resending ? "Sending..." : "Resend verification email"}
+              </button>
+            </div>
+          )}
         </div>
       </AuthCard>
     );

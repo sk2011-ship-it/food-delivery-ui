@@ -53,6 +53,12 @@ export async function POST(req: Request) {
 
   if (signInError || !authData.user) {
     console.error("[login] signIn error:", signInError?.message);
+
+    // Supabase returns "Email not confirmed" when email verification is pending
+    if (signInError?.message?.toLowerCase().includes("email not confirmed")) {
+      return fail("EMAIL_NOT_VERIFIED", 403);
+    }
+
     // Record the failed attempt (non-blocking — don't await, don't slow down response)
     void recordFailedAttempt("LOGIN_FAILED", req, { email });
     return fail("Invalid email or password.", 401);
