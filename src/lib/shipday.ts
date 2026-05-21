@@ -139,3 +139,118 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
   }
   return result;
 }
+
+// ── Driver (Carrier) Management ──────────────────────────────────────────────
+
+export type ShipdayCarrier = {
+  carrierId: number;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  isOnShift: boolean;
+  isActive: boolean;
+};
+
+/**
+ * Creates a driver account in Shipday.
+ * Shipday auto-generates a temporary password returned in the response.
+ * POST https://api.shipday.com/carriers
+ */
+export async function createShipdayCarrier(input: {
+  name: string;
+  email: string;
+  phoneNumber: string;
+}): Promise<{ carrierId: number; email: string; password: string }> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(`${SHIPDAY_API_BASE_URL}/carriers`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Basic ${apiKey}`,
+    },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+  let json: Record<string, unknown> = {};
+  try { json = text ? JSON.parse(text) : {}; } catch { json = { raw: text }; }
+
+  if (!response.ok) {
+    const msg = (typeof json.message === "string" && json.message) ||
+                (typeof json.error === "string" && json.error) ||
+                `Shipday carrier creation failed (HTTP ${response.status}).`;
+    console.error("[Shipday] createCarrier failed", { status: response.status, body: json });
+    throw new Error(msg);
+  }
+
+  return {
+    carrierId: json.carrierId as number,
+    email:     json.email as string,
+    password:  json.password as string,
+  };
+}
+
+/**
+ * Deletes a driver account from Shipday.
+ * DELETE https://api.shipday.com/carriers/{carrierId}
+ */
+export async function deleteShipdayCarrier(carrierId: string | number): Promise<void> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(`${SHIPDAY_API_BASE_URL}/carriers/${carrierId}`, {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${apiKey}`,
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`Shipday deleteCarrier failed (HTTP ${response.status}).`);
+  }
+}
+
+/**
+ * Lists all driver accounts from Shipday.
+ * GET https://api.shipday.com/carriers
+ */
+export async function listShipdayCarriers(): Promise<ShipdayCarrier[]> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(`${SHIPDAY_API_BASE_URL}/carriers`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${apiKey}`,
+    },
+    cache: "no-store",
+  });
+
+  const text = await response.text();
+  let json: unknown = [];
+  try { json = text ? JSON.parse(text) : []; } catch { json = []; }
+
+  if (!response.ok) {
+    throw new Error(`Shipday listCarriers failed (HTTP ${response.status}).`);
+  }
+
+  const arr = Array.isArray(json)
+    ? json
+    : ((json as Record<string, unknown>).carriers ?? (json as Record<string, unknown>).data ?? []) as unknown[];
+
+  return (arr as Record<string, unknown>[]).map((c) => ({
+    carrierId:   (c.carrierId ?? c.id ?? c.carrier_id ?? c.driverId ?? c.driver_id) as number,
+    name:        (c.name ?? c.driverName ?? c.driver_name ?? "") as string,
+    email:       (c.email ?? "") as string,
+    phoneNumber: (c.phoneNumber ?? c.phone ?? c.phone_number ?? "") as string,
+    isOnShift:   Boolean(c.isOnShift ?? c.is_on_shift),
+    isActive:    Boolean(c.isActive ?? c.is_active),
+  }));
+}

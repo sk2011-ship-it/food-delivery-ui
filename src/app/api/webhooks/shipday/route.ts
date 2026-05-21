@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { deliveryJobs, orders, restaurants, orderMetrics } from "@/lib/db/schema";
+import { deliveryJobs, orders, restaurants, orderMetrics, users, driverShiftLogs } from "@/lib/db/schema";
 import { NotificationService } from "@/services/notification.service";
 
 console.log("[Shipday Webhook] Route file loaded");
@@ -170,6 +170,69 @@ export async function POST(req: Request) {
       }
     } else {
       console.warn("[Shipday Webhook] SHIPDAY_WEBHOOK_TOKEN not set — skipping auth.");
+    }
+
+    // ── Driver on/off shift event ──────────────────────────────────────────
+    const eventType = readString(payload.eventType ?? payload.event_type ?? payload.type)?.toUpperCase();
+    const isDriverEvent =
+      eventType?.includes("DRIVER") ||
+      eventType?.includes("CARRIER") ||
+      payload.carrierId !== undefined ||
+      payload.carrier_id !== undefined ||
+      payload.driverId !== undefined;
+
+    if (isDriverEvent) {
+      const carrierId =
+        readString(payload.carrierId ?? payload.carrier_id ?? payload.driverId ?? payload.driver_id);
+
+      const rawDriverStatus = readString(
+        payload.isOnShift ?? payload.is_on_shift ?? payload.onShift ??
+        payload.status ?? payload.driverStatus ?? payload.driver_status
+      )?.toUpperCase();
+
+      // Resolve boolean — could be a boolean field or a string like "ON_DUTY" / "OFF_DUTY"
+      let isOnShift: boolean | null = null;
+      if (typeof (payload.isOnShift ?? payload.is_on_shift ?? payload.onShift) === "boolean") {
+        isOnShift = Boolean(payload.isOnShift ?? payload.is_on_shift ?? payload.onShift);
+      } else if (rawDriverStatus) {
+        if (rawDriverStatus.includes("ON") || rawDriverStatus === "ACTIVE" || rawDriverStatus === "ONLINE") {
+          isOnShift = true;
+        } else if (rawDriverStatus.includes("OFF") || rawDriverStatus === "INACTIVE" || rawDriverStatus === "OFFLINE") {
+          isOnShift = false;
+        }
+      }
+
+      if (carrierId && isOnShift !== null) {
+        // Update live status on the user record
+        await db
+          .update(users)
+          .set({ isOnShift, updatedAt: new Date() })
+          .where(eq(users.shipdayCarrierId, carrierId));
+
+        // Log the shift event for activity timeline
+        const [driver] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.shipdayCarrierId, carrierId))
+          .limit(1);
+
+        if (driver) {
+          await db.insert(driverShiftLogs).values({
+            driverId:         driver.id,
+            shipdayCarrierId: carrierId,
+            isOnShift,
+          });
+        }
+
+        console.log(`[Shipday Webhook] Driver ${carrierId} isOnShift=${isOnShift}`);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Driver event but couldn't resolve status — log and acknowledge
+      console.warn(`[Shipday Webhook] Driver event received but could not resolve status:`, {
+        carrierId, rawDriverStatus, eventType,
+      });
+      return NextResponse.json({ ok: true });
     }
 
     // ── Identify the delivery job ──────────────────────────────────────────

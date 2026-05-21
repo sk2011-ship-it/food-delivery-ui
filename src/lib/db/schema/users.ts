@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, pgEnum, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, varchar, text, pgEnum, timestamp, index, boolean } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
 export const userStatusEnum = pgEnum("user_status", ["active", "banned"]);
@@ -11,8 +11,10 @@ export const users = pgTable("users", {
   phone:     varchar("phone", { length: 30  }).notNull(),
   status:    userStatusEnum("status").default("active").notNull(),
   role:      userRoleEnum("role").default("customer").notNull(),
-  lastActive: timestamp("last_active"),
-  fcmToken:   text("fcm_token"),  // JSON array of tokens — supports multi-device
+  lastActive:       timestamp("last_active"),
+  fcmToken:         text("fcm_token"),          // JSON array of tokens — supports multi-device
+  shipdayCarrierId: varchar("shipday_carrier_id", { length: 50 }),  // Shipday carrierId for drivers
+  isOnShift:        boolean("is_on_shift"),                          // Live on-shift status, updated via Shipday webhook
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (t) => [

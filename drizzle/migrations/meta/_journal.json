@@ -29,6 +29,34 @@
       "when": 1779168955207,
       "tag": "0003_classy_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779283795076,
+      "tag": "0004_lucky_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1747699200000,
+      "tag": "0005_add_shipday_carrier_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779350779824,
+      "tag": "0006_oval_aqueduct",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779351404167,
+      "tag": "0007_groovy_raider",
+      "breakpoints": true
     }
   ]
 }
