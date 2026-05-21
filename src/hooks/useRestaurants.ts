@@ -4,6 +4,7 @@ import { customerService } from "@/services/customer.service";
 import type { RestaurantItem, FeaturedItem, OpeningHours } from "@/types/api.types";
 import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
 import { isSameLocation } from "@/lib/locations";
+import { createClient } from "@/lib/supabase/client";
 
 /**
  * useRestaurants.ts - Unified hook for fetching and managing restaurant data.
@@ -45,9 +46,28 @@ export function useRestaurants(searchQuery: string = "") {
 
   useEffect(() => {
     fetchRestaurants();
-    // Refresh every 30s so open/closed status stays current without a manual reload
+    // Fallback poll every 30s for time-based transitions (e.g. closes at 10pm by schedule)
     const interval = setInterval(fetchRestaurants, 30_000);
     return () => clearInterval(interval);
+  }, [fetchRestaurants]);
+
+  // Supabase Realtime: re-fetch instantly when any restaurant in this location updates.
+  // Fires within ~1s of the owner saving opening hours — no poll delay.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("restaurants-location-watch")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "restaurants" },
+        () => {
+          // Re-fetch all restaurants so open/closed badges update immediately
+          fetchRestaurants();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [fetchRestaurants]);
 
   // Filtering Logic - Show all restaurants in location, even if closed (UI handles status)

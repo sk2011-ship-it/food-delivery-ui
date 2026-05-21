@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { ArrowLeft, Star, Clock, Truck, Minus, Plus, Leaf, Store, Utensils } from "lucide-react";
 import { useSite } from "@/context/SiteContext";
@@ -43,23 +44,53 @@ export default function RestaurantMenuView({
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [isOpen, setIsOpen] = useState(() => isRestaurantOpen(restaurant.openingHours));
 
-  // Immediately re-evaluate when opening hours change (after router.refresh() updates the prop)
+  // Re-evaluate immediately when the prop changes (e.g. parent re-renders with new data)
   useEffect(() => {
     setIsOpen(isRestaurantOpen(restaurant.openingHours));
   }, [restaurant.openingHours]);
 
-  // Also re-evaluate every minute for time-based transitions (e.g. restaurant closes at 10pm)
-  // and refresh server-side data every 30s so owner hour changes propagate within half a minute.
+  // Supabase Realtime: instantly reflect owner changes to opening_hours or is_active.
+  // This fires within ~1s of the owner saving — no polling delay.
   useEffect(() => {
-    const timeInterval = setInterval(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`restaurant-status-${restaurant.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "restaurants",
+          filter: `id=eq.${restaurant.id}`,
+        },
+        (payload: { new: Record<string, unknown> }) => {
+          // DB column is opening_hours (snake_case)
+          const newHours = payload.new?.opening_hours;
+          const newIsActive = payload.new?.is_active;
+          // Force closed if admin/owner deactivated the restaurant
+          if (newIsActive === false) {
+            setIsOpen(false);
+            return;
+          }
+          if (newHours !== undefined) {
+            setIsOpen(isRestaurantOpen(newHours as Parameters<typeof isRestaurantOpen>[0]));
+          }
+          // Also refresh the server component so menu items / details update
+          router.refresh();
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [restaurant.id, router]);
+
+  // Re-evaluate every minute for time-based transitions (e.g. restaurant closes at 10pm by schedule)
+  useEffect(() => {
+    const timer = setInterval(() => {
       setIsOpen(isRestaurantOpen(restaurant.openingHours));
     }, 60_000);
-    const refreshInterval = setInterval(() => router.refresh(), 30_000);
-    return () => {
-      clearInterval(timeInterval);
-      clearInterval(refreshInterval);
-    };
-  }, [restaurant.openingHours, router]);
+    return () => clearInterval(timer);
+  }, [restaurant.openingHours]);
 
   // 1. Determine the menu source (DB vs Mock)
   const menu = useMemo<MappedSection[]>(() => {
@@ -344,8 +375,9 @@ export default function RestaurantMenuView({
                             {qty}
                           </span>
                           <button
-                            onClick={() => updateQuantity(item.id, qty + 1)}
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-transform hover:scale-105 active:scale-95"
+                            onClick={() => isOpen && updateQuantity(item.id, qty + 1)}
+                            disabled={!isOpen}
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
                             style={{ background: accent }}
                           >
                             <Plus className="w-4 h-4" />
