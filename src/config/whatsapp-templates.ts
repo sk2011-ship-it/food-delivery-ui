@@ -25,17 +25,17 @@ export type WhatsAppTemplateName =
  * Update these if templates are recreated in Twilio.
  */
 export const TEMPLATE_SIDS: Record<WhatsAppTemplateName, string> = {
-  kilkeel_owner_new_order:           "HX687a3fc2a9e2acb96cc80dde70865844",
-  kilkeel_customer_order_received:   "HXd66eb7a9eb5c5feb9d6d446de231b9ca",
-  kilkeel_customer_pay_now:          "HXd2eb0e611616d32c42b96a9db5f74cba",
-  kilkeel_customer_order_declined:   "HX7182366f5f2a0f96b1b70f2ddb6914e1",
-  kilkeel_owner_payment_received:    "HX1ac5bda8a97526dff1f4f6b7b974e2fc",
-  kilkeel_customer_payment_confirmed:"HX7122ef704a3bab9b78f63d96f436dc05",
-  kilkeel_customer_preparing:        "HXcbe6d6496c3f274c918a35cf75122947",
-  kilkeel_customer_out_for_delivery: "HXd4473fc4eeaeb695845406305f4cb254",
-  kilkeel_customer_delivered:        "HXfa41355056597f85eef4c819c0c42a30",
-  kilkeel_customer_cancelled:        "HX1c12f706d4270a7f1fbe1eae57630217",
-  kilkeel_owner_cancelled:           "HX201c58ff0480fdc471d202959fcfa1f9",
+  kilkeel_owner_new_order:            "HX160c12717f21344dff0d85049440b4db",
+  kilkeel_customer_order_received:    "HX75b010777cbbebb3d83ac6afb1e1460a",
+  kilkeel_customer_pay_now:           "HX91cea3600c355884a86b06f0f573dfb8",
+  kilkeel_customer_order_declined:    "HX6779ea1577d9f2ee38f63ba88770ddd7",
+  kilkeel_owner_payment_received:     "HX41b4c8adfedab4a719c227d2169fdeff",
+  kilkeel_customer_payment_confirmed: "HX9a8708c223233873a99bcd21b4fc7358",
+  kilkeel_customer_preparing:         "HX0eeafbe750a0308c0694c5f2afc5b516",
+  kilkeel_customer_out_for_delivery:  "HXdae2ff3037e79c49b0b5dbf06a74db40",
+  kilkeel_customer_delivered:         "HX0e54947fa6b5eee9de3193016dd44976",
+  kilkeel_customer_cancelled:         "HXdd8248f184953bbb0ca7f2adc90c84cf",
+  kilkeel_owner_cancelled:            "HX1354495d8b234f51c33dfded404d65c6",
 };
 
 /**
