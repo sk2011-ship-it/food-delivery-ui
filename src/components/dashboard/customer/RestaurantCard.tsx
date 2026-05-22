@@ -93,14 +93,14 @@ export default function RestaurantCard({
 
       {/* Image Container */}
       <div className={cn(
-        "relative w-full overflow-hidden shrink-0 bg-muted/20",
+        "relative w-full overflow-hidden shrink-0 bg-gray-50",
         featured ? "aspect-[1.12/0.78]" : "aspect-[1.06/0.74]"
       )}>
         {image ? (
           <img
             src={image}
             alt={name}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+            className="absolute inset-0 h-full w-full object-contain p-4 transition-transform duration-500 ease-out group-hover:scale-105"
             loading={priority ? "eager" : "lazy"}
           />
         ) : (
