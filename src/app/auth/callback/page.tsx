@@ -33,7 +33,7 @@ export default function AuthCallbackPage() {
     // setSession exchanges the tokens, which also marks the email as confirmed in Supabase.
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(({ data, error }) => {
+      .then(({ data, error }: { data: { session: import("@supabase/supabase-js").Session | null }, error: import("@supabase/supabase-js").AuthError | null }) => {
         if (error || !data.session) {
           console.error("[auth/callback] setSession error:", error?.message);
           setStatus("error");
@@ -45,7 +45,7 @@ export default function AuthCallbackPage() {
       .then(() => {
         setStatus("success");
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error("[auth/callback] unexpected error:", err);
         setStatus("error");
       });
