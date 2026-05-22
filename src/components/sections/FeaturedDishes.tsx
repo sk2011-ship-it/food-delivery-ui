@@ -137,20 +137,21 @@ export default function FeaturedDishes() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-3 touch-pan-x"
+          className="flex gap-3 sm:gap-6 overflow-x-auto no-scrollbar pb-3"
           style={{
             scrollSnapType: "x mandatory",
             scrollBehavior: "smooth",
             WebkitOverflowScrolling: "touch",
             msOverflowStyle: "none",
             scrollbarWidth: "none",
+            touchAction: "pan-x pan-y",
           }}
         >
           {loading ? (
             [1, 2, 3].map((n) => (
               <div
                 key={n}
-                className="w-full sm:basis-[calc(50%-12px)] lg:basis-[calc(33.333%-16px)] xl:basis-[calc(25%-18px)] flex-none self-start"
+                className="w-[62vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonDishCard />
@@ -161,7 +162,7 @@ export default function FeaturedDishes() {
               <div
                 key={dish.id}
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="w-full sm:basis-[calc(50%-12px)] lg:basis-[calc(33.333%-16px)] xl:basis-[calc(25%-18px)] flex-none self-start"
+                className="w-[62vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <DishCard

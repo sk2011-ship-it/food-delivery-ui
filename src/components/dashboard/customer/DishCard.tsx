@@ -49,7 +49,8 @@ export default function DishCard({
   return (
     <div
       onClick={() => !isBlocked && router.push(`/dashboard/customer/dish/${id}`)}
-      className={`group/dish relative rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2 ${isBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}
+      style={{ touchAction: "pan-y" }}
+      className={`group/dish relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2 ${isBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}
       style={{
         "--tw-ring-color": theme.accent,
         background: `linear-gradient(180deg, rgba(255,255,255,0.99) 0%, ${theme.gradientFrom}08 100%)`,
@@ -69,7 +70,7 @@ export default function DishCard({
     >
       {/* Image Section */}
       <div
-        className={`relative ${featured ? "h-42 sm:h-48 lg:h-52" : "h-40 sm:h-44"} w-full flex items-center justify-center shrink-0 overflow-hidden`}
+        className={`relative ${featured ? "h-32 sm:h-44 lg:h-52" : "h-28 sm:h-40 md:h-44"} w-full flex items-center justify-center shrink-0 overflow-hidden`}
         style={{ backgroundColor: `${theme.accent}12` }}
       >
         {imageUrl ? (
@@ -120,31 +121,25 @@ export default function DishCard({
       </div>
 
       {/* Content Section */}
-      <div className="p-3.5 sm:p-4 flex-1 flex flex-col">
-        <div className="mb-2.5 flex-1 min-h-[5.5rem] flex flex-col">
-          <h3 className="font-heading font-black text-gray-900 text-[13px] sm:text-sm leading-tight line-clamp-1 group-hover/dish:text-[var(--tw-ring-color)] transition-colors mb-1">
+      <div className="p-2.5 sm:p-3.5 md:p-4 flex-1 flex flex-col gap-2">
+        <div>
+          <h3 className="font-heading font-black text-gray-900 text-[12px] sm:text-[13px] md:text-sm leading-tight line-clamp-1 group-hover/dish:text-[var(--tw-ring-color)] transition-colors">
             {name}
           </h3>
-          <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-            <span className="px-2 py-0.5 rounded-full bg-amber-50" style={{ color: theme.accent }}>{category || "Dish"}</span>
+          <div className="flex items-center gap-1 mt-1 text-[9px] sm:text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            <span className="px-1.5 py-0.5 rounded-full bg-amber-50 truncate max-w-[80px]" style={{ color: theme.accent }}>{category || "Dish"}</span>
             {restaurantName && (
               <>
                 <span className="w-1 h-1 rounded-full bg-gray-300 shrink-0" />
-                <span className="line-clamp-1">{restaurantName}</span>
+                <span className="line-clamp-1 truncate">{restaurantName}</span>
               </>
             )}
           </div>
-        <div className="mt-1.5 min-h-[2rem]">
-            {isBlocked ? (
-              <p className="text-[10px] leading-snug text-amber-700 line-clamp-2">
-                This restaurant is not currently accepting orders.
-              </p>
-            ) : (
-              <p className="text-[10px] leading-snug text-transparent select-none">
-                This restaurant is not currently accepting orders.
-              </p>
-            )}
-          </div>
+          {isBlocked && (
+            <p className="text-[9px] sm:text-[10px] leading-snug text-amber-700 mt-1 line-clamp-1">
+              Not accepting orders
+            </p>
+          )}
         </div>
 
         {/* Add to Cart */}
@@ -167,12 +162,12 @@ export default function DishCard({
               toast.error("This restaurant is not currently accepting orders.");
             }
           }}
-          className={`w-full mt-auto flex items-center justify-center gap-1.5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${isBlocked ? "bg-white text-gray-400 border border-dashed border-gray-200 cursor-not-allowed" : "text-white shadow-sm hover:opacity-90 active:scale-95"}`}
+          className={`w-full mt-auto flex items-center justify-center gap-1.5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all duration-200 ${isBlocked ? "bg-white text-gray-400 border border-dashed border-gray-200 cursor-not-allowed" : "text-white shadow-sm hover:opacity-90 active:scale-95"}`}
           style={!isBlocked ? { background: `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.accent})` } : {}}
           disabled={isBlocked}
         >
           <ShoppingCart className="w-3 h-3" />
-          {isBlocked ? "Not accepting orders" : "Add to Cart"}
+          {isBlocked ? "Unavailable" : "Add to Cart"}
         </button>
       </div>
     </div>
