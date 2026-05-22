@@ -134,20 +134,21 @@ export default function FeaturedRestaurants() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-3 touch-pan-x"
+          className="flex gap-3 sm:gap-5 overflow-x-auto no-scrollbar pb-3"
           style={{
             scrollSnapType: "x mandatory",
             scrollBehavior: "smooth",
             WebkitOverflowScrolling: "touch",
             msOverflowStyle: "none",
             scrollbarWidth: "none",
+            touchAction: "pan-x pan-y",
           }}
         >
           {loading ? (
             [1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="w-[85vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
+                className="w-[62vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonCard />
@@ -159,7 +160,7 @@ export default function FeaturedRestaurants() {
                 <div
                   key={restaurant.id}
                   ref={(el) => { cardRefs.current[i] = el; }}
-                  className="w-[85vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
+                  className="w-[62vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
                   style={{ scrollSnapAlign: "start" }}
                 >
                   <RestaurantCard restaurant={restaurant} theme={site.theme} priority={i < 2} featured />

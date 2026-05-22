@@ -78,8 +78,9 @@ export default function RestaurantCard({
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      style={{ touchAction: "pan-y" }}
       className={cn(
-        "group relative flex flex-col h-full overflow-hidden rounded-[2rem] border border-border/40 bg-white transition-all duration-500",
+        "group relative flex flex-col h-full overflow-hidden rounded-2xl sm:rounded-[2rem] border border-border/40 bg-white transition-all duration-500",
         "hover:shadow-elevated shadow-soft",
         !isOpen && "opacity-95"
       )}
@@ -94,7 +95,7 @@ export default function RestaurantCard({
       {/* Image Container */}
       <div className={cn(
         "relative w-full overflow-hidden shrink-0 bg-gray-50",
-        featured ? "aspect-[1.12/0.78]" : "aspect-[1.06/0.74]"
+        featured ? "aspect-[4/3] sm:aspect-[1.12/0.78]" : "aspect-[4/3] sm:aspect-[1.06/0.74]"
       )}>
         {image ? (
           <img
@@ -145,10 +146,10 @@ export default function RestaurantCard({
       </div>
 
       {/* Content Area */}
-      <div className="flex flex-1 flex-col p-5 sm:p-6">
-        <div className="mb-3">
+      <div className="flex flex-1 flex-col p-3 sm:p-5 md:p-6">
+        <div className="mb-2 sm:mb-3">
           <h3
-            className="font-heading text-[1.05rem] sm:text-lg font-black leading-tight text-gray-900 line-clamp-1 transition-colors duration-300"
+            className="font-heading text-sm sm:text-[1.05rem] md:text-lg font-black leading-tight text-gray-900 line-clamp-1 transition-colors duration-300"
             style={titleStyle}
           >
             <span className="group-hover:text-[var(--group-hover-color)] transition-colors duration-300">
@@ -156,31 +157,31 @@ export default function RestaurantCard({
             </span>
           </h3>
 
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+          <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold">
             <span
-              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1"
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1"
               style={{ background: `${theme.accent}12`, color: theme.accent }}
             >
-              <Star className="h-3.5 w-3.5 fill-current" />
+              <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-current" />
               <span>{rating ? String(rating) : "4.5"}</span>
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 bg-amber-50 text-amber-700">
-              <Clock className="h-3.5 w-3.5" />
+            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 bg-amber-50 text-amber-700">
+              <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               <span>{deliveryTime || "35-45 mins"}</span>
             </span>
           </div>
         </div>
 
-        <div className="space-y-1.5 text-[11px] sm:text-xs text-gray-500">
+        <div className="space-y-1 sm:space-y-1.5 text-[10px] sm:text-[11px] text-gray-500">
           <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-sky-50">
-              <MapPin className="h-2.5 w-2.5" style={{ color: theme.accent }} />
+            <span className="inline-flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-sky-50 shrink-0">
+              <MapPin className="h-2 w-2 sm:h-2.5 sm:w-2.5" style={{ color: theme.accent }} />
             </span>
             <span className="line-clamp-1 font-medium text-gray-600">{cuisine || "Global Dining"}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rose-50">
-              <Store className="h-2.5 w-2.5" style={{ color: theme.accent }} />
+            <span className="inline-flex items-center justify-center w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-rose-50 shrink-0">
+              <Store className="h-2 w-2 sm:h-2.5 sm:w-2.5" style={{ color: theme.accent }} />
             </span>
             <span className={cn("line-clamp-1 font-semibold", isOpen ? "text-emerald-600" : "text-rose-600")}>
               {isOpen ? "Open now" : "Closed for now"}
@@ -193,16 +194,13 @@ export default function RestaurantCard({
           onClick={() => router.push(`/dashboard/customer/restaurant/${id}`)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className="mt-5 inline-flex items-center justify-between gap-3 rounded-2xl px-4 py-3 transition-all duration-300 cursor-pointer border border-transparent shadow-sm"
-          style={{
-            color: theme.accent,
-            background: `linear-gradient(135deg, ${theme.gradientFrom}14, ${theme.accent}14)`,
-          }}
+          style={{ touchAction: "pan-y", color: theme.accent, background: `linear-gradient(135deg, ${theme.gradientFrom}14, ${theme.accent}14)` }}
+          className="mt-3 sm:mt-5 inline-flex items-center justify-between gap-3 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-3 transition-all duration-300 cursor-pointer border border-transparent shadow-sm"
         >
-          <span className="text-[10px] font-black uppercase tracking-[0.18em] leading-none">
+          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.18em] leading-none">
             Explore menu
           </span>
-          <ArrowRight className="h-4 w-4" />
+          <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4" />
         </motion.button>
       </div>
     </motion.div>
