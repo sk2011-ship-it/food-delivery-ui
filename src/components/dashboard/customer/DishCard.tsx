@@ -49,9 +49,9 @@ export default function DishCard({
   return (
     <div
       onClick={() => !isBlocked && router.push(`/dashboard/customer/dish/${id}`)}
-      style={{ touchAction: "pan-y" }}
       className={`group/dish relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border flex flex-col focus:outline-none focus:ring-2 focus:ring-offset-2 ${isBlocked ? "cursor-not-allowed" : "cursor-pointer"}`}
       style={{
+        touchAction: "pan-y",
         "--tw-ring-color": theme.accent,
         background: `linear-gradient(180deg, rgba(255,255,255,0.99) 0%, ${theme.gradientFrom}08 100%)`,
         borderColor: isBlocked ? `${theme.accent}16` : `${theme.accent}46`,
