@@ -136,7 +136,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const verificationRequired = Boolean(result.data?.needsEmailVerification);
+    const verificationRequired = process.env.NEXT_PUBLIC_EMAIL_VERIFICATION === "true" && Boolean(result.data?.needsEmailVerification);
     setNeedsEmailVerification(verificationRequired);
     setRegisteredName(form.name);
     setSuccess(true);

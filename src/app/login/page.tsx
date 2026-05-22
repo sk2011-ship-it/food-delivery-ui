@@ -75,7 +75,7 @@ function LoginContent() {
 
     if (!result.success || !result.data) {
       setLoading(false);
-      if (result.error === "EMAIL_NOT_VERIFIED") {
+      if (result.error === "EMAIL_NOT_VERIFIED" && process.env.NEXT_PUBLIC_EMAIL_VERIFICATION === "true") {
         setUnverifiedEmail(form.email);
         return;
       }

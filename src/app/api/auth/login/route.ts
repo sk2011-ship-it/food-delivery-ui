@@ -55,36 +55,31 @@ export async function POST(req: Request) {
   if (signInError || !authData.user) {
     console.error("[login] signIn error:", signInError?.message);
 
-    // Supabase returns "Email not confirmed" when email verification is pending.
-    // However, when "Email Enumeration Protection" is enabled in Supabase (default),
-    // ALL login failures return "Invalid login credentials" — including unconfirmed email.
-    // So we check the message first, then fall back to an admin lookup.
-    if (signInError?.message?.toLowerCase().includes("email not confirmed")) {
-      return fail("EMAIL_NOT_VERIFIED", 403);
-    }
-
-    // Fallback: use admin client to detect unconfirmed email when Supabase's
-    // "Email Enumeration Protection" masks the real failure reason.
-    // Look up the user in our DB first (single indexed read), then check auth status.
-    try {
-      const [registeredUser] = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(sql`lower(${users.email}) = ${normalizedEmail}`)
-        .limit(1);
-
-      console.log("[login] db lookup for unverified check:", registeredUser?.id ?? "not found");
-
-      if (registeredUser) {
-        const admin = createAdminClient();
-        const { data: { user: authUser }, error: adminErr } = await admin.auth.admin.getUserById(registeredUser.id);
-        console.log("[login] admin user:", authUser?.id, "confirmed_at:", authUser?.email_confirmed_at, "err:", adminErr?.message);
-        if (authUser && !authUser.email_confirmed_at) {
-          return fail("EMAIL_NOT_VERIFIED", 403);
-        }
+    if (process.env.NEXT_PUBLIC_EMAIL_VERIFICATION === "true") {
+      // Supabase returns "Email not confirmed" when email verification is pending.
+      // When "Email Enumeration Protection" is enabled (Supabase default), ALL login
+      // failures return "Invalid login credentials" — so we fall back to an admin lookup.
+      if (signInError?.message?.toLowerCase().includes("email not confirmed")) {
+        return fail("EMAIL_NOT_VERIFIED", 403);
       }
-    } catch (err) {
-      console.error("[login] email confirmation check failed:", err);
+
+      try {
+        const [registeredUser] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(sql`lower(${users.email}) = ${normalizedEmail}`)
+          .limit(1);
+
+        if (registeredUser) {
+          const admin = createAdminClient();
+          const { data: { user: authUser } } = await admin.auth.admin.getUserById(registeredUser.id);
+          if (authUser && !authUser.email_confirmed_at) {
+            return fail("EMAIL_NOT_VERIFIED", 403);
+          }
+        }
+      } catch (err) {
+        console.error("[login] email confirmation check failed:", err);
+      }
     }
 
     // Record the failed attempt (non-blocking — don't await, don't slow down response)
