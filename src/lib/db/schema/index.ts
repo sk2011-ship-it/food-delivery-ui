@@ -8,6 +8,7 @@ export * from "./orderSessions";
 export * from "./orderMetrics";
 export * from "./deliveryJobs";
 export * from "./notifications";
+export * from "./support";
 export * from "./reviews";
 export * from "./settlements";
 export * from "./ipRateLimits";

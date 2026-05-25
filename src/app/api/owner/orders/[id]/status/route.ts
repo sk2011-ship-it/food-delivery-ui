@@ -1,6 +1,6 @@
 import { ok, fail, withOwnerAuth, parseBody } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, restaurants, orderItems, menuItems, notificationChannelEnum } from "@/lib/db/schema";
+import { orders, restaurants, orderItems, menuItems } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { NotificationService } from "@/services/notification.service";
 import { syncSessionStatus } from "@/lib/order-session";
@@ -75,6 +75,9 @@ export async function PATCH(
       }
 
       const nextStatus = status;
+      if (ownedOrder.status === nextStatus) {
+        return ok({ order: ownedOrder });
+      }
       const allowedNextStatuses = OWNER_ALLOWED_TRANSITIONS[ownedOrder.status] ?? [];
 
       if (!allowedNextStatuses.includes(nextStatus)) {

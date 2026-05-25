@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useConfigStore } from "@/store/useConfigStore";
 import { customerService } from "@/services/customer.service";
-import type { RestaurantItem, FeaturedItem, OpeningHours } from "@/types/api.types";
-import { isRestaurantOpen } from "@/lib/utils/restaurantUtils";
+import type { RestaurantItem, FeaturedItem } from "@/types/api.types";
 import { isSameLocation } from "@/lib/locations";
 import { createClient } from "@/lib/supabase/client";
 
@@ -17,30 +16,60 @@ export function useRestaurants(searchQuery: string = "") {
   const [normal, setNormal] = useState<RestaurantItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const fetchRestaurants = useCallback(async () => {
+    const location = site.location?.trim();
+
+    // The site location can hydrate a moment after mount from persisted state.
+    // Avoid firing a request with an empty location, which would fail and leave
+    // the page in an empty/error state until the next refresh.
+    if (!location) {
+      setFeatured([]);
+      setNormal([]);
+      setError(null);
+      setIsLoading(false);
+      setHasLoaded(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
-      const [featRes, normRes] = await Promise.all([
-        customerService.getFeatured({ 
-          location: site.location, 
-          type: "restaurant" 
+      const [featRes, normRes] = await Promise.allSettled([
+        customerService.getFeatured({
+          location,
+          type: "restaurant",
         }),
-        customerService.getRestaurants({ location: site.location })
+        customerService.getRestaurants({ location }),
       ]);
-      
-      if (featRes.success && featRes.data) {
-        setFeatured(featRes.data.items);
+
+      if (featRes.status === "fulfilled" && featRes.value.success && featRes.value.data) {
+        setFeatured(featRes.value.data.items);
+      } else if (featRes.status === "rejected") {
+        console.warn("[useRestaurants] featured fetch failed:", featRes.reason);
       }
-      
-      if (normRes.success && normRes.data) {
-        setNormal(normRes.data.items);
+
+      if (normRes.status === "fulfilled" && normRes.value.success && normRes.value.data) {
+        setNormal(normRes.value.data.items);
+      } else if (normRes.status === "rejected") {
+        console.warn("[useRestaurants] restaurant fetch failed:", normRes.reason);
+      }
+
+      // If the restaurant list failed but featured succeeded, keep the page alive.
+      if (
+        (featRes.status === "fulfilled" && featRes.value.success) ||
+        (normRes.status === "fulfilled" && normRes.value.success)
+      ) {
+        setError(null);
+      } else {
+        setError("An unexpected error occurred");
       }
     } catch {
       setError("An unexpected error occurred");
     } finally {
       setIsLoading(false);
+      setHasLoaded(true);
     }
   }, [site.location]);
 
@@ -98,6 +127,7 @@ export function useRestaurants(searchQuery: string = "") {
     featured: filteredFeatured,
     normal: filteredNormal,
     isLoading,
+    hasLoaded,
     error,
     refresh: fetchRestaurants
   };

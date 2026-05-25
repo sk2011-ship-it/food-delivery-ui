@@ -144,6 +144,11 @@ export const useOwnerStore = create<OwnerState>()((set, get) => ({
   },
 
   updateOrderStatus: async (id, status) => {
+    const currentOrder = get().orders.find((o) => o.id === id);
+    if (currentOrder?.status === status) {
+      return true;
+    }
+
     const previousOrders = [...get().orders];
 
     // Stop the new-order alarm the moment the owner acts

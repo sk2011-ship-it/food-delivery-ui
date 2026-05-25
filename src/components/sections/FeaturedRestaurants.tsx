@@ -121,10 +121,11 @@ export default function FeaturedRestaurants() {
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/dashboard/customer/all-restaurants"
-            className="hidden sm:flex items-center gap-1.5 text-sm font-bold transition-all px-4 py-2 rounded-full bg-white shadow-sm border border-gray-100 hover:shadow-md whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 text-sm font-bold transition-all px-4 py-2 rounded-full bg-white shadow-sm border border-gray-100 hover:shadow-md whitespace-nowrap"
             style={{ color: site.theme.accent }}
           >
-            See all <ChevronRight className="w-4 h-4" />
+            <span className="sm:inline">See all</span>
+            <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
       </div>
@@ -134,7 +135,7 @@ export default function FeaturedRestaurants() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-3 sm:gap-5 overflow-x-auto no-scrollbar pb-3"
+          className="flex gap-4 sm:gap-5 overflow-x-auto no-scrollbar pb-3"
           style={{
             scrollSnapType: "x mandatory",
             scrollBehavior: "smooth",
@@ -142,13 +143,14 @@ export default function FeaturedRestaurants() {
             msOverflowStyle: "none",
             scrollbarWidth: "none",
             touchAction: "pan-x pan-y",
+            scrollPaddingInline: "1rem",
           }}
         >
           {loading ? (
             [1, 2, 3, 4].map((n) => (
               <div
                 key={n}
-                className="w-[62vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
+                className="w-[calc(100vw-2rem)] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonCard />
@@ -160,7 +162,7 @@ export default function FeaturedRestaurants() {
                 <div
                   key={restaurant.id}
                   ref={(el) => { cardRefs.current[i] = el; }}
-                  className="w-[62vw] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
+                  className="w-[calc(100vw-2rem)] sm:w-[calc(50%-10px)] lg:w-[calc(25%-15px)] flex-none self-start"
                   style={{ scrollSnapAlign: "start" }}
                 >
                   <RestaurantCard restaurant={restaurant} theme={site.theme} priority={i < 2} featured />

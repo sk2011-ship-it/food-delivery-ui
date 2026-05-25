@@ -23,6 +23,7 @@ interface OrderState {
   silentRefreshOrders: () => Promise<void>;
   updateOrderStatus: (id: string, status: string, paymentIntentId?: string) => Promise<void>;
   updateSingleOrder: (order: Partial<Order> & { id: string }) => void;
+  addOrders: (newOrders: Order[]) => void;
   reorder: (orderId: string) => Promise<{ success: boolean; orderId?: string }>;
 }
 
@@ -127,7 +128,7 @@ export const useOrderStore = create<OrderState>()((set, get) => ({
         console.log(`[useOrderStore] Successfully synced existing order ${serverOrder.id} to status ${serverOrder.status}`);
       } else {
         set({
-          orders: [serverOrder, ...currentState.orders].filter((o, idx, self) => 
+          orders: [serverOrder, ...currentState.orders].filter((o, idx, self) =>
             self.findIndex(other => other.id === o.id) === idx
           )
         });
@@ -137,6 +138,13 @@ export const useOrderStore = create<OrderState>()((set, get) => ({
       console.error(`[useOrderStore] Failed to fetch order ${updatedOrder.id} after retry. Refreshing all orders.`);
       await get().refreshOrders();
     }
+  },
+  addOrders: (newOrders) => {
+    const existingOrders = get().orders;
+    const merged = [...newOrders, ...existingOrders].filter((o, idx, self) =>
+      self.findIndex(other => other.id === o.id) === idx
+    );
+    set({ orders: merged });
   },
   reorder: async (orderId: string) => {
     set({ isLoading: true });

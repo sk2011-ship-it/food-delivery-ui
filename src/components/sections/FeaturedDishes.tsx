@@ -124,10 +124,11 @@ export default function FeaturedDishes() {
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/dashboard/customer/all-dishes"
-            className="hidden sm:flex items-center gap-1.5 text-sm font-bold transition-all px-4 py-2 rounded-full bg-white shadow-sm border border-gray-100 hover:shadow-md whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 text-sm font-bold transition-all px-4 py-2 rounded-full bg-white shadow-sm border border-gray-100 hover:shadow-md whitespace-nowrap"
             style={{ color: site.theme.accent }}
           >
-            See all <ChevronRight className="w-4 h-4" />
+            <span className="sm:inline">See all</span>
+            <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
       </div>
@@ -137,7 +138,7 @@ export default function FeaturedDishes() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-3 sm:gap-6 overflow-x-auto no-scrollbar pb-3"
+          className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-3"
           style={{
             scrollSnapType: "x mandatory",
             scrollBehavior: "smooth",
@@ -145,13 +146,14 @@ export default function FeaturedDishes() {
             msOverflowStyle: "none",
             scrollbarWidth: "none",
             touchAction: "pan-x pan-y",
+            scrollPaddingInline: "1rem",
           }}
         >
           {loading ? (
             [1, 2, 3].map((n) => (
               <div
                 key={n}
-                className="w-[62vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
+                className="w-[calc(100vw-2rem)] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <SkeletonDishCard />
@@ -162,7 +164,7 @@ export default function FeaturedDishes() {
               <div
                 key={dish.id}
                 ref={(el) => { cardRefs.current[i] = el; }}
-                className="w-[62vw] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
+                className="w-[calc(100vw-2rem)] sm:w-[calc(50%-12px)] lg:w-[calc(33.333%-16px)] xl:w-[calc(25%-18px)] flex-none self-start"
                 style={{ scrollSnapAlign: "start" }}
               >
                 <DishCard
