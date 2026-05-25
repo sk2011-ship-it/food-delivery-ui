@@ -83,9 +83,14 @@ function LoginContent() {
       return;
     }
 
-    // Sync the profile into the store, then navigate client-side.
-    await useAuthStore.getState().sync(result.data);
+    // Re-read the browser session and let Supabase hydrate the store from the
+    // fresh auth cookie before we navigate.
+    await useAuthStore.getState().refresh();
+
+    // Keep this as an SPA transition. `router.refresh()` revalidates the route
+    // payload without forcing a full document reload.
     router.push(redirectTo);
+    router.refresh();
   };
 
   const handleResend = async () => {

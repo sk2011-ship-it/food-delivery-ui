@@ -50,7 +50,7 @@ const SUB_ORDER_STATUS_CONFIG: Record<string, StatusConfig> = {
   PAID: { label: "Paid", color: "text-blue-600", icon: CreditCard },
   CANCELLED: { label: "Cancelled", color: "text-red-400", icon: AlertCircle },
   PREPARING: { label: "Preparing", color: "text-purple-600", icon: Package },
-  DISPATCH_REQUESTED: { label: "Dispatching", color: "text-orange-500", icon: Truck },
+  DISPATCH_REQUESTED: { label: "Driver Assigned", color: "text-orange-500", icon: Truck },
   OUT_FOR_DELIVERY: { label: "On the Way", color: "text-orange-600", icon: Truck },
   DELIVERED: { label: "Delivered", color: "text-emerald-600", icon: CheckCircle2 },
 };

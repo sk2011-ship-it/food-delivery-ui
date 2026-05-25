@@ -265,7 +265,7 @@ export async function POST(req: Request) {
 
         // Update session with correct item total and service charge
         await tx.update(orderSessions)
-          .set({ 
+          .set({
             totalItemsAmount: sessionTotalItems.toFixed(2),
             totalServiceCharge: sessionTotalServiceCharge.toFixed(2)
           })
@@ -421,21 +421,21 @@ export async function GET(req: Request) {
             currency: orders.currency,
             paymentIntentId: orders.paymentIntentId,
             sessionId: orders.sessionId,
-          restaurantNameSnapshot: orders.restaurantNameSnapshot,
-          deliveryJobStatus: deliveryJobs.status,
-          trackingUrl: deliveryJobs.trackingUrl,
-          driverName: deliveryJobs.driverName,
-          driverPhone: deliveryJobs.driverPhone,
-          eta: deliveryJobs.eta,
-          createdAt: orders.createdAt,
-          updatedAt: orders.updatedAt,
-          confirmedAt: orders.confirmedAt,
-          paidAt: orders.paidAt,
-        })
-        .from(orders)
-        .innerJoin(restaurants, eq(orders.restaurantId, restaurants.id))
-        .leftJoin(deliveryJobs, eq(deliveryJobs.orderId, orders.id))
-        .where(scopeCondition)
+            restaurantNameSnapshot: orders.restaurantNameSnapshot,
+            deliveryJobStatus: deliveryJobs.status,
+            trackingUrl: deliveryJobs.trackingUrl,
+            driverName: deliveryJobs.driverName,
+            driverPhone: deliveryJobs.driverPhone,
+            eta: deliveryJobs.eta,
+            createdAt: orders.createdAt,
+            updatedAt: orders.updatedAt,
+            confirmedAt: orders.confirmedAt,
+            paidAt: orders.paidAt,
+          })
+          .from(orders)
+          .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+          .leftJoin(deliveryJobs, eq(deliveryJobs.orderId, orders.id))
+          .where(scopeCondition)
           .orderBy(
             sql`CASE WHEN ${orders.status} IN ('DELIVERED', 'CANCELLED') THEN 1 ELSE 0 END ASC`,
             desc(orders.createdAt)
@@ -443,6 +443,10 @@ export async function GET(req: Request) {
           .limit(limit)
           .offset(offset),
       ]);
+
+      if (orderRows.length === 0 && count > 0) {
+        console.warn(`[api/orders GET] Found ${count} orders in count query but 0 rows in Join query for user ${user.id}. Possible JOIN mismatch.`);
+      }
 
       if (orderRows.length === 0) return ok({ orders: [] });
 
@@ -483,12 +487,12 @@ export async function GET(req: Request) {
         restaurant: { name: order.restaurantNameSnapshot || order.restaurantName },
         deliveryJob: order.deliveryJobStatus || order.trackingUrl || order.driverName || order.driverPhone || order.eta
           ? {
-              status: order.deliveryJobStatus,
-              trackingUrl: order.trackingUrl,
-              driverName: order.driverName,
-              driverPhone: order.driverPhone,
-              eta: order.eta,
-            }
+            status: order.deliveryJobStatus,
+            trackingUrl: order.trackingUrl,
+            driverName: order.driverName,
+            driverPhone: order.driverPhone,
+            eta: order.eta,
+          }
           : undefined,
         items: itemRows
           .filter((i) => i.orderId === order.id)

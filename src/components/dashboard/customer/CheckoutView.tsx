@@ -7,6 +7,7 @@ import { useOrders } from "@/context/OrderContext";
 import { useSite } from "@/context/SiteContext";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useConfigStore } from "@/store/useConfigStore";
+import { useOrderStore } from "@/store/useOrderStore";
 import { toast } from "sonner";
 import {
   ChevronLeft, MapPin, Phone, CreditCard, Loader2,
@@ -55,7 +56,7 @@ export default function CheckoutView() {
     fetch("/api/platform-status")
       .then((r) => r.json())
       .then((d) => { if (typeof d.data?.open === "boolean") setPlatformOpen(d.data.open); })
-      .catch(() => {}); // fail open silently
+      .catch(() => { }); // fail open silently
   }, []);
 
   React.useEffect(() => {
@@ -217,20 +218,26 @@ export default function CheckoutView() {
           "Content-Type": "application/json",
           Authorization: session ? `Bearer ${session.access_token}` : "",
         },
-          body: JSON.stringify({
-            deliveryAddress: trimmedAddress,
-            deliveryArea,
-            deliveryFee,
-            deliveryFeesBreakdown, // Sum-up breakdown
-            distanceMiles: 0, // No longer a single distance
-            customerPhone: digitsOnlyPhone,
-            siteLocation: site.location,
-          }),
-        });
+        body: JSON.stringify({
+          deliveryAddress: trimmedAddress,
+          deliveryArea,
+          deliveryFee,
+          deliveryFeesBreakdown, // Sum-up breakdown
+          distanceMiles: 0, // No longer a single distance
+          customerPhone: digitsOnlyPhone,
+          siteLocation: site.location,
+        }),
+      });
       const data = await res.json();
       if (res.ok) {
         toast.success("Order placed!");
         clearCart();
+
+        // Optimistically add to store so the status page finds it immediately
+        if (data?.data?.orders) {
+          useOrderStore.getState().addOrders(data.data.orders);
+        }
+
         await refreshOrders();
         // Redirect directly to the new order's status page so the 10-min countdown
         // starts immediately — not after the user browses the orders list.

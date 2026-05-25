@@ -149,10 +149,9 @@ function OrderCard({
           ))}
         </div>
 
-        {/* Driver info panel — shown when a driver has been assigned */}
+        {/* Driver info panel — shown only after a rider is actually assigned */}
         {(order.status === "PREPARING" || order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") &&
-          order.deliveryJob &&
-          (order.deliveryJob.driverName || order.deliveryJob.eta || order.deliveryJob.trackingUrl) && (
+          order.deliveryJob?.driverName && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
             <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Rider Assigned</p>
             <div className="flex items-center justify-between gap-2">
@@ -162,7 +161,7 @@ function OrderCard({
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-bold text-gray-900 truncate">
-                    {order.deliveryJob.driverName || "Assigning…"}
+                    {order.deliveryJob.driverName}
                   </p>
                   {order.deliveryJob.eta && (
                     <p className="text-[10px] text-blue-600 font-semibold">ETA: {order.deliveryJob.eta}</p>
@@ -327,6 +326,25 @@ export default function LiveOrdersView() {
 
   useEffect(() => {
     refreshOrders();
+  }, [refreshOrders]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      refreshOrders();
+    }, 15000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshOrders();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [refreshOrders]);
 
   // Auto-cancel PENDING orders already past 10-minute window on mount

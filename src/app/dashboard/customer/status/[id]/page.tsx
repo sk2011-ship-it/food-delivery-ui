@@ -257,6 +257,7 @@ export default function OrderStatusPage() {
   const liveTrackingUrl = deliveryJob?.trackingUrl;
   const hasDriverInfo   = Boolean(
     deliveryJob &&
+    deliveryJob.driverName &&
     ["DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order?.status || "")
   );
   const showLiveTracking = Boolean(liveTrackingUrl && hasDriverInfo);
@@ -364,7 +365,7 @@ export default function OrderStatusPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-sans font-bold text-gray-400 uppercase tracking-widest">Your Rider</p>
                   <p className="text-sm font-sans font-bold text-gray-900 truncate">
-                    {deliveryJob?.driverName || "Assigning driver…"}
+                    {deliveryJob?.driverName}
                   </p>
                 </div>
                 {deliveryJob?.driverPhone && (

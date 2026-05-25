@@ -69,15 +69,26 @@ type MappedStatus = "DISPATCH_REQUESTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "C
 function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   const order = readObject(payload.order);
   const deliveryDetails = readObject(payload.delivery_details);
+  const carrier = readObject(payload.carrier);
 
   // Shipday sends a top-level "event" field (e.g. "ORDER_COMPLETED", "ORDER_ONTHEWAY").
   // This is the most reliable signal — check it first.
   const eventField = readString(payload.event ?? payload.eventType ?? payload.event_type)?.toUpperCase();
   if (eventField) {
-    if (eventField === "ORDER_COMPLETED") return "DELIVERED";
+    if (
+      eventField === "ORDER_COMPLETED" ||
+      eventField === "ORDER_COMPLETE" ||
+      eventField === "ORDER_DELIVERED" ||
+      eventField === "ORDER_DONE" ||
+      eventField === "DELIVERED"
+    ) return "DELIVERED";
     if (eventField === "ORDER_ONTHEWAY" || eventField === "ORDER_PIKEDUP") return "OUT_FOR_DELIVERY";
     if (
       eventField === "ORDER_ASSIGNED" ||
+      eventField === "ORDER_PRE_ASSIGNED" ||
+      eventField === "ORDER_PREASSIGNED" ||
+      eventField === "ORDER_DRIVER_ASSIGNED" ||
+      eventField === "DRIVER_ASSIGNED" ||
       eventField === "ORDER_ACCEPTED_AND_STARTED"
     ) return "DISPATCH_REQUESTED";
     if (
@@ -104,11 +115,27 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   if (!rawStatus) return null;
 
   if (
+    rawStatus.includes("PRE_ASSIGNED") ||
+    rawStatus.includes("PREASSIGNED") ||
+    rawStatus.includes("DRIVER_ASSIGNED") ||
+    rawStatus.includes("ASSIGNED")
+  ) {
+    return "DISPATCH_REQUESTED";
+  }
+
+  if (
     rawStatus === "DELIVERED" ||
     rawStatus === "COMPLETED" ||
     rawStatus === "COMPLETE" ||
+    rawStatus === "DONE" ||
+    rawStatus === "FINISHED" ||
+    rawStatus === "DELIVERY_COMPLETE" ||
+    rawStatus === "DELIVERY_COMPLETED" ||
     rawStatus.includes("DELIVERED") ||
-    rawStatus.includes("COMPLETED")
+    rawStatus.includes("COMPLETED") ||
+    rawStatus.includes("COMPLETE") ||
+    rawStatus.includes("DONE") ||
+    rawStatus.includes("FINISH")
   ) {
     return "DELIVERED";
   }
@@ -133,8 +160,6 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   // "STARTED" in Shipday = driver accepted & heading to restaurant (not yet picked up)
   // "ASSIGNED" = driver assigned to order — both map to DISPATCH_REQUESTED
   if (
-    rawStatus.includes("PRE_ASSIGNED") ||
-    rawStatus.includes("ASSIGNED") ||
     rawStatus.includes("NOT_ASSIGNED") ||
     rawStatus.includes("STARTED") ||
     rawStatus.includes("PENDING")
@@ -359,20 +384,24 @@ export async function POST(req: Request) {
 
     // ── Step 1: Always update deliveryJobs with latest driver/tracking info ─
     // Shipday puts driver info in a "carrier" object inside order event payloads.
-    const carrier = readObject(payload.carrier);
+    const assignedDriver = readObject(
+      payload.assigned_driver ?? payload.assignedDriver ?? payload.driver
+    );
     const djUpdate: Record<string, string | Date | null> = {
       providerOrderId: providerOrderId || deliveryJob.providerOrderId,
       trackingId: trackingId || deliveryJob.trackingId,
       trackingUrl:
-        pickFirstNestedString([payload, order, deliveryDetails], ["trackingUrl", "trackingURL", "tracking_url"]) ||
+        pickFirstNestedString([payload, order, deliveryDetails], ["trackingUrl", "trackingURL", "tracking_url", "trackUrl", "trackURL"]) ||
         deliveryJob.trackingUrl,
       driverName:
-        pickFirstNestedString([payload, deliveryDetails], ["driverName", "driver_name", "driver"]) ||
+        pickFirstNestedString([payload, deliveryDetails], ["driverName", "driver_name", "driver", "name"]) ||
         pickFirstNestedString([carrier], ["name", "driverName", "driver_name"]) ||
+        pickFirstNestedString([assignedDriver], ["name", "driverName", "driver_name"]) ||
         deliveryJob.driverName,
       driverPhone:
-        pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone"]) ||
+        pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone", "mobile", "phoneNumber"]) ||
         pickFirstNestedString([carrier], ["phone", "phoneNumber", "phone_number"]) ||
+        pickFirstNestedString([assignedDriver], ["phone", "phoneNumber", "phone_number", "mobile"]) ||
         deliveryJob.driverPhone,
       eta:
         pickFirstNestedString([payload, deliveryDetails], ["eta", "estimatedDeliveryTime", "estimatedArrival", "estimated_arrival"]) ||

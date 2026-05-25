@@ -214,6 +214,21 @@ export default function Footer() {
                   <p className="text-[10px] mt-1 text-slate-500 font-medium italic">
                     Need help? Message our Facebook page.
                   </p>
+                  <div className="mt-3">
+                    <a
+                      href={`https://www.facebook.com/${contact.facebook.handle}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[10px] font-bold transition-colors hover:text-white"
+                      style={{
+                        borderColor: `${site.theme.primary}40`,
+                        color: site.theme.primary,
+                      }}
+                    >
+                      <ExternalLink size={11} />
+                      Open Messenger
+                    </a>
+                  </div>
                 </div>
               </li>
             </ul>
