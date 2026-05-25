@@ -144,8 +144,12 @@ export const useOwnerStore = create<OwnerState>()((set, get) => ({
   },
 
   updateOrderStatus: async (id, status) => {
+    const currentOrder = get().orders.find((o) => o.id === id);
+    if (currentOrder?.status === status) {
+      return true;
+    }
+
     const previousOrders = [...get().orders];
-    const previousHistoryOrders = [...get().historyOrders];
 
     // Stop the new-order alarm the moment the owner acts
     if (status === "CONFIRMED" || status === "CANCELLED") {
@@ -185,13 +189,6 @@ export const useOwnerStore = create<OwnerState>()((set, get) => ({
         });
       }
     }
-
-    // Reconcile with the server immediately so a stale pending copy cannot
-    // linger in the live list after the optimistic update.
-    await get().refreshOrders().catch(() => {
-      // If the refresh fails, keep the local optimistic state we already applied.
-      set({ orders: previousOrders, historyOrders: previousHistoryOrders });
-    });
     
     toast.success(`Order #${id.slice(0, 6)} updated to ${serverOrder?.status ?? status}`);
     return true;
