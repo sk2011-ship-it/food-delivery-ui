@@ -6,10 +6,9 @@ import { useRestaurants } from "@/hooks/useRestaurants";
 import RestaurantCard from "@/components/dashboard/customer/RestaurantCard";
 import { RestaurantCardSkeleton } from "@/components/ui/Skeleton";
 import { Sparkles, Utensils, Search, ChevronLeft, RefreshCcw } from "lucide-react";
-import { motion, AnimatePresence, Variants } from "framer-motion";
+import { motion } from "framer-motion";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 
 /**
  * AllRestaurantsPage.tsx - Premium restaurant listing experience with staggered animations
@@ -40,25 +39,10 @@ function AllRestaurantsContent() {
   const { site } = useSite();
   const searchParams = useSearchParams();
   const [localSearch, setLocalSearch] = useState(searchParams.get("search") || "");
+  const hasLocation = !!site.location?.trim();
   
   // Custom hook for unified data management
-  const { featured, normal, isLoading, error, refresh } = useRestaurants(localSearch);
-
-  const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.2
-      }
-    }
-  };
-
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } }
-  };
+  const { featured, normal, isLoading, hasLoaded, error, refresh } = useRestaurants(localSearch);
 
   return (
     <div className="min-h-screen bg-[var(--dash-bg)] pb-20 selection:bg-primary/20 selection:text-primary">
@@ -74,7 +58,7 @@ function AllRestaurantsContent() {
             </Link>
             <div>
               <h1 className="text-2xl font-black text-gray-900 tracking-tight">Explore Cuisines</h1>
-              <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">{site.location}'s Finest</p>
+              <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">{site.location}&apos;s Finest</p>
             </div>
           </div>
         </div>
@@ -95,7 +79,7 @@ function AllRestaurantsContent() {
         )}
 
         {/* Featured Section */}
-        {(isLoading || featured.length > 0) && (
+        {(isLoading || !hasLocation || featured.length > 0) && (
           <section>
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
@@ -108,22 +92,15 @@ function AllRestaurantsContent() {
               <h2 className="text-xl font-black text-gray-900 tracking-tight">Handpicked Favourites</h2>
             </motion.div>
             
-            <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
-            >
-              {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {isLoading || !hasLocation ? (
                 Array.from({ length: 4 }).map((_, i) => <RestaurantCardSkeleton key={i} />)
               ) : (
-                featured.map((r, i) => (
-                  <motion.div variants={itemVariants} key={r.id}>
-                    <RestaurantCard restaurant={r} theme={site.theme} featured={true} />
-                  </motion.div>
+                featured.map((r) => (
+                  <RestaurantCard key={r.id} restaurant={r} theme={site.theme} featured={true} />
                 ))
               )}
-            </motion.div>
+            </div>
           </section>
         )}
 
@@ -141,27 +118,24 @@ function AllRestaurantsContent() {
               </div>
               <h2 className="text-xl font-black text-gray-900 tracking-tight">Authentic Local Eats</h2>
             </div>
-            {!isLoading && (
+            {hasLoaded && hasLocation && (
               <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60 px-4 py-1.5 rounded-full border border-border/40">
                 {normal.length} Places Found
               </span>
             )}
           </motion.div>
 
-          {normal.length > 0 ? (
-            <motion.div 
-              variants={containerVariants}
-              initial="hidden"
-              animate="show"
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8"
-            >
+          {isLoading || !hasLocation || !hasLoaded ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {Array.from({ length: 8 }).map((_, i) => <RestaurantCardSkeleton key={i} />)}
+            </div>
+          ) : normal.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
               {normal.map((r) => (
-                <motion.div variants={itemVariants} key={r.id}>
-                  <RestaurantCard restaurant={r} theme={site.theme} />
-                </motion.div>
+                <RestaurantCard key={r.id} restaurant={r} theme={site.theme} />
               ))}
-            </motion.div>
-          ) : !isLoading && (
+            </div>
+          ) : hasLoaded && (
             <motion.div 
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -172,7 +146,7 @@ function AllRestaurantsContent() {
                </div>
                <h3 className="text-gray-900 font-black text-3xl tracking-tighter">No Culinary Matches</h3>
                <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto leading-relaxed font-medium">
-                We couldn't find any results for "{localSearch}". Maybe try exploring different categories or cuisines?
+                We couldn&apos;t find any results for &quot;{localSearch}&quot;. Maybe try exploring different categories or cuisines?
                </p>
                <button 
                  onClick={() => setLocalSearch("")}
