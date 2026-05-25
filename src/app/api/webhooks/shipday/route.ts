@@ -384,6 +384,7 @@ export async function POST(req: Request) {
 
     // ── Step 1: Always update deliveryJobs with latest driver/tracking info ─
     // Shipday puts driver info in a "carrier" object inside order event payloads.
+    const carrier = readObject(payload.carrier ?? payload.assigned_carrier ?? payload.assignedCarrier);
     const assignedDriver = readObject(
       payload.assigned_driver ?? payload.assignedDriver ?? payload.driver
     );
