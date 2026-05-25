@@ -4,6 +4,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 const MAX_TOKENS = 5; // keep at most 5 active devices per user
+const MAX_STORED_LENGTH = 255;
 
 function parseTokens(raw: string | null): string[] {
   if (!raw) return [];
@@ -32,10 +33,12 @@ export async function POST(req: Request) {
       const existing = parseTokens(row?.fcmToken ?? null);
       // Deduplicate then cap to MAX_TOKENS (keep most recent)
       const updated = [...new Set([...existing.filter(t => t !== token), token])].slice(-MAX_TOKENS);
+      const serialized = JSON.stringify(updated);
+      const valueToStore = serialized.length <= MAX_STORED_LENGTH ? serialized : token;
 
       await db
         .update(users)
-        .set({ fcmToken: JSON.stringify(updated), lastActive: new Date() })
+        .set({ fcmToken: valueToStore, lastActive: new Date() })
         .where(eq(users.id, user.id));
 
       return ok({ success: true });
@@ -63,7 +66,11 @@ export async function DELETE(req: Request) {
         const remaining = parseTokens(row?.fcmToken ?? null).filter(t => t !== tokenToRemove);
         await db
           .update(users)
-          .set({ fcmToken: remaining.length ? JSON.stringify(remaining) : null })
+          .set({
+            fcmToken: remaining.length
+              ? (JSON.stringify(remaining).length <= MAX_STORED_LENGTH ? JSON.stringify(remaining) : remaining[remaining.length - 1])
+              : null,
+          })
           .where(eq(users.id, user.id));
       } else {
         // No specific token — clear all (full logout / account deletion)

@@ -124,10 +124,11 @@ export default function FeaturedDishes() {
         <div className="flex items-center gap-2 shrink-0">
           <Link
             href="/dashboard/customer/all-dishes"
-            className="hidden sm:flex items-center gap-1.5 text-sm font-bold transition-all px-4 py-2 rounded-full bg-white shadow-sm border border-gray-100 hover:shadow-md whitespace-nowrap"
+            className="inline-flex items-center gap-1.5 text-sm font-bold transition-all px-4 py-2 rounded-full bg-white shadow-sm border border-gray-100 hover:shadow-md whitespace-nowrap"
             style={{ color: site.theme.accent }}
           >
-            See all <ChevronRight className="w-4 h-4" />
+            <span className="sm:inline">See all</span>
+            <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
       </div>
