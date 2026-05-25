@@ -17,6 +17,7 @@ const RegisterSchema = z.object({
   ),
   password: z.string().min(8, "Password must be at least 8 characters.").max(72),
 });
+
 async function findAuthUserByEmail(admin: ReturnType<typeof createAdminClient>, email: string) {
   // Supabase Auth does not expose a direct "get user by email" admin method in
   // this SDK version, so we scan the paginated admin list only when needed.
