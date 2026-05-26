@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Phone, User, ShieldCheck, Calendar } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { useSite } from "@/context/SiteContext";
@@ -15,6 +15,14 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
   const [name,  setName]  = useState(user.name);
   const [phone, setPhone] = useState(user.phone);
   const [saving, setSaving] = useState(false);
+  const { session, profile, setProfile } = useAuthStore();
+
+  const displayName = profile?.name ?? name;
+
+  useEffect(() => {
+    setName(user.name);
+    setPhone(user.phone);
+  }, [user.name, user.phone]);
 
   const sanitizePhone = (value: string) => {
     return normalizePhone(value);
@@ -24,8 +32,6 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
     const digits = phoneDigits(value);
     return digits.length >= 10 && digits.length <= 15;
   };
-
-  const { session, setProfile } = useAuthStore();
 
   const handleSave = async () => {
     const trimmedPhone = phone.trim();
@@ -75,7 +81,7 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
   };
 
 
-  const initials = user.name
+  const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -108,9 +114,9 @@ export default function CustomerProfile({ user }: { user: SessionUser }) {
             {initials}
           </div>
         </div>
-        <div>
+          <div>
           <p className="text-lg font-bold" style={{ color: "var(--dash-text-primary)" }}>
-            {user.name}
+            {displayName}
           </p>
           <p className="text-sm" style={{ color: "var(--dash-text-secondary)" }}>
             {user.email}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ShoppingBag, Clock, Star, Flame, Zap, TrendingUp,
-  ChevronRight, MapPin, Search, Gift, Sparkles, Truck, Store,
+  ChevronRight, MapPin, Search, Sparkles, Truck, Store,
 } from "lucide-react";
 import type { SessionUser } from "@/lib/auth";
 import { useSite } from "@/context/SiteContext";
@@ -21,53 +21,6 @@ function greeting() {
   return "Good evening";
 }
 
-const recentOrders = [
-  {
-    id: "#1038",
-    restaurant: "Pizza Palace",
-    image: "🍕",
-    items: "Margherita · Garlic Bread",
-    total: "£18.50",
-    status: "Delivered",
-    statusColor: "#22c55e",
-    statusBg: "#f0fdf4",
-    date: "Today, 12:30",
-  },
-  {
-    id: "#1021",
-    restaurant: "The Anchor Bar",
-    image: "🍔",
-    items: "Burger · Chips · Coke",
-    total: "£26.00",
-    status: "Delivered",
-    statusColor: "#22c55e",
-    statusBg: "#f0fdf4",
-    date: "Yesterday",
-  },
-  {
-    id: "#1009",
-    restaurant: "Sushi Station",
-    image: "🍣",
-    items: "California Roll x2",
-    total: "£22.00",
-    status: "Delivered",
-    statusColor: "#22c55e",
-    statusBg: "#f0fdf4",
-    date: "3 days ago",
-  },
-  {
-    id: "#0997",
-    restaurant: "Curry House",
-    image: "🍛",
-    items: "Chicken Tikka · Naan",
-    total: "£19.90",
-    status: "Cancelled",
-    statusColor: "#ef4444",
-    statusBg: "#fef2f2",
-    date: "5 days ago",
-  },
-];
-
 const categories = [
   { label: "Pizza",   emoji: "🍕" },
   { label: "Burgers", emoji: "🍔" },
@@ -79,17 +32,10 @@ const categories = [
   { label: "Tacos",   emoji: "🌮" },
 ];
 
-const quickStats = [
-  { label: "Orders placed",  value: "14",    icon: ShoppingBag,  color: "#F97316", bg: "#fff3e8" },
-  { label: "Avg. wait",      value: "26m",   icon: Clock,        color: "#8b5cf6", bg: "#f5f3ff" },
-  { label: "Fav. place",     value: "Pizza Palace", icon: Star, color: "#f59e0b", bg: "#fffbeb" },
-  { label: "Total spent",    value: "£86",   icon: TrendingUp,   color: "#06b6d4", bg: "#ecfeff" },
-];
-
 export default function CustomerOverview({ user }: { user: SessionUser }) {
   const firstName = user.name.split(" ")[0];
   const { site } = useSite();
-  const { orders, loading, refreshOrders } = useOrders();
+  const { orders } = useOrders();
   const featured = getFeaturedRestaurants(site.key);
   const router = useRouter();
 
