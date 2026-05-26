@@ -1,9 +1,9 @@
 #!/bin/bash
 
 DIR="$(dirname "$0")"
-ENV_FILE="$DIR/.env"
+ENV_FILE="$DIR/.env.production"
 
-# Load env vars from .env
+# Load production env vars
 set -a
 source "$ENV_FILE"
 set +a
