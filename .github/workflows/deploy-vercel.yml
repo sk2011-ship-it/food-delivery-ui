@@ -60,6 +60,11 @@ jobs:
           rm -f .env.deploy
           echo "Environment variables synced!"
 
+      - name: Write .env file for build
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: echo "$ENV_FILE" > .env
+
       - name: Pull Vercel project settings
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
