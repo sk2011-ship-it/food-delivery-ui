@@ -87,7 +87,6 @@ export default function FeaturedDishes() {
       const rawIndex = Math.round(container.scrollLeft / step);
       const clamped = Math.min(rawIndex, maxIndex);
       setCurrentIndex(clamped);
-      scrollToIndex(clamped);
     }, 120);
   };
 

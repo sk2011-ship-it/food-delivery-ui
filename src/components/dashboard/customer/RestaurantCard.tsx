@@ -78,7 +78,7 @@ export default function RestaurantCard({
       layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      style={{ touchAction: "pan-y" }}
+      style={{ touchAction: "pan-x pan-y" }}
       className={cn(
         "group relative flex flex-col h-full overflow-hidden rounded-2xl sm:rounded-[2rem] border border-border/40 bg-white transition-all duration-500",
         "hover:shadow-elevated shadow-soft",
@@ -194,7 +194,7 @@ export default function RestaurantCard({
           onClick={() => router.push(`/dashboard/customer/restaurant/${id}`)}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          style={{ touchAction: "pan-y", color: theme.accent, background: `linear-gradient(135deg, ${theme.gradientFrom}14, ${theme.accent}14)` }}
+          style={{ touchAction: "pan-x pan-y", color: theme.accent, background: `linear-gradient(135deg, ${theme.gradientFrom}14, ${theme.accent}14)` }}
           className="mt-3 sm:mt-5 inline-flex items-center justify-between gap-3 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 sm:py-3 transition-all duration-300 cursor-pointer border border-transparent shadow-sm"
         >
           <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.18em] leading-none">

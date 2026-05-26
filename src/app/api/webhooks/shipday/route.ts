@@ -64,6 +64,11 @@ function pickFirstNestedString(
   return null;
 }
 
+function isLikelyCustomerName(value: string | null, customerName: string | null): boolean {
+  if (!value || !customerName) return false;
+  return value.trim().toLowerCase() === customerName.trim().toLowerCase();
+}
+
 type MappedStatus = "DISPATCH_REQUESTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
 
 function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
@@ -388,9 +393,17 @@ export async function POST(req: Request) {
     // ── Step 1: Always update deliveryJobs with latest driver/tracking info ─
     // Shipday puts driver info in a "carrier" object inside order event payloads.
     const carrier = readObject(payload.carrier ?? payload.assigned_carrier ?? payload.assignedCarrier);
-    const assignedDriver = readObject(
-      payload.assigned_driver ?? payload.assignedDriver ?? payload.driver
-    );
+    const assignedDriver = readObject(payload.assigned_driver ?? payload.assignedDriver ?? payload.driver);
+    const orderId = deliveryJob.orderId;
+
+    const [currentOrderUser] = await db
+      .select({ name: users.name })
+      .from(orders)
+      .leftJoin(users, eq(orders.userId, users.id))
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    const customerName = currentOrderUser?.name ?? null;
+
     const djUpdate: Record<string, string | Date | null> = {
       providerOrderId: providerOrderId || deliveryJob.providerOrderId,
       trackingId: trackingId || deliveryJob.trackingId,
@@ -398,9 +411,11 @@ export async function POST(req: Request) {
         pickFirstNestedString([payload, order, deliveryDetails], ["trackingUrl", "trackingURL", "tracking_url", "trackUrl", "trackURL"]) ||
         deliveryJob.trackingUrl,
       driverName:
-        pickFirstNestedString([payload, deliveryDetails], ["driverName", "driver_name", "driver", "name"]) ||
         pickFirstNestedString([carrier], ["name", "driverName", "driver_name"]) ||
         pickFirstNestedString([assignedDriver], ["name", "driverName", "driver_name"]) ||
+        (!isLikelyCustomerName(readString(deliveryDetails?.driverName ?? deliveryDetails?.driver_name ?? null), customerName)
+          ? pickFirstNestedString([deliveryDetails], ["driverName", "driver_name"])
+          : null) ||
         deliveryJob.driverName,
       driverPhone:
         pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone", "mobile", "phoneNumber"]) ||
@@ -422,8 +437,6 @@ export async function POST(req: Request) {
     }
 
     // ── Step 2: Update order status if transition is valid ─────────────────
-    const orderId = deliveryJob.orderId;
-
     const [currentOrder] = await db
       .select({ status: orders.status, userId: orders.userId, restaurantId: orders.restaurantId })
       .from(orders)
