@@ -270,7 +270,7 @@ export default function CustomerOverview({ user }: { user: SessionUser }) {
                 See all <ChevronRight className="w-3.5 h-3.5" />
               </Link>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+            <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1 touch-pan-x touch-pan-y overscroll-x-contain" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-x pan-y" }}>
               {featured.map((r) => (
                 <div
                   key={r.id}

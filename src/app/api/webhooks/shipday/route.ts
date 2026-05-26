@@ -69,7 +69,6 @@ type MappedStatus = "DISPATCH_REQUESTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "C
 function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
   const order = readObject(payload.order);
   const deliveryDetails = readObject(payload.delivery_details);
-  const carrier = readObject(payload.carrier);
 
   // Shipday sends a top-level "event" field (e.g. "ORDER_COMPLETED", "ORDER_ONTHEWAY").
   // This is the most reliable signal — check it first.
@@ -172,7 +171,9 @@ function mapShipdayStatus(payload: ShipdayWebhookPayload): MappedStatus | null {
 // Valid source statuses for each transition.
 // Broadened to handle Shipday skipping intermediate states (e.g. ASSIGNED then straight to DELIVERED).
 const ALLOWED_TRANSITIONS: Record<MappedStatus, string[]> = {
-  DISPATCH_REQUESTED: ["PREPARING"],
+  // Shipday can assign a rider while the order is still awaiting kitchen prep,
+  // already being prepared, or even just paid/confirmed depending on workflow.
+  DISPATCH_REQUESTED: ["CONFIRMED", "PAID", "PREPARING"],
   OUT_FOR_DELIVERY:   ["DISPATCH_REQUESTED", "PREPARING", "PAID"],
   DELIVERED:          ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED", "PREPARING", "PAID"],
   CANCELLED:          ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],
@@ -197,6 +198,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
+    const orderPayload = readObject(payload.order);
+
     console.log(`[Shipday Webhook] [${requestId}] Raw payload fields:`, {
       event: payload.event,
       eventType: payload.eventType,
@@ -206,8 +209,8 @@ export async function POST(req: Request) {
       deliveryStatus: payload.deliveryStatus,
       delivery_status: payload.delivery_status,
       orderId: payload.orderId,
-      "order.id": (payload.order as any)?.id,
-      "order.order_number": (payload.order as any)?.order_number,
+      "order.id": orderPayload?.id,
+      "order.order_number": orderPayload?.order_number,
     });
 
     // ── Token verification ─────────────────────────────────────────────────

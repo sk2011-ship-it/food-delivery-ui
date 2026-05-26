@@ -18,6 +18,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   CONFIRMED:            { label: "Awaiting payment", className: "bg-blue-100 text-blue-700" },
   PAID:                 { label: "Paid",        className: "bg-blue-100 text-blue-700" },
   PREPARING:            { label: "In kitchen",  className: "bg-purple-100 text-purple-700" },
+  DISPATCH_REQUESTED:   { label: "Rider assigned", className: "bg-orange-100 text-orange-700" },
   OUT_FOR_DELIVERY:     { label: "On the way",  className: "bg-orange-100 text-orange-700" },
   DELIVERED:            { label: "Delivered",   className: "bg-green-100 text-green-700" },
   CANCELLED:            { label: "Cancelled",   className: "bg-red-100 text-red-700" },
@@ -28,6 +29,7 @@ const STATUS_STRIPE: Record<string, string> = {
   CONFIRMED:            "bg-blue-300",
   PAID:                 "bg-blue-500",
   PREPARING:            "bg-purple-500",
+  DISPATCH_REQUESTED:   "bg-orange-500",
   OUT_FOR_DELIVERY:     "bg-orange-500",
   DELIVERED:            "bg-green-500",
   CANCELLED:            "bg-red-400",
@@ -52,6 +54,7 @@ function OrderCard({
   const isPending   = order.status === "PENDING_CONFIRMATION";
   const isConfirmed = order.status === "CONFIRMED";
   const isPaid      = order.status === "PAID";
+  const isDispatched = order.status === "DISPATCH_REQUESTED";
   const isDelivered = order.status === "DELIVERED";
   const isCancelled = order.status === "CANCELLED";
   const badge  = STATUS_BADGE[order.status];
@@ -149,7 +152,7 @@ function OrderCard({
           ))}
         </div>
 
-        {/* Driver info panel — shown only after a rider is actually assigned */}
+        {/* Driver info panel — shown once Shipday has assigned a rider */}
         {(order.status === "PREPARING" || order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") &&
           order.deliveryJob?.driverName && (
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
@@ -254,6 +257,21 @@ function OrderCard({
               <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-blue-50 text-blue-500 border border-blue-100 flex items-center justify-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 Assigning driver via Shipday…
+              </div>
+            )
+          )}
+
+          {/* DISPATCH_REQUESTED: rider assigned, waiting for pickup */}
+          {isDispatched && (
+            order.deliveryJob?.driverName ? (
+              <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100 flex items-center justify-center gap-1.5">
+                <Truck className="w-3.5 h-3.5" />
+                Rider assigned — waiting for pickup
+              </div>
+            ) : (
+              <div className="flex-1 py-2.5 rounded-xl text-xs font-semibold bg-orange-50 text-orange-600 border border-orange-100 flex items-center justify-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                Rider assignment in progress…
               </div>
             )
           )}
@@ -364,7 +382,11 @@ export default function LiveOrdersView() {
 
   useEffect(() => {
     const pendingCount = orders.filter((o) => o.status === "PENDING_CONFIRMATION").length;
-    if (pendingCount > prevPendingCount.current) setNewOrderAlert(true);
+    if (pendingCount > prevPendingCount.current) {
+      const t = window.setTimeout(() => setNewOrderAlert(true), 0);
+      prevPendingCount.current = pendingCount;
+      return () => window.clearTimeout(t);
+    }
     prevPendingCount.current = pendingCount;
   }, [orders]);
 

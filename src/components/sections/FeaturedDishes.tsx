@@ -138,9 +138,9 @@ export default function FeaturedDishes() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-3"
+          className="flex gap-4 sm:gap-6 overflow-x-auto no-scrollbar pb-3 touch-pan-x touch-pan-y overscroll-x-contain"
           style={{
-            scrollSnapType: "x mandatory",
+            scrollSnapType: "x proximity",
             scrollBehavior: "smooth",
             WebkitOverflowScrolling: "touch",
             msOverflowStyle: "none",
