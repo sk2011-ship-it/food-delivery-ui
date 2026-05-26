@@ -14,18 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Install Vercel CLI
         run: npm install -g vercel
-
-      - name: Write .env file for build
-        env:
-          ENV_FILE: ${{ secrets.ENV_FILE }}
-        run: echo "$ENV_FILE" > .env
 
       - name: Pull Vercel project settings
         env:
@@ -43,7 +33,3 @@ jobs:
         run: |
           url=$(vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN")
           echo "Deployed to: $url"
-          echo "DEPLOY_URL=$url" >> "$GITHUB_ENV"
-
-      - name: Deployment summary
-        run: echo "Successfully deployed to $DEPLOY_URL"
