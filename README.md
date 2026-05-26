@@ -31,9 +31,20 @@ You can check out the [Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Use the `deploy.sh` script to deploy and manage environment variables on Vercel.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+# Deploy latest code to Vercel production
+./deploy.sh
+
+# Sync .env variables to Vercel (run after updating .env)
+./deploy.sh sync
+
+# Sync env vars + deploy in one step
+./deploy.sh all
+```
+
+All config is read from the `.env` file — no extra setup needed.
 
 ---
 
