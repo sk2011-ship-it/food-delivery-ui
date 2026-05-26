@@ -31,7 +31,7 @@ function readObject(value: unknown): Record<string, unknown> | null {
  */
 function rehyphenUuid(s: string): string {
   if (s.length === 32 && /^[0-9a-f]+$/i.test(s)) {
-    return `${s.slice(0,8)}-${s.slice(8,12)}-${s.slice(12,16)}-${s.slice(16,20)}-${s.slice(20)}`;
+    return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
   }
   return s; // already hyphenated or different format — pass through
 }
@@ -179,9 +179,9 @@ const ALLOWED_TRANSITIONS: Record<MappedStatus, string[]> = {
   // Shipday can assign a rider while the order is still awaiting kitchen prep,
   // already being prepared, or even just paid/confirmed depending on workflow.
   DISPATCH_REQUESTED: ["CONFIRMED", "PAID", "PREPARING"],
-  OUT_FOR_DELIVERY:   ["DISPATCH_REQUESTED", "PREPARING", "PAID"],
-  DELIVERED:          ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED", "PREPARING", "PAID"],
-  CANCELLED:          ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],
+  OUT_FOR_DELIVERY: ["DISPATCH_REQUESTED", "PREPARING", "PAID"],
+  DELIVERED: ["OUT_FOR_DELIVERY", "DISPATCH_REQUESTED", "PREPARING", "PAID"],
+  CANCELLED: ["DISPATCH_REQUESTED", "PREPARING", "PAID", "CONFIRMED", "PENDING_CONFIRMATION"],
 };
 
 export async function POST(req: Request) {
@@ -282,7 +282,7 @@ export async function POST(req: Request) {
       // Resolve isOnShift from boolean fields or string status values
       // Shipday may use isOnShift, isOnDuty, status, or driverStatus
       const boolField = payload.isOnShift ?? payload.is_on_shift ?? payload.onShift ??
-                        payload.isOnDuty ?? payload.is_on_duty;
+        payload.isOnDuty ?? payload.is_on_duty;
 
       const rawDriverStatus = readString(
         payload.status ?? payload.driverStatus ?? payload.driver_status ?? payload.carrierStatus
@@ -330,7 +330,7 @@ export async function POST(req: Request) {
 
         if (driver) {
           await db.insert(driverShiftLogs).values({
-            driverId:         driver.id,
+            driverId: driver.id,
             shipdayCarrierId: carrierId,
             isOnShift,
           });
@@ -392,7 +392,15 @@ export async function POST(req: Request) {
 
     // ── Step 1: Always update deliveryJobs with latest driver/tracking info ─
     // Shipday puts driver info in a "carrier" object inside order event payloads.
-    const carrier = readObject(payload.carrier ?? payload.assigned_carrier ?? payload.assignedCarrier);
+    const carrier = readObject(
+      payload.carrier ??
+      payload.assigned_carrier ??
+      payload.assignedCarrier ??
+      order?.assignedCarrier ??
+      order?.assigned_carrier ??
+      deliveryDetails?.assignedCarrier ??
+      deliveryDetails?.assigned_carrier
+    );
     const assignedDriver = readObject(payload.assigned_driver ?? payload.assignedDriver ?? payload.driver);
     const orderId = deliveryJob.orderId;
 
@@ -410,16 +418,22 @@ export async function POST(req: Request) {
       trackingUrl:
         pickFirstNestedString([payload, order, deliveryDetails], ["trackingUrl", "trackingURL", "tracking_url", "trackUrl", "trackURL"]) ||
         deliveryJob.trackingUrl,
-      driverName:
-        pickFirstNestedString([carrier], ["name", "driverName", "driver_name"]) ||
-        pickFirstNestedString([assignedDriver], ["name", "driverName", "driver_name"]) ||
-        (!isLikelyCustomerName(readString(deliveryDetails?.driverName ?? deliveryDetails?.driver_name ?? null), customerName)
-          ? pickFirstNestedString([deliveryDetails], ["driverName", "driver_name"])
-          : null) ||
-        deliveryJob.driverName,
+      driverName: (() => {
+        const carrierName = pickFirstNestedString([carrier, order?.assignedCarrier as Record<string, unknown> | null, deliveryDetails?.assignedCarrier as Record<string, unknown> | null], ["name", "driverName", "driver_name"]);
+        if (carrierName && !isLikelyCustomerName(carrierName, customerName)) return carrierName;
+
+        const assignedDriverName = pickFirstNestedString([assignedDriver], ["name", "driverName", "driver_name"]);
+        if (assignedDriverName && !isLikelyCustomerName(assignedDriverName, customerName)) return assignedDriverName;
+
+        const detailsDriverName = pickFirstNestedString([deliveryDetails], ["driverName", "driver_name"]);
+        if (detailsDriverName && !isLikelyCustomerName(detailsDriverName, customerName)) return detailsDriverName;
+
+        // All candidates matched the customer name — keep whatever is already in the DB
+        return deliveryJob.driverName;
+      })(),
       driverPhone:
         pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone", "mobile", "phoneNumber"]) ||
-        pickFirstNestedString([carrier], ["phone", "phoneNumber", "phone_number"]) ||
+        pickFirstNestedString([carrier, order?.assignedCarrier as Record<string, unknown> | null, deliveryDetails?.assignedCarrier as Record<string, unknown> | null], ["phone", "phoneNumber", "phone_number"]) ||
         pickFirstNestedString([assignedDriver], ["phone", "phoneNumber", "phone_number", "mobile"]) ||
         deliveryJob.driverPhone,
       eta:
