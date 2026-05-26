@@ -1,0 +1,82 @@
+name: Deploy to Vercel (Manual)
+
+on:
+  workflow_dispatch:
+
+env:
+  VERCEL_ORG_ID: team_0YbF475dZwWapivzvrBH2WeE
+  VERCEL_PROJECT_ID: prj_hFgjo7R5QvKJb8H83VdlXauuAA6A
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Sync environment variables to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+        run: |
+          # Write .env content from secret
+          echo "$ENV_FILE" > .env.deploy
+
+          # Remove all existing env vars for production to avoid stale ones
+          echo "Fetching existing env vars..."
+          existing=$(vercel env ls production --token "$VERCEL_TOKEN" 2>/dev/null | tail -n +2 | awk '{print $1}' || true)
+
+          for var_name in $existing; do
+            if [ -n "$var_name" ] && [ "$var_name" != "Name" ]; then
+              echo "Removing: $var_name"
+              yes | vercel env rm "$var_name" production --token "$VERCEL_TOKEN" 2>/dev/null || true
+            fi
+          done
+
+          # Add each env var from .env file
+          while IFS= read -r line || [ -n "$line" ]; do
+            # Skip empty lines and comments
+            [[ -z "$line" || "$line" =~ ^[[:space:]]*# ]] && continue
+
+            # Extract key and value
+            key="${line%%=*}"
+            value="${line#*=}"
+
+            # Skip if key is empty
+            [ -z "$key" ] && continue
+
+            echo "Setting: $key"
+            printf '%s' "$value" | vercel env add "$key" production --token "$VERCEL_TOKEN" 2>/dev/null || true
+          done < .env.deploy
+
+          rm -f .env.deploy
+          echo "Environment variables synced!"
+
+      - name: Pull Vercel project settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      - name: Build project
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token "$VERCEL_TOKEN"
+
+      - name: Deploy to Vercel Production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN")
+          echo "Deployed to: $url"
+          echo "DEPLOY_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Deployment summary
+        run: echo "Successfully deployed to $DEPLOY_URL"
