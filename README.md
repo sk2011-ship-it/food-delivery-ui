@@ -31,20 +31,25 @@ You can check out the [Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-Use the `deploy.sh` script to deploy and manage environment variables on Vercel.
+### Production (yourlocaleats.vercel.app)
+
+Uses `.env.production` — production Supabase + all production keys.
 
 ```bash
-# Deploy latest code to Vercel production
-./deploy.sh
-
-# Sync .env variables to Vercel (run after updating .env)
-./deploy.sh sync
-
-# Sync env vars + deploy in one step
-./deploy.sh all
+./deploy.sh            # Deploy to production
+./deploy.sh sync       # Sync .env.production vars to Vercel
+./deploy.sh all        # Sync + deploy
 ```
 
-All config is read from the `.env` file — no extra setup needed.
+### Dev (food-delivery-ui-zeta.vercel.app)
+
+Uses `.env` — dev Supabase + dev keys.
+
+```bash
+./deploy-dev.sh        # Deploy to dev
+./deploy-dev.sh sync   # Sync .env vars to Vercel dev
+./deploy-dev.sh all    # Sync + deploy
+```
 
 ---
 
