@@ -40,15 +40,16 @@ export async function POST(
         return fail(`Order cannot be paid in its current status: ${order.status}`, 400);
       }
 
-      const host = (await headers()).get("host");
-      const protocol = process.env.NODE_ENV === "development" ? "http" : "https";
+      const host = (await headers()).get("host") || "";
+      const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
+      const protocol = isLocal ? "http" : (process.env.NODE_ENV === "development" ? "http" : "https");
       const baseUrl = `${protocol}://${host}`;
 
       // Map order items to Stripe line items
       const lineItems = order.items.map((item) => {
         const name = item.menuItem?.name || "Food Item";
         const unitAmount = Math.round(parseFloat(item.price as string) * 100);
-        
+
         return {
           price_data: {
             currency: (order.currency || "GBP").toLowerCase(),
@@ -108,7 +109,7 @@ export async function POST(
       });
 
       // Race against a timeout to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => 
+      const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Stripe API Timeout")), 15000)
       );
 
