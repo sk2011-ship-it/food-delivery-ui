@@ -63,8 +63,6 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     })),
     totalOrderCost: Number.parseFloat(input.totalAmount),
     deliveryFee: input.deliveryFee ? Number.parseFloat(input.deliveryFee) : 0,
-    isReady: true,
-    accepted: true,
     autoAssign: false,
   };
 

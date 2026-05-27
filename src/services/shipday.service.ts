@@ -163,6 +163,13 @@ export class ShipdayService {
 
       console.log(`[ShipdayService] Shipday API success. ProviderOrderId: ${shipdayOrder.providerOrderId}`);
 
+      // NEW: Signal READY immediately so it enters the ACTIVE / CURRENT dashboard right away
+      if (shipdayOrder.providerOrderId) {
+        markShipdayOrderAsReady(shipdayOrder.providerOrderId).catch(err => {
+          console.warn(`[ShipdayService] Non-critical: Initial READY signal failed for ${shipdayOrder.providerOrderId}:`, err);
+        });
+      }
+
       // 4. Verification Flow (Step 2): Ensure no customer name leaked during creation
       // We explicitly set null to clear anything Shipday might have echoed.
       const [newJob] = await db
