@@ -63,6 +63,7 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     })),
     totalOrderCost: Number.parseFloat(input.totalAmount),
     deliveryFee: input.deliveryFee ? Number.parseFloat(input.deliveryFee) : 0,
+    expectedDeliveryTime: `${new Date().getHours()}:${new Date().getMinutes()}:${new Date().getSeconds()}`.split(":").map(p => p.padStart(2, "0")).join(":"),
     autoAssign: false,
   };
 
