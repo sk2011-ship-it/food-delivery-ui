@@ -41,8 +41,9 @@ export async function POST(
       }
 
       const host = (await headers()).get("host") || "";
-      const isLocal = host.includes("localhost") || host.includes("127.0.0.1");
-      const protocol = isLocal ? "http" : (process.env.NODE_ENV === "development" ? "http" : "https");
+      // Absolute check: if host contains localhost or 127.0.0.1, we MUST use http.
+      const isLocal = host.toLowerCase().includes("localhost") || host.includes("127.0.0.1");
+      const protocol = isLocal ? "http" : "https";
       const baseUrl = `${protocol}://${host}`;
 
       // Map order items to Stripe line items
