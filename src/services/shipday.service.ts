@@ -253,22 +253,20 @@ export class ShipdayService {
         }
       }
 
-      // 1. Mark as READY first, so Shipday knows it is active.
-      await markShipdayOrderAsReady(providerOrderId).catch(err => {
-        console.warn(`[ShipdayService] Non-critical: Failed to signal READY status:`, err);
-      });
-
-      // 2. Assign and Dispatch
+      // 1. Assign and Link Carrier (using reliable PUT)
       await assignShipdayCarrierToOrder(providerOrderId, chosen.carrierId);
 
-      // 3. Force the order into the ACTIVE / ONGOING queue by setting status to STARTED.
-      // This helps override GPS distance filters on the Shipday server.
+      // 2. Broadcast to Mobile (Ready + Start)
+      // We do this in the background so it never blocks the primary assignment flow
       void (async () => {
         try {
-          const { startShipdayOrder } = await import("@/lib/shipday");
-          await startShipdayOrder(providerOrderId);
+          const { markShipdayOrderAsReady, startShipdayOrder } = await import("@/lib/shipday");
+          // Set to READY so it shows up as a pickup task
+          await markShipdayOrderAsReady(providerOrderId).catch(() => { });
+          // Set to STARTED to force acceptance and push notification
+          await startShipdayOrder(providerOrderId).catch(() => { });
         } catch (e) {
-          console.warn(`[ShipdayService] Non-critical: Failed to force START status:`, e);
+          console.warn(`[ShipdayService] Non-critical: Mobile broadcast failed:`, e);
         }
       })();
 

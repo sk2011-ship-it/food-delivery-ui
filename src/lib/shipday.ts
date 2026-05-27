@@ -300,9 +300,9 @@ export async function assignShipdayCarrierToOrder(
   if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
 
   const response = await fetch(
-    `${SHIPDAY_API_BASE_URL}/orders/assign/${providerOrderId}/${carrierId}`,
+    `${SHIPDAY_API_BASE_URL}/orders/assign/${providerOrderId}/${carrierId}?dispatch=true`,
     {
-      method: "POST",
+      method: "PUT",
       headers: {
         Accept: "application/json",
         Authorization: `Basic ${apiKey}`,
