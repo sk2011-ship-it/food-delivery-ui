@@ -1,7 +1,19 @@
 import { db } from "@/lib/db";
 import { orders, deliveryJobs, users, restaurants, orderItems, menuItems } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { createShipdayOrder } from "@/lib/shipday";
+import { createShipdayOrder, listShipdayCarriers, assignShipdayCarrierToOrder } from "@/lib/shipday";
+
+// ── Haversine distance (km) between two lat/lng points ──────────────────────
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export class ShipdayService {
   /**
@@ -53,7 +65,7 @@ export class ShipdayService {
       if (existingJob && existingJob.providerOrderId !== "LOCK") {
         // At this point providerOrderId is null/"null" (Guards A+B ruled out other cases)
         console.warn(`[ShipdayService] Null providerOrderId for ${orderId} — deleting stale record and retrying.`);
-        await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId)).catch(() => {});
+        await db.delete(deliveryJobs).where(eq(deliveryJobs.orderId, orderId)).catch(() => { });
         // Fall through — insert the LOCK below
       }
 
@@ -87,6 +99,8 @@ export class ShipdayService {
           restaurantName: restaurants.name,
           restaurantLocation: restaurants.location,
           restaurantPhone: restaurants.contactPhone,
+          restaurantLat: restaurants.latitude,
+          restaurantLng: restaurants.longitude,
         })
         .from(orders)
         .leftJoin(users, eq(orders.userId, users.id))
@@ -149,7 +163,8 @@ export class ShipdayService {
 
       console.log(`[ShipdayService] Shipday API success. ProviderOrderId: ${shipdayOrder.providerOrderId}`);
 
-      // 4. Update the delivery job record (removing the lock)
+      // 4. Verification Flow (Step 2): Ensure no customer name leaked during creation
+      // We explicitly set null to clear anything Shipday might have echoed.
       const [newJob] = await db
         .update(deliveryJobs)
         .set({
@@ -157,15 +172,25 @@ export class ShipdayService {
           providerOrderId: shipdayOrder.providerOrderId,
           trackingId: shipdayOrder.trackingId,
           trackingUrl: shipdayOrder.trackingUrl,
-          driverName: shipdayOrder.driverName,
-          driverPhone: shipdayOrder.driverPhone,
-          eta: shipdayOrder.eta,
+          driverName: null,
+          driverPhone: null,
+          eta: null,
           updatedAt: new Date(),
         })
         .where(eq(deliveryJobs.orderId, orderData.id))
         .returning();
 
-      console.log(`[ShipdayService] Successfully updated delivery job for ${orderId}`);
+      console.log(`[ShipdayService] Delivery job initialized for ${orderId}. Searching for drivers...`);
+
+      // 5. Probe Shipday (Step 3): Assign closest driver immediately
+      if (shipdayOrder.providerOrderId) {
+        void this.autoAssignClosestDriver(
+          shipdayOrder.providerOrderId,
+          orderData.restaurantLat ? Number(orderData.restaurantLat) : null,
+          orderData.restaurantLng ? Number(orderData.restaurantLng) : null
+        );
+      }
+
       return newJob;
     } catch (error) {
       console.error(`[ShipdayService] ERROR for order ${orderId}:`, error);
@@ -183,6 +208,78 @@ export class ShipdayService {
   }
 
   /**
+   * Finds the closest available (on-shift) Shipday carrier to the restaurant
+   * and assigns them to the given Shipday order.
+   *
+   * - If carriers have real-time GPS location, picks the nearest one.
+   * - If no GPS data is available, falls back to the first on-shift carrier.
+   * - If no carriers are on shift, logs a warning and returns null;
+   *   the webhook handler will retry when a driver next comes on shift.
+   */
+  static async autoAssignClosestDriver(
+    providerOrderId: string,
+    restaurantLat?: number | null,
+    restaurantLng?: number | null
+  ): Promise<{ carrierId: number; name: string } | null> {
+    try {
+      const carriers = await listShipdayCarriers();
+      const available = carriers.filter((c) => c.isOnShift && c.isActive !== false);
+
+      if (available.length === 0) {
+        console.warn(
+          `[ShipdayService] No on-shift carriers available for order ${providerOrderId}. ` +
+          `Will retry when next driver comes on shift.`
+        );
+        return null;
+      }
+
+      let chosen = available[0];
+
+      // If the restaurant has coordinates AND some carriers expose GPS, pick closest
+      if (restaurantLat != null && restaurantLng != null) {
+        const withGps = available.filter((c) => c.lastLocation != null);
+        if (withGps.length > 0) {
+          chosen = withGps.reduce((best, c) => {
+            const distBest = haversineKm(
+              restaurantLat, restaurantLng,
+              best.lastLocation!.lat, best.lastLocation!.lng
+            );
+            const distC = haversineKm(
+              restaurantLat, restaurantLng,
+              c.lastLocation!.lat, c.lastLocation!.lng
+            );
+            return distC < distBest ? c : best;
+          });
+        }
+      }
+
+      await assignShipdayCarrierToOrder(providerOrderId, chosen.carrierId);
+
+      console.log(
+        `[ShipdayService] Auto-assigned carrier ${chosen.carrierId} (${chosen.name}) ` +
+        `to Shipday order ${providerOrderId}. Verifying...`
+      );
+
+      // Verification (Step 5): Update the DB to reflect the new assignment
+      await db
+        .update(deliveryJobs)
+        .set({
+          driverName: chosen.name,
+          driverPhone: chosen.phoneNumber,
+          updatedAt: new Date(),
+        })
+        .where(eq(deliveryJobs.providerOrderId, providerOrderId));
+
+      return { carrierId: chosen.carrierId, name: chosen.name };
+    } catch (err) {
+      console.error(
+        `[ShipdayService] autoAssignClosestDriver failed for ${providerOrderId}:`, err
+      );
+      return null;
+    }
+  }
+
+  /**
    * Syncs the delivery job status if it exists.
    */
   static async updateDeliveryStatus(
@@ -196,7 +293,7 @@ export class ShipdayService {
       console.log(`[ShipdayService] Updating delivery job status for ${orderId} to ${status}`);
       await db
         .update(deliveryJobs)
-        .set({ 
+        .set({
           status,
           updatedAt: new Date()
         })

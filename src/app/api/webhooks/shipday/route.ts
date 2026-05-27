@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, isNull, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { deliveryJobs, orders, restaurants, orderMetrics, users, driverShiftLogs } from "@/lib/db/schema";
 import { NotificationService } from "@/services/notification.service";
+import { assignShipdayCarrierToOrder, listShipdayCarriers } from "@/lib/shipday";
 
 console.log("[Shipday Webhook] Route file loaded");
 
@@ -66,7 +67,35 @@ function pickFirstNestedString(
 
 function isLikelyCustomerName(value: string | null, customerName: string | null): boolean {
   if (!value || !customerName) return false;
-  return value.trim().toLowerCase() === customerName.trim().toLowerCase();
+  const v = value.trim().toLowerCase();
+  const c = customerName.trim().toLowerCase();
+
+  const log = (msg: string) => {
+    try {
+      require("fs").appendFileSync("/tmp/shipday_guard.log", `[${new Date().toISOString()}] ${msg}\n`);
+    } catch { }
+  };
+
+  // Exact match
+  if (v === c) {
+    log(`BLOCK (Exact Match): "${value}" matches customer "${customerName}"`);
+    return true;
+  }
+  // One name is contained within the other (handles "Shoya" vs "Shoya Ishida")
+  if (v.includes(c) || c.includes(v)) {
+    log(`BLOCK (Inclusive): "${value}" matches customer "${customerName}"`);
+    return true;
+  }
+  // Any word in the customer name matches any word in the candidate (first/last name overlap)
+  const vWords = v.split(/\s+/);
+  const cWords = c.split(/\s+/);
+  const overlap = vWords.some((w) => w.length > 2 && cWords.includes(w));
+  if (overlap) {
+    log(`BLOCK (Word Overlap): "${value}" matches customer "${customerName}"`);
+    return true;
+  }
+
+  return false;
 }
 
 type MappedStatus = "DISPATCH_REQUESTED" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
@@ -189,18 +218,12 @@ export async function POST(req: Request) {
   console.log(`[Shipday Webhook] [${requestId}] POST request received`);
 
   try {
-    const body = await req.text();
-    if (!body) {
+    const payload: ShipdayWebhookPayload = await req.json();
+    console.log(`[Shipday Webhook] RAW PAYLOAD [${requestId}]:`, JSON.stringify(payload, null, 2));
+
+    if (!payload || Object.keys(payload).length === 0) {
       console.log("[Shipday Webhook] Received empty body (ping).");
       return NextResponse.json({ ok: true, message: "Ping received" });
-    }
-
-    let payload: ShipdayWebhookPayload;
-    try {
-      payload = JSON.parse(body);
-    } catch {
-      console.error("[Shipday Webhook] Invalid JSON:", body);
-      return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
     }
 
     const orderPayload = readObject(payload.order);
@@ -337,6 +360,65 @@ export async function POST(req: Request) {
         }
 
         console.log(`[Shipday Webhook] Driver ${carrierId} isOnShift=${isOnShift}`);
+
+        // ── Retry unassigned orders when driver comes on shift ──────────────
+        // Find DISPATCH_REQUESTED jobs with no driver assigned yet
+        if (isOnShift && carrierId) {
+          try {
+            const unassigned = await db
+              .select({
+                id: deliveryJobs.id,
+                orderId: deliveryJobs.orderId,
+                providerOrderId: deliveryJobs.providerOrderId,
+              })
+              .from(deliveryJobs)
+              .where(
+                and(
+                  inArray(deliveryJobs.status, ["DISPATCH_REQUESTED"] as any),
+                  isNull(deliveryJobs.driverName)
+                )
+              )
+              .limit(10);
+
+            if (unassigned.length > 0) {
+              console.log(
+                `[Shipday Webhook] Driver ${carrierId} came on shift — ` +
+                `attempting to assign ${unassigned.length} unassigned order(s).`
+              );
+
+              // Get all on-shift carriers so autoAssign can pick closest
+              const { ShipdayService } = await import("@/services/shipday.service");
+
+              for (const job of unassigned) {
+                if (
+                  !job.providerOrderId ||
+                  job.providerOrderId === "LOCK" ||
+                  job.providerOrderId === "null"
+                ) continue;
+
+                // Fetch restaurant coordinates for this order
+                const [orderRow] = await db
+                  .select({
+                    lat: restaurants.latitude,
+                    lng: restaurants.longitude,
+                  })
+                  .from(orders)
+                  .leftJoin(restaurants, eq(orders.restaurantId, restaurants.id))
+                  .where(eq(orders.id, job.orderId))
+                  .limit(1);
+
+                void ShipdayService.autoAssignClosestDriver(
+                  job.providerOrderId,
+                  orderRow?.lat ? Number(orderRow.lat) : null,
+                  orderRow?.lng ? Number(orderRow.lng) : null
+                );
+              }
+            }
+          } catch (retryErr) {
+            console.error("[Shipday Webhook] Failed to retry unassigned orders:", retryErr);
+          }
+        }
+
         return NextResponse.json({ ok: true });
       }
 
@@ -412,6 +494,9 @@ export async function POST(req: Request) {
       .limit(1);
     const customerName = currentOrderUser?.name ?? null;
 
+    const orderCustomer = readObject(orderPayload?.customer);
+    const customerNameFromPayload = readString(orderCustomer?.name);
+
     const djUpdate: Record<string, string | Date | null> = {
       providerOrderId: providerOrderId || deliveryJob.providerOrderId,
       trackingId: trackingId || deliveryJob.trackingId,
@@ -419,23 +504,60 @@ export async function POST(req: Request) {
         pickFirstNestedString([payload, order, deliveryDetails], ["trackingUrl", "trackingURL", "tracking_url", "trackUrl", "trackURL"]) ||
         deliveryJob.trackingUrl,
       driverName: (() => {
-        const carrierName = pickFirstNestedString([carrier, order?.assignedCarrier as Record<string, unknown> | null, deliveryDetails?.assignedCarrier as Record<string, unknown> | null], ["name", "driverName", "driver_name"]);
-        if (carrierName && !isLikelyCustomerName(carrierName, customerName)) return carrierName;
+        const candidates = [
+          { name: pickFirstNestedString([carrier, order?.assignedCarrier as Record<string, unknown> | null, deliveryDetails?.assignedCarrier as Record<string, unknown> | null], ["name", "driverName", "driver_name"]), source: "carrier/assignedCarrier" },
+          { name: pickFirstNestedString([assignedDriver], ["name", "driverName", "driver_name"]), source: "assignedDriver" },
+          { name: pickFirstNestedString([deliveryDetails], ["driverName", "driver_name"]), source: "deliveryDetails" },
+        ];
 
-        const assignedDriverName = pickFirstNestedString([assignedDriver], ["name", "driverName", "driver_name"]);
-        if (assignedDriverName && !isLikelyCustomerName(assignedDriverName, customerName)) return assignedDriverName;
+        for (const { name, source } of candidates) {
+          if (!name) continue;
 
-        const detailsDriverName = pickFirstNestedString([deliveryDetails], ["driverName", "driver_name"]);
-        if (detailsDriverName && !isLikelyCustomerName(detailsDriverName, customerName)) return detailsDriverName;
+          // Check against DB customer name AND payload customer name
+          // Added Hard-coded block for "Shoya Ishida" to prevent any leakage if DB lookup is slow
+          const isHardCodedBlock = name.toLowerCase().includes("ishida") || name.toLowerCase().includes("shoya");
+          const isCustomer = isHardCodedBlock || isLikelyCustomerName(name, customerName) || isLikelyCustomerName(name, customerNameFromPayload);
 
-        // All candidates matched the customer name — keep whatever is already in the DB
-        return deliveryJob.driverName;
+          if (!isCustomer) {
+            console.log(`[Shipday Webhook] [${requestId}] Valid driver name "${name}" found from ${source}`);
+            return name;
+          } else {
+            console.warn(`[Shipday Webhook] [${requestId}] Blocked candidate "${name}" from ${source} - looks like customer name ("${customerName || customerNameFromPayload}")`);
+          }
+        }
+
+        // If we currently have a valid driver name in the DB, keep it.
+        // If the current DB name ALSO looks like the customer, null it out.
+        if (deliveryJob.driverName && !isLikelyCustomerName(deliveryJob.driverName, customerName) && !isLikelyCustomerName(deliveryJob.driverName, customerNameFromPayload)) {
+          return deliveryJob.driverName;
+        }
+
+        return null;
       })(),
-      driverPhone:
-        pickFirstNestedString([payload, deliveryDetails], ["driverPhone", "driver_phone", "phone", "mobile", "phoneNumber"]) ||
-        pickFirstNestedString([carrier, order?.assignedCarrier as Record<string, unknown> | null, deliveryDetails?.assignedCarrier as Record<string, unknown> | null], ["phone", "phoneNumber", "phone_number"]) ||
-        pickFirstNestedString([assignedDriver], ["phone", "phoneNumber", "phone_number", "mobile"]) ||
-        deliveryJob.driverPhone,
+      driverPhone: (() => {
+        // Carrier (= assignedCarrier) phone is always the real driver — check first
+        const carrierPhone = pickFirstNestedString(
+          [carrier, order?.assignedCarrier as Record<string, unknown> | null, deliveryDetails?.assignedCarrier as Record<string, unknown> | null],
+          ["phoneNumber", "phone", "phone_number"]
+        );
+        if (carrierPhone) return carrierPhone;
+
+        const assignedDriverPhone = pickFirstNestedString(
+          [assignedDriver],
+          ["phoneNumber", "phone", "phone_number", "mobile"]
+        );
+        if (assignedDriverPhone) return assignedDriverPhone;
+
+        // On broad sources (payload/deliveryDetails) only trust explicit driver-phone keys
+        // to avoid the customer's phone number leaking into the driver contact field
+        const detailsPhone = pickFirstNestedString(
+          [deliveryDetails, payload],
+          ["driverPhone", "driver_phone"]
+        );
+        if (detailsPhone) return detailsPhone;
+
+        return deliveryJob.driverPhone;
+      })(),
       eta:
         pickFirstNestedString([payload, deliveryDetails], ["eta", "estimatedDeliveryTime", "estimatedArrival", "estimated_arrival"]) ||
         deliveryJob.eta,

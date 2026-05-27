@@ -68,7 +68,7 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     })),
     totalOrderCost: Number.parseFloat(input.totalAmount),
     deliveryFee: input.deliveryFee ? Number.parseFloat(input.deliveryFee) : 0,
-    autoAssign: true,
+    autoAssign: false,
     expectedPickupTime,
   };
 
@@ -149,6 +149,8 @@ export type ShipdayCarrier = {
   phoneNumber: string;
   isOnShift: boolean;
   isActive: boolean;
+  /** Real-time GPS location if Shipday is broadcasting it */
+  lastLocation: { lat: number; lng: number } | null;
 };
 
 /**
@@ -181,16 +183,16 @@ export async function createShipdayCarrier(input: {
 
   if (!response.ok) {
     const msg = (typeof json.message === "string" && json.message) ||
-                (typeof json.error === "string" && json.error) ||
-                `Shipday carrier creation failed (HTTP ${response.status}).`;
+      (typeof json.error === "string" && json.error) ||
+      `Shipday carrier creation failed (HTTP ${response.status}).`;
     console.error("[Shipday] createCarrier failed", { status: response.status, body: json });
     throw new Error(msg);
   }
 
   return {
     carrierId: json.carrierId as number,
-    email:     json.email as string,
-    password:  json.password as string,
+    email: json.email as string,
+    password: json.password as string,
   };
 }
 
@@ -272,12 +274,52 @@ export async function listShipdayCarriers(): Promise<ShipdayCarrier[]> {
 
   return (arr as Record<string, unknown>[]).map((c) => ({
     // Shipday GET /carriers uses "id" as the primary key, not "carrierId"
-    carrierId:   (c.id ?? c.carrierId ?? c.carrier_id ?? c.driverId ?? c.driver_id) as number,
-    name:        (c.name ?? c.driverName ?? c.driver_name ?? "") as string,
-    email:       (c.email ?? "") as string,
+    carrierId: (c.id ?? c.carrierId ?? c.carrier_id ?? c.driverId ?? c.driver_id) as number,
+    name: (c.name ?? c.driverName ?? c.driver_name ?? "") as string,
+    email: (c.email ?? "") as string,
     phoneNumber: (c.phoneNumber ?? c.phone ?? c.phone_number ?? "") as string,
     // isOnShift is the documented boolean field on GET /carriers
-    isOnShift:   Boolean(c.isOnShift ?? c.is_on_shift),
-    isActive:    Boolean(c.isActive ?? c.is_active),
+    isOnShift: Boolean(c.isOnShift ?? c.is_on_shift),
+    isActive: Boolean(c.isActive ?? c.is_active),
+    lastLocation: (() => {
+      const loc = c.lastLocation ?? c.last_location ?? c.location ?? c.currentLocation;
+      if (loc && typeof loc === "object") {
+        const l = loc as Record<string, unknown>;
+        const lat = Number(l.latitude ?? l.lat);
+        const lng = Number(l.longitude ?? l.lng ?? l.lon);
+        if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) return { lat, lng };
+      }
+      return null;
+    })(),
   }));
+}
+
+/**
+ * Assigns a specific Shipday carrier (driver) to an existing Shipday order.
+ * POST https://api.shipday.com/orders/{providerOrderId}/assign/{carrierId}
+ */
+export async function assignShipdayCarrierToOrder(
+  providerOrderId: string | number,
+  carrierId: number
+): Promise<void> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(
+    `${SHIPDAY_API_BASE_URL}/orders/assign/${providerOrderId}/${carrierId}`,
+    {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Basic ${apiKey}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Shipday assignCarrier failed (HTTP ${response.status}): ${text}`);
+  }
+  console.log(`[Shipday] Carrier ${carrierId} assigned to Shipday order ${providerOrderId}`);
 }
