@@ -290,13 +290,10 @@ export async function POST(req: Request) {
       payload.is_on_duty !== undefined;
 
     const isDriverEvent =
-      !hasOrderIdentifier && (
-        eventType?.includes("DRIVER") ||
-        eventType?.includes("CARRIER") ||
-        payload.carrierId !== undefined ||
-        payload.carrier_id !== undefined ||
-        hasShiftField
-      );
+      eventType?.includes("DRIVER") ||
+      eventType?.includes("CARRIER") ||
+      hasShiftField ||
+      ((payload.carrierId !== undefined || payload.carrier_id !== undefined) && !hasOrderIdentifier);
 
     if (isDriverEvent) {
       const carrierId =
@@ -317,6 +314,10 @@ export async function POST(req: Request) {
         isOnShift = boolField;
       } else if (typeof boolField === "number") {
         isOnShift = boolField === 1;
+      } else if (boolField === "true") {
+        isOnShift = true;
+      } else if (boolField === "false") {
+        isOnShift = false;
       } else if (rawDriverStatus) {
         if (
           rawDriverStatus === "ON" ||
@@ -336,6 +337,8 @@ export async function POST(req: Request) {
           isOnShift = false;
         }
       }
+
+      console.log(`[Shipday Webhook] Resolved Driver Shift: carrierId=${carrierId}, eventType=${eventType}, isOnShift=${isOnShift}`);
 
       if (carrierId && isOnShift !== null) {
         // Update live status on the user record
@@ -365,6 +368,9 @@ export async function POST(req: Request) {
         // Find DISPATCH_REQUESTED jobs with no driver assigned yet
         if (isOnShift && carrierId) {
           try {
+            // Wait 2.5s for Shipday API state to synchronize before polling for carriers
+            await new Promise(resolve => setTimeout(resolve, 2500));
+
             const unassigned = await db
               .select({
                 id: deliveryJobs.id,
@@ -638,6 +644,20 @@ async function notifyBoth(
       .from(restaurants)
       .where(eq(restaurants.id, restaurantId))
       .limit(1);
+
+    // Get current driver info from DB to verify if we actually HAVE a rider yet
+    const [job] = await db
+      .select({ driverName: deliveryJobs.driverName })
+      .from(deliveryJobs)
+      .where(eq(deliveryJobs.orderId, orderId))
+      .limit(1);
+
+    // If status is DISPATCH_REQUESTED but we have no driver name yet, 
+    // skip the "Rider Assigned" notification as it is misleading.
+    if (mappedStatus === "DISPATCH_REQUESTED" && !job?.driverName) {
+      console.log(`[Shipday Webhook] Suppressing "Rider Assigned" notification for ${orderId} - no driver linked yet.`);
+      return;
+    }
 
     const shortId = orderId.slice(0, 8);
     const channels: ("FCM" | "WHATSAPP")[] =

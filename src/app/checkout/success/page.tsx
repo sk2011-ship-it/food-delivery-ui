@@ -32,8 +32,13 @@ function SuccessContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),
         });
-        
-        if (!res.ok) {
+
+        if (res.ok) {
+          // Auto-redirect to order status page after 3 seconds on success
+          setTimeout(() => {
+            router.push(`/dashboard/customer/status/${orderId}`);
+          }, 3000);
+        } else {
           const data = await res.json();
           setError(data.error || data.message || "Failed to verify payment");
         }
@@ -64,19 +69,19 @@ function SuccessContent() {
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-100/40 rounded-full blur-3xl" />
 
       {/* Main Success Card */}
-      <motion.div 
+      <motion.div
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         className="w-full max-w-md bg-white rounded-[2rem] shadow-2xl shadow-gray-200/50 p-8 relative z-10 border border-gray-100 flex flex-col items-center"
       >
         {/* Animated Checkmark Circle */}
-        <motion.div 
+        <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          transition={{ 
-            type: "spring", 
-            stiffness: 260, 
+          transition={{
+            type: "spring",
+            stiffness: 260,
             damping: 20,
             delay: 0.1
           }}
@@ -84,18 +89,18 @@ function SuccessContent() {
         >
           {error ? (
             <div className="absolute inset-0 bg-red-100 rounded-full flex items-center justify-center shadow-xl shadow-red-100">
-               <span className="text-red-500 text-3xl font-black">!</span>
+              <span className="text-red-500 text-3xl font-black">!</span>
             </div>
           ) : (
             <>
               {/* Outer ripples */}
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1.5, opacity: 0 }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut" }}
                 className="absolute inset-0 bg-emerald-400 rounded-full"
               />
-              <motion.div 
+              <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1.2, opacity: 0 }}
                 transition={{ duration: 1.5, repeat: Infinity, ease: "easeOut", delay: 0.4 }}
@@ -116,7 +121,7 @@ function SuccessContent() {
 
         {/* Text Content */}
         <div className="text-center space-y-2 mb-8 w-full">
-          <motion.h1 
+          <motion.h1
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.3 }}
@@ -124,20 +129,20 @@ function SuccessContent() {
           >
             {error ? "Verification Issue" : "Payment Successful!"}
           </motion.h1>
-          <motion.p 
+          <motion.p
             initial={{ y: 10, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.4 }}
             className="text-sm font-medium text-gray-500 leading-relaxed px-4"
           >
-            {error 
+            {error
               ? `There was an issue verifying your payment: ${error}. Your order might still be processing.`
               : "Your order is now being prepared by the restaurant. You can track its real-time progress below."}
           </motion.p>
         </div>
 
         {/* Divider / Mini Receipt Area */}
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.5 }}
@@ -155,21 +160,21 @@ function SuccessContent() {
         </motion.div>
 
         {/* Call to Actions */}
-        <motion.div 
+        <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.6 }}
           className="flex flex-col gap-3 w-full"
         >
-          <Link 
+          <Link
             href={orderId ? `/dashboard/customer/status/${orderId}` : "/dashboard/customer/orders"}
             className="group relative w-full bg-gray-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-[0.98] shadow-lg shadow-gray-900/20 overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
             <MapPin className="w-4 h-4 text-emerald-400" /> Track Order Status
           </Link>
-          
-          <Link 
+
+          <Link
             href="/dashboard/customer/orders"
             className="w-full bg-white text-gray-600 border-2 border-gray-100 py-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:border-gray-200 hover:bg-gray-50 transition-all active:scale-[0.98]"
           >
@@ -177,9 +182,9 @@ function SuccessContent() {
           </Link>
         </motion.div>
       </motion.div>
-      
+
       {/* Footer Text */}
-      <motion.p 
+      <motion.p
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1 }}

@@ -14,25 +14,25 @@ import { formatDistanceToNow } from "date-fns";
 import { useOrderTimer } from "@/hooks/useOrderTimer";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  PENDING_CONFIRMATION: { label: "New",        className: "bg-amber-100 text-amber-700" },
-  CONFIRMED:            { label: "Awaiting payment", className: "bg-blue-100 text-blue-700" },
-  PAID:                 { label: "Paid",        className: "bg-blue-100 text-blue-700" },
-  PREPARING:            { label: "In kitchen",  className: "bg-purple-100 text-purple-700" },
-  DISPATCH_REQUESTED:   { label: "Rider assigned", className: "bg-orange-100 text-orange-700" },
-  OUT_FOR_DELIVERY:     { label: "On the way",  className: "bg-orange-100 text-orange-700" },
-  DELIVERED:            { label: "Delivered",   className: "bg-green-100 text-green-700" },
-  CANCELLED:            { label: "Cancelled",   className: "bg-red-100 text-red-700" },
+  PENDING_CONFIRMATION: { label: "New", className: "bg-amber-100 text-amber-700" },
+  CONFIRMED: { label: "Awaiting payment", className: "bg-blue-100 text-blue-700" },
+  PAID: { label: "Paid", className: "bg-blue-100 text-blue-700" },
+  PREPARING: { label: "In kitchen", className: "bg-purple-100 text-purple-700" },
+  DISPATCH_REQUESTED: { label: "Rider assigned", className: "bg-orange-100 text-orange-700" },
+  OUT_FOR_DELIVERY: { label: "On the way", className: "bg-orange-100 text-orange-700" },
+  DELIVERED: { label: "Delivered", className: "bg-green-100 text-green-700" },
+  CANCELLED: { label: "Cancelled", className: "bg-red-100 text-red-700" },
 };
 
 const STATUS_STRIPE: Record<string, string> = {
   PENDING_CONFIRMATION: "bg-amber-400",
-  CONFIRMED:            "bg-blue-300",
-  PAID:                 "bg-blue-500",
-  PREPARING:            "bg-purple-500",
-  DISPATCH_REQUESTED:   "bg-orange-500",
-  OUT_FOR_DELIVERY:     "bg-orange-500",
-  DELIVERED:            "bg-green-500",
-  CANCELLED:            "bg-red-400",
+  CONFIRMED: "bg-blue-300",
+  PAID: "bg-blue-500",
+  PREPARING: "bg-purple-500",
+  DISPATCH_REQUESTED: "bg-orange-500",
+  OUT_FOR_DELIVERY: "bg-orange-500",
+  DELIVERED: "bg-green-500",
+  CANCELLED: "bg-red-400",
 };
 
 // ── Countdown hook wrapper for PAID 2-min grace window ───────────────────────
@@ -51,13 +51,19 @@ function OrderCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [showRejectConfirm, setShowRejectConfirm] = useState(false);
-  const isPending   = order.status === "PENDING_CONFIRMATION";
+  const isPending = order.status === "PENDING_CONFIRMATION";
   const isConfirmed = order.status === "CONFIRMED";
-  const isPaid      = order.status === "PAID";
+  const isPaid = order.status === "PAID";
   const isDispatched = order.status === "DISPATCH_REQUESTED";
   const isDelivered = order.status === "DELIVERED";
   const isCancelled = order.status === "CANCELLED";
-  const badge  = STATUS_BADGE[order.status];
+
+  // Bug fix: DISPATCH_REQUESTED should show "Assigning..." until a rider is actually linked
+  let badge = STATUS_BADGE[order.status];
+  if (isDispatched && !order.deliveryJob?.driverName) {
+    badge = { label: "Assigning rider...", className: "bg-blue-100 text-blue-700" };
+  }
+
   const stripe = STATUS_STRIPE[order.status] ?? "bg-gray-200";
 
   // 10-min timer for PENDING (from createdAt) — auto-cancel if expired
@@ -155,47 +161,47 @@ function OrderCard({
         {/* Driver info panel — shown once Shipday has assigned a rider */}
         {(order.status === "PREPARING" || order.status === "DISPATCH_REQUESTED" || order.status === "OUT_FOR_DELIVERY") &&
           order.deliveryJob?.driverName && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
-            <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Rider Assigned</p>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
-                  <Truck className="w-3.5 h-3.5 text-blue-600" />
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
+              <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Rider Assigned</p>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                    <Truck className="w-3.5 h-3.5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-900 truncate">
+                      {order.deliveryJob.driverName}
+                    </p>
+                    {order.deliveryJob.eta && (
+                      <p className="text-[10px] text-blue-600 font-semibold">ETA: {order.deliveryJob.eta}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-gray-900 truncate">
-                    {order.deliveryJob.driverName}
-                  </p>
-                  {order.deliveryJob.eta && (
-                    <p className="text-[10px] text-blue-600 font-semibold">ETA: {order.deliveryJob.eta}</p>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {order.deliveryJob.driverPhone && (
+                    <a
+                      href={`tel:${order.deliveryJob.driverPhone}`}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
+                    >
+                      <Phone className="w-3 h-3" />
+                      Call
+                    </a>
+                  )}
+                  {order.deliveryJob.trackingUrl && (
+                    <a
+                      href={order.deliveryJob.trackingUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
+                    >
+                      <MapPin className="w-3 h-3" />
+                      Track
+                    </a>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                {order.deliveryJob.driverPhone && (
-                  <a
-                    href={`tel:${order.deliveryJob.driverPhone}`}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
-                  >
-                    <Phone className="w-3 h-3" />
-                    Call
-                  </a>
-                )}
-                {order.deliveryJob.trackingUrl && (
-                  <a
-                    href={order.deliveryJob.trackingUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-blue-200 text-[11px] font-bold text-blue-700 hover:bg-blue-50 transition-colors"
-                  >
-                    <MapPin className="w-3 h-3" />
-                    Track
-                  </a>
-                )}
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
         {/* Actions */}
         <div className="flex gap-2 pt-0.5">
@@ -396,8 +402,8 @@ export default function LiveOrdersView() {
     return () => clearTimeout(t);
   }, [newOrderAlert]);
 
-  const pending   = orders.filter((o) => o.status === "PENDING_CONFIRMATION");
-  const active    = orders.filter((o) => ["CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"].includes(o.status));
+  const pending = orders.filter((o) => o.status === "PENDING_CONFIRMATION");
+  const active = orders.filter((o) => ["CONFIRMED", "PAID", "PREPARING", "DISPATCH_REQUESTED", "OUT_FOR_DELIVERY"].includes(o.status));
   const completed = orders.filter((o) => ["DELIVERED", "CANCELLED"].includes(o.status));
 
   return (
