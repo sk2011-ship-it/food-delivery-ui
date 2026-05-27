@@ -47,11 +47,6 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     throw new Error("SHIPDAY_API_KEY is not configured.");
   }
 
-  // Use current time in HH:mm:ss format — Shipday requires this exact format.
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const expectedPickupTime = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-
   const payload = {
     // Shipday requires alphanumeric orderNumber — strip UUID hyphens
     orderNumber: input.orderId.replace(/-/g, ""),
@@ -69,7 +64,6 @@ export async function createShipdayOrder(input: CreateShipdayOrderInput): Promis
     totalOrderCost: Number.parseFloat(input.totalAmount),
     deliveryFee: input.deliveryFee ? Number.parseFloat(input.deliveryFee) : 0,
     autoAssign: false,
-    expectedPickupTime,
   };
 
   const response = await fetch(`${SHIPDAY_API_BASE_URL}/orders`, {
@@ -308,7 +302,7 @@ export async function assignShipdayCarrierToOrder(
   const response = await fetch(
     `${SHIPDAY_API_BASE_URL}/orders/assign/${providerOrderId}/${carrierId}`,
     {
-      method: "PUT",
+      method: "POST",
       headers: {
         Accept: "application/json",
         Authorization: `Basic ${apiKey}`,
@@ -351,5 +345,37 @@ export async function markShipdayOrderAsReady(
     console.warn(`[Shipday] markOrderAsReady failed (HTTP ${response.status}). The driver might still see it if assigned.`);
   } else {
     console.log(`[Shipday] Order ${providerOrderId} marked as READY for pickup.`);
+  }
+}
+
+/**
+ * Manually starts/dispatches a Shipday order.
+ * This can force the order into the "Started" state, ensuring it stays active in the driver app.
+ * PUT https://api.shipday.com/orders/edit-status/{orderId}
+ */
+export async function startShipdayOrder(
+  providerOrderId: string | number
+): Promise<void> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(
+    `${SHIPDAY_API_BASE_URL}/orders/edit-status/${providerOrderId}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Basic ${apiKey}`,
+      },
+      body: JSON.stringify({ status: "STARTED" }),
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    console.warn(`[Shipday] startOrder (edit-status) failed (HTTP ${response.status}).`);
+  } else {
+    console.log(`[Shipday] Order ${providerOrderId} forced to STARTED state.`);
   }
 }

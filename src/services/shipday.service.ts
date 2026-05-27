@@ -253,12 +253,24 @@ export class ShipdayService {
         }
       }
 
-      await assignShipdayCarrierToOrder(providerOrderId, chosen.carrierId);
-
-      // Force Shipday to broadcast the order to the driver app by marking it as READY
-      void markShipdayOrderAsReady(providerOrderId).catch(err => {
+      // 1. Mark as READY first, so Shipday knows it is active.
+      await markShipdayOrderAsReady(providerOrderId).catch(err => {
         console.warn(`[ShipdayService] Non-critical: Failed to signal READY status:`, err);
       });
+
+      // 2. Assign and Dispatch
+      await assignShipdayCarrierToOrder(providerOrderId, chosen.carrierId);
+
+      // 3. Force the order into the ACTIVE / ONGOING queue by setting status to STARTED.
+      // This helps override GPS distance filters on the Shipday server.
+      void (async () => {
+        try {
+          const { startShipdayOrder } = await import("@/lib/shipday");
+          await startShipdayOrder(providerOrderId);
+        } catch (e) {
+          console.warn(`[ShipdayService] Non-critical: Failed to force START status:`, e);
+        }
+      })();
 
       console.log(
         `[ShipdayService] Auto-assigned carrier ${chosen.carrierId} (${chosen.name}) ` +
