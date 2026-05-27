@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const orderId = searchParams.get("order_id");
+  const orderId = searchParams.get("order_id") || searchParams.get("orderId");
   const router = useRouter();
   const hasVerified = useRef(false);
 
@@ -20,7 +20,7 @@ function SuccessContent() {
     hasVerified.current = true;
 
     const verifyPayment = async () => {
-      const sessionId = searchParams.get("session_id");
+      const sessionId = searchParams.get("session_id") || searchParams.get("sessionId");
       if (!orderId || !sessionId) {
         setVerifying(false);
         return;
@@ -34,15 +34,15 @@ function SuccessContent() {
         });
 
         if (res.ok) {
-          // Auto-redirect to order status page after 3 seconds on success
+          // Auto-redirect to the orders page after a short confirmation delay.
           setTimeout(() => {
-            router.push(`/dashboard/customer/status/${orderId}`);
-          }, 3000);
+            router.push(`/dashboard/customer/orders`);
+          }, 2000);
         } else {
           const data = await res.json();
           setError(data.error || data.message || "Failed to verify payment");
         }
-      } catch (err) {
+      } catch {
         setError("Network error during verification");
       } finally {
         setVerifying(false);
@@ -50,7 +50,7 @@ function SuccessContent() {
     };
 
     verifyPayment();
-  }, [orderId]);
+  }, [orderId, router, searchParams]);
 
   if (verifying) {
     return (
@@ -167,11 +167,11 @@ function SuccessContent() {
           className="flex flex-col gap-3 w-full"
         >
           <Link
-            href={orderId ? `/dashboard/customer/status/${orderId}` : "/dashboard/customer/orders"}
+            href="/dashboard/customer/orders"
             className="group relative w-full bg-gray-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-[0.98] shadow-lg shadow-gray-900/20 overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-            <MapPin className="w-4 h-4 text-emerald-400" /> Track Order Status
+            <MapPin className="w-4 h-4 text-emerald-400" /> View Orders
           </Link>
 
           <Link

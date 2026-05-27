@@ -323,3 +323,33 @@ export async function assignShipdayCarrierToOrder(
   }
   console.log(`[Shipday] Carrier ${carrierId} assigned to Shipday order ${providerOrderId}`);
 }
+
+/**
+ * Marks a Shipday order as ready to be picked up.
+ * This is often required for the order to appear in the driver's mobile app.
+ * PUT https://api.shipday.com/orders/ready/{orderId}
+ */
+export async function markShipdayOrderAsReady(
+  providerOrderId: string | number
+): Promise<void> {
+  const apiKey = process.env.SHIPDAY_API_KEY;
+  if (!apiKey) throw new Error("SHIPDAY_API_KEY is not configured.");
+
+  const response = await fetch(
+    `${SHIPDAY_API_BASE_URL}/orders/ready/${providerOrderId}`,
+    {
+      method: "PUT",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Basic ${apiKey}`,
+      },
+      cache: "no-store",
+    }
+  );
+
+  if (!response.ok) {
+    console.warn(`[Shipday] markOrderAsReady failed (HTTP ${response.status}). The driver might still see it if assigned.`);
+  } else {
+    console.log(`[Shipday] Order ${providerOrderId} marked as READY for pickup.`);
+  }
+}

@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { orders, deliveryJobs, users, restaurants, orderItems, menuItems } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { createShipdayOrder, listShipdayCarriers, assignShipdayCarrierToOrder } from "@/lib/shipday";
+import { createShipdayOrder, listShipdayCarriers, assignShipdayCarrierToOrder, markShipdayOrderAsReady } from "@/lib/shipday";
 
 // ── Haversine distance (km) between two lat/lng points ──────────────────────
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -254,6 +254,11 @@ export class ShipdayService {
       }
 
       await assignShipdayCarrierToOrder(providerOrderId, chosen.carrierId);
+
+      // Force Shipday to broadcast the order to the driver app by marking it as READY
+      void markShipdayOrderAsReady(providerOrderId).catch(err => {
+        console.warn(`[ShipdayService] Non-critical: Failed to signal READY status:`, err);
+      });
 
       console.log(
         `[ShipdayService] Auto-assigned carrier ${chosen.carrierId} (${chosen.name}) ` +

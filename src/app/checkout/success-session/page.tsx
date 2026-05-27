@@ -9,7 +9,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 
 function SuccessSessionContent() {
   const searchParams = useSearchParams();
-  const orderSessionId = searchParams.get("order_session_id");
+  const orderSessionId = searchParams.get("order_session_id") || searchParams.get("orderSessionId");
   const router = useRouter();
 
   const [verifying, setVerifying] = React.useState(true);
@@ -21,7 +21,7 @@ function SuccessSessionContent() {
     if (!isReady) return;
 
     const verifyPayment = async () => {
-      const sessionId = searchParams.get("session_id");
+      const sessionId = searchParams.get("session_id") || searchParams.get("sessionId");
       if (!orderSessionId || !sessionId) {
         setVerifying(false);
         return;
@@ -42,8 +42,12 @@ function SuccessSessionContent() {
         if (!res.ok) {
           const data = await res.json();
           setError(data.error || data.message || "Failed to verify payment");
+        } else {
+          setTimeout(() => {
+            router.push("/dashboard/customer/orders");
+          }, 2000);
         }
-      } catch (err) {
+      } catch {
         setError("Network error during verification");
       } finally {
         setVerifying(false);
@@ -51,7 +55,7 @@ function SuccessSessionContent() {
     };
 
     verifyPayment();
-  }, [orderSessionId, searchParams, isReady, session]);
+  }, [orderSessionId, router, searchParams, isReady, session]);
 
   if (verifying) {
     return (
@@ -172,7 +176,7 @@ function SuccessSessionContent() {
             className="group relative w-full bg-gray-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-black transition-all active:scale-[0.98] shadow-lg shadow-gray-900/20 overflow-hidden"
           >
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-            <LayoutDashboard className="w-4 h-4 text-emerald-400" /> View Sub-Orders
+            <LayoutDashboard className="w-4 h-4 text-emerald-400" /> View Orders
           </Link>
           
           <Link 

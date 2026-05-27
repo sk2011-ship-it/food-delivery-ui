@@ -1,7 +1,7 @@
 import { ok, fail } from "@/lib/proxy";
 import { db } from "@/lib/db";
-import { orders, orderSessions, restaurants, users, notifications, orderItems, menuItems } from "@/lib/db/schema";
-import { eq, and, inArray, ne } from "drizzle-orm";
+import { orders, orderSessions, restaurants, orderItems, menuItems } from "@/lib/db/schema";
+import { eq, and, ne } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { stripe } from "@/lib/stripe";
 import { NotificationService } from "@/services/notification.service";
@@ -31,17 +31,19 @@ export async function POST(
       return fail("Payment not completed", 400);
     }
 
+    const resolvedSessionId = stripeSession.metadata?.orderSessionId || id;
+
     // 2. Fetch the Order Session — require userId match when authenticated, otherwise look up by id only
     const [orderSession] = user
       ? await db
           .select()
           .from(orderSessions)
-          .where(and(eq(orderSessions.id, id), eq(orderSessions.userId, user.id)))
+          .where(and(eq(orderSessions.id, resolvedSessionId), eq(orderSessions.userId, user.id)))
           .limit(1)
       : await db
           .select()
           .from(orderSessions)
-          .where(eq(orderSessions.id, id))
+          .where(eq(orderSessions.id, resolvedSessionId))
           .limit(1);
 
     if (!orderSession) return fail("Order session not found.", 404);
@@ -51,7 +53,7 @@ export async function POST(
       const [updatedSession] = await tx
         .update(orderSessions)
         .set({ status: "PAID", updatedAt: new Date() })
-        .where(and(eq(orderSessions.id, id), ne(orderSessions.status, "PAID")))
+        .where(and(eq(orderSessions.id, resolvedSessionId), ne(orderSessions.status, "PAID")))
         .returning();
 
       if (!updatedSession) return;
@@ -60,7 +62,7 @@ export async function POST(
       const updatedOrders = await tx
         .update(orders)
         .set({ status: "PAID", updatedAt: new Date() })
-        .where(and(eq(orders.sessionId, id), eq(orders.status, "CONFIRMED")))
+        .where(and(eq(orders.sessionId, resolvedSessionId), eq(orders.status, "CONFIRMED")))
         .returning();
 
       // 4. Notifications for each updated order
@@ -114,18 +116,18 @@ export async function POST(
 
       // 5. Notify Customer (once per session)
       try {
-        const customerId = user?.id ?? orderSession.userId;
+          const customerId = user?.id ?? orderSession.userId;
         if (customerId) {
           const subject = "Payment Confirmed";
           const body = "Your payment was successful. The restaurants will start preparing your meal shortly.";
 
           // Dispatch Customer Notifications
           await NotificationService.dispatchOrderNotifications({
-            userId: customerId,
+              userId: customerId,
             type: "ORDER",
             subject,
             body,
-            metadata: { sessionId: id, orderStatus: "PAID", targetRole: "customer" },
+                metadata: { sessionId: resolvedSessionId, orderStatus: "PAID", targetRole: "customer" },
             channels: ["FCM", "WHATSAPP"] // PAID is a key stage for Email
           });
         }
@@ -135,8 +137,9 @@ export async function POST(
     });
 
     return ok({ status: "PAID" });
-  } catch (err: any) {
-    console.error("[api/orders/session/[id]/stripe/verify POST] ERROR:", err);
-    return fail(`Verification Error: ${err.message || "Unknown error"}`, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[api/orders/session/[id]/stripe/verify POST] ERROR:", message);
+    return fail(`Verification Error: ${message}`, 500);
   }
 }

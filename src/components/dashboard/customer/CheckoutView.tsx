@@ -233,19 +233,21 @@ export default function CheckoutView() {
         toast.success("Order placed!");
         clearCart();
 
-        // Optimistically add to store so the status page finds it immediately
         if (data?.data?.orders) {
           useOrderStore.getState().addOrders(data.data.orders);
         }
 
-        await refreshOrders();
-        // Redirect directly to the new order's status page so the 10-min countdown
-        // starts immediately — not after the user browses the orders list.
+        // Proactively refresh the main orders list
+        try { await refreshOrders(); } catch { /* ignore refresh errors */ }
+
+        // Give the DB a split-second to finish the commit before moving to status
         const firstOrderId = data?.data?.orders?.[0]?.id;
-        router.push(firstOrderId
-          ? `/dashboard/customer/status/${firstOrderId}`
-          : `/dashboard/customer/orders`
-        );
+        setTimeout(() => {
+          router.push(firstOrderId
+            ? `/dashboard/customer/status/${firstOrderId}`
+            : `/dashboard/customer/orders`
+          );
+        }, 300);
       } else {
         toast.error(data.error || data.message || "Failed to place order");
       }

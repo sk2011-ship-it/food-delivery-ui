@@ -35,7 +35,7 @@ export async function POST(
       return fail("Payment not completed", 400);
     }
 
-    // 2. Fetch the order — verify by stripeSessionId when unauthenticated, or by userId when authenticated
+    // 2. Fetch the order — prefer the route param, but fall back to Stripe metadata.
     const order = user
       ? await db.query.orders.findFirst({
           where: and(eq(orders.id, id), eq(orders.userId, user.id)),
@@ -44,7 +44,8 @@ export async function POST(
           where: eq(orders.id, id),
         });
 
-    if (!order) {
+    const resolvedOrderId = order?.id || (session.metadata?.orderId ?? null);
+    if (!resolvedOrderId) {
       return fail("Order not found.", 404);
     }
 
@@ -58,7 +59,7 @@ export async function POST(
         paidAt: verifyPaidAt,
       })
       .where(and(
-        eq(orders.id, id),
+        eq(orders.id, resolvedOrderId),
         inArray(orders.status, ["PENDING_CONFIRMATION", "CONFIRMED"])
       ))
       .returning();
@@ -128,21 +129,21 @@ export async function POST(
       // Trigger Shipday — fallback for cases where the webhook was missed
       try {
         const { ShipdayService } = await import("@/services/shipday.service");
-        await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
-        console.log(`[Stripe Verify] Shipday order created for ${id}.`);
+        await ShipdayService.triggerShipdayOrder(resolvedOrderId, "DISPATCH_REQUESTED");
+        console.log(`[Stripe Verify] Shipday order created for ${resolvedOrderId}.`);
       } catch (shipdayErr) {
         console.error("[Stripe Verify] Failed to create Shipday order:", shipdayErr);
       }
 
-      console.log(`[Stripe Verify] Verification complete for order ${id}.`);
+      console.log(`[Stripe Verify] Verification complete for order ${resolvedOrderId}.`);
     } else {
-      console.log(`[Stripe Verify] Order ${id} was already marked as PAID.`);
+      console.log(`[Stripe Verify] Order ${resolvedOrderId} was already marked as PAID.`);
 
       // Idempotent Shipday trigger — ShipdayService handles duplicate gracefully
       try {
         const { ShipdayService } = await import("@/services/shipday.service");
-        await ShipdayService.triggerShipdayOrder(id, "DISPATCH_REQUESTED");
-        console.log(`[Stripe Verify] Shipday order ensured for already-paid order ${id}.`);
+        await ShipdayService.triggerShipdayOrder(resolvedOrderId, "DISPATCH_REQUESTED");
+        console.log(`[Stripe Verify] Shipday order ensured for already-paid order ${resolvedOrderId}.`);
       } catch (shipdayErr) {
         console.error("[Stripe Verify] Failed to ensure Shipday order:", shipdayErr);
       }

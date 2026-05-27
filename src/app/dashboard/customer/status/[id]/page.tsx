@@ -108,6 +108,19 @@ export default function OrderStatusPage() {
 
   const order = orders.find(o => o.id === id);
   const silentRefreshOrders = useOrderStore(state => state.silentRefreshOrders);
+  const [hasRetried, setHasRetried] = React.useState(false);
+
+  // If order is not found once loading is done, try a one-time silent refresh 
+  // after a short delay to account for DB sync lag.
+  React.useEffect(() => {
+    if (!loading && !order && !hasRetried && id) {
+      const timer = setTimeout(() => {
+        setHasRetried(true);
+        silentRefreshOrders();
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, order, hasRetried, id, silentRefreshOrders]);
 
   // Poll every 5 s while the order is waiting for owner action or awaiting payment.
   // This is a fallback for when FCM notifications are blocked or delayed.
@@ -228,7 +241,7 @@ export default function OrderStatusPage() {
     }, remaining);
 
     return () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.id, order?.status]);
 
   const { formattedTime, isExpired } = useOrderTimer(
@@ -247,15 +260,15 @@ export default function OrderStatusPage() {
   const paidCancelTimer = useOrderTimer(
     (order?.paidAt ?? order?.updatedAt) ?? null,
     2,
-    () => {} // no expiry action — just used to track remaining time and isExpired
+    () => { } // no expiry action — just used to track remaining time and isExpired
   );
   const canCancelAfterPayment =
     (order?.status === "PAID" || order?.status === "PREPARING") &&
     !paidCancelTimer.isExpired;
 
-  const deliveryJob     = order?.deliveryJob;
+  const deliveryJob = order?.deliveryJob;
   const liveTrackingUrl = deliveryJob?.trackingUrl;
-  const hasDriverInfo   = Boolean(
+  const hasDriverInfo = Boolean(
     deliveryJob &&
     deliveryJob.driverName &&
     ["DISPATCH_REQUESTED", "OUT_FOR_DELIVERY", "DELIVERED"].includes(order?.status || "")
