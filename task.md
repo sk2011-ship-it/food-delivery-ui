@@ -99,7 +99,14 @@ User Location Selection (Newspatric)	|Completed|Enabled users to select and upda
 | Feedback | Done | user give the feedback it is saved as inactive after admin aaproval it can show ban/approval 
 |Notification| not implemented | need keys to proceed further 
 
+### 2026-05-28 (Thursday)
 
+| Area | Status | Notes |
+|------|--------|-------|
+| Downpatrick Seeding | Done | Cleaned scraped data and seeded 229 real items into DB |
+| Newcastle Scraper & Seeding | Done | Scraped 22 Newcastle restaurants and seeded 1,167 real menu items into DB |
+| Kilkeel Scraper & Seeding | Done | Scraped 9 Kilkeel restaurants and seeded 566 real menu items into DB, truncating long fields to fit DB constraints |
+| Production Build | Done | Verified clean compilation of the Next.js app with zero errors |
 
 
 ---
@@ -118,4 +125,4 @@ User Location Selection (Newspatric)	|Completed|Enabled users to select and upda
 3. Adjust **Planned → In progress → Done** in the tables as you go.
 4. Keep **Quick journal** one line per day if you like a casual log.
 
-Last updated: 2026-04-04
+Last updated: 2026-05-28

@@ -24,6 +24,23 @@ interface MappedSection {
   items: MappedMenuItem[];
 }
 
+const CATEGORY_EMOJIS: Record<string, string> = {
+  "Pizzas": "🍕",
+  "Burgers": "🍔",
+  "Chicken": "🍗",
+  "Fish & Seafood": "🐟",
+  "Mexican": "🌮",
+  "Desserts": "🍦",
+  "Drinks": "🥤",
+  "Breakfast": "🍳",
+  "Kebabs & Wraps": "🥙",
+  "Sides": "🍟",
+  "Sauces & Dips": "🥫",
+  "Curries & Asian": "🍛",
+  "Acai & Smoothies": "🍓",
+  "Mains": "🍽️",
+};
+
 interface RestaurantMenuViewProps {
   restaurant: RestaurantItem;
   initialMenuItems?: AdminMenuItemResponse[];
@@ -77,7 +94,7 @@ export default function RestaurantMenuView({
       const categories = Array.from(new Set(initialMenuItems.map(m => m.category)));
       return categories.map(cat => ({
         category: cat,
-        emoji: "🍽️", // Default emoji for DB items
+        emoji: CATEGORY_EMOJIS[cat] || "🍽️",
         items: initialMenuItems.filter(m => m.category === cat).map(item => ({
           ...item,
           price: (function () {
