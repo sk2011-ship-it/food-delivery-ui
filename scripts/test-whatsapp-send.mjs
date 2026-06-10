@@ -44,35 +44,35 @@ const templateArg = process.argv[3] ?? "customer_order_received";
 
 const TEMPLATES = {
   customer_order_received: {
-    sid: "HXd66eb7a9eb5c5feb9d6d446de231b9ca",
+    sid: "HX75b010777cbbebb3d83ac6afb1e1460a",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co.","4":"Kilkeel" },
   },
   customer_order_declined: {
-    sid: "HX7182366f5f2a0f96b1b70f2ddb6914e1",
+    sid: "HX6779ea1577d9f2ee38f63ba88770ddd7",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co.","4":"Kilkeel" },
   },
   customer_payment_confirmed: {
-    sid: "HX7122ef704a3bab9b78f63d96f436dc05",
+    sid: "HX9a8708c223233873a99bcd21b4fc7358",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co.","4":"14.73" },
   },
   customer_preparing: {
-    sid: "HXcbe6d6496c3f274c918a35cf75122947",
+    sid: "HX0eeafbe750a0308c0694c5f2afc5b516",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co.","4":"Kilkeel" },
   },
   customer_out_for_delivery: {
-    sid: "HXd4473fc4eeaeb695845406305f4cb254",
+    sid: "HXdae2ff3037e79c49b0b5dbf06a74db40",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co.","4":"Kilkeel","5":"12 Main St, Kilkeel" },
   },
   customer_delivered: {
-    sid: "HXfa41355056597f85eef4c819c0c42a30",
+    sid: "HX0e54947fa6b5eee9de3193016dd44976",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co." },
   },
   customer_cancelled: {
-    sid: "HX1c12f706d4270a7f1fbe1eae57630217",
+    sid: "HXdd8248f184953bbb0ca7f2adc90c84cf",
     vars: { "1":"Test User","2":"TESTABCD","3":"Kilkeel Burger Co.","4":"Kilkeel","5":"Restaurant did not respond in time" },
   },
   owner_cancelled: {
-    sid: "HX201c58ff0480fdc471d202959fcfa1f9",
+    sid: "HX1354495d8b234f51c33dfded404d65c6",
     vars: { "1":"TESTABCD","2":"Customer cancelled after payment" },
   },
 };
