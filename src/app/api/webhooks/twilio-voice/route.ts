@@ -1,42 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const WEBHOOK_URL = "https://yourlocaleats.app/api/webhooks/twilio-voice";
+
 // POST /api/webhooks/twilio-voice
-// Twilio calls this when +44 7480 559819 receives an inbound call.
-// We pause briefly, then record the caller's audio — this captures the Meta OTP.
+// Two scenarios hit this endpoint:
+//   1. Inbound call arrives  → return TwiML to record the caller (Meta OTP)
+//   2. Recording completed   → Twilio posts RecordingUrl here (action callback)
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const params = new URLSearchParams(body);
 
-  const from            = params.get("From")            ?? "";
-  const to              = params.get("To")              ?? "";
-  const callSid         = params.get("CallSid")         ?? "";
   const recordingUrl    = params.get("RecordingUrl")    ?? "";
   const recordingSid    = params.get("RecordingSid")    ?? "";
   const recordingStatus = params.get("RecordingStatus") ?? "";
+  const callSid         = params.get("CallSid")         ?? "";
+  const from            = params.get("From")            ?? "";
+  const to              = params.get("To")              ?? "";
 
-  // Recording callback — Twilio POSTs here after the recording is ready
+  // ── Scenario 2: recording is ready, hang up cleanly ──────────────────────
   if (recordingUrl) {
-    console.log("🎙️ RECORDING READY:");
-    console.log("   CallSid:         ", callSid);
-    console.log("   RecordingSid:    ", recordingSid);
-    console.log("   RecordingStatus: ", recordingStatus);
-    console.log("   ✅ Listen here:  ", `${recordingUrl}.mp3`);
-    return new NextResponse("OK", { status: 200 });
+    console.log("🎙️ OTP RECORDING READY");
+    console.log("   CallSid:     ", callSid);
+    console.log("   RecordingSid:", recordingSid);
+    console.log("   Status:      ", recordingStatus);
+    console.log("   ✅ MP3:      ", `${recordingUrl}.mp3`);
+
+    // Return TwiML hangup so Twilio ends the call cleanly (no "application error")
+    return new NextResponse(
+      `<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>`,
+      { headers: { "Content-Type": "text/xml" } }
+    );
   }
 
-  // Inbound call — answer, wait 2 s, then record caller audio (30 s max)
-  console.log("📞 Inbound call received:");
-  console.log("   From:    ", from);
-  console.log("   To:      ", to);
-  console.log("   CallSid: ", callSid);
-
-  const callbackUrl = "https://yourlocaleats.app/api/webhooks/twilio-voice";
+  // ── Scenario 1: inbound call — record immediately, no pause ──────────────
+  console.log("📞 Inbound call — recording for OTP");
+  console.log("   From:", from, "→ To:", to, "| CallSid:", callSid);
 
   return new NextResponse(
     `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Pause length="2"/>
-  <Record maxLength="30" playBeep="false" recordingStatusCallback="${callbackUrl}" recordingStatusCallbackMethod="POST"/>
+  <Record
+    maxLength="60"
+    playBeep="false"
+    action="${WEBHOOK_URL}"
+    method="POST"
+  />
 </Response>`,
     { headers: { "Content-Type": "text/xml" } }
   );
