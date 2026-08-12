@@ -1,4 +1,3 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
 
@@ -86,3 +85,6 @@ This section documents all reported bugs, their root cause, and fix status.
 | 18 | Search behaviour | Searching for a dish opens the restaurant page, not the dish itself | Needs click-handler trace in `CustomerSearch.tsx` |
 | 19 | Search results | All 50 dishes from one restaurant are shown when searching | Needs API-level per-restaurant result cap |
 | 20 | Owner Restaurants | Site URL column always empty — cannot be edited from Settings | `OwnerSettings.tsx` has no `site` URL field; schema has no `site` column either — needs product decision |
+
+
+contribution added in this repo 
