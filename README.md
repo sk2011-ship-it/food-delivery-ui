@@ -88,3 +88,21 @@ This section documents all reported bugs, their root cause, and fix status.
 
 
 contribution added in this repo 
+
+## Contributing
+
+We welcome contributions! Follow these steps to contribute:
+
+1. Fork the repository
+2. Create a new branch: `git checkout -b feat/your-feature-name`
+3. Make your changes and commit: `git commit -m "feat: describe your change"`
+4. Push to your branch: `git push origin feat/your-feature-name`
+5. Open a Pull Request
+
+### Code Style
+- Use TypeScript strictly — avoid `any`
+- Follow existing folder structure under `src/`
+- Run `npm run lint` before pushing
+
+### Environment Setup
+Copy `.env.example` to `.env` and fill in your Supabase and Firebase credentials before running locally.
