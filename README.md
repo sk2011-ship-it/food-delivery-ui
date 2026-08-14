@@ -106,3 +106,6 @@ We welcome contributions! Follow these steps to contribute:
 
 ### Environment Setup
 Copy `.env.example` to `.env` and fill in your Supabase and Firebase credentials before running locally.
+
+### Reporting Issues
+Found a bug? Open an issue with steps to reproduce, expected behavior, and screenshots if applicable.
